@@ -40,7 +40,7 @@ public:
     UInt64 getCurrentInitializationDurationMs() const;
 private:
     bool initializeMainThread() override;
-    void initializeReplication();
+    void initializeReplication() override;
     void initializeLogPointer(const String & processed_entry_name);
 
     DDLTaskPtr initAndCheckTask(const String & entry_name, String & out_reason, const ZooKeeperPtr & zookeeper) override;
@@ -52,12 +52,6 @@ private:
 
     String current_task;
     std::atomic<UInt32> logs_to_keep = std::numeric_limits<UInt32>::max();
-
-
-    /// EphemeralNodeHolder has reference to ZooKeeper, it may become dangling
-    ZooKeeperPtr active_node_holder_zookeeper;
-    /// It will remove "active" node when database is detached
-    zkutil::EphemeralNodeHolderPtr active_node_holder;
 
     std::optional<Stopwatch> initialization_duration_timer;
     mutable std::mutex initialization_duration_timer_mutex;

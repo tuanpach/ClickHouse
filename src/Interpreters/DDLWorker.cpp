@@ -1,4 +1,3 @@
-#include <filesystem>
 
 #include <Interpreters/DDLWorker.h>
 #include <Interpreters/DDLTask.h>
@@ -24,21 +23,23 @@
 #include <Common/ZooKeeper/KeeperException.h>
 #include <Common/ZooKeeper/ZooKeeperLock.h>
 #include <Common/isLocalAddress.h>
+#include <Common/logger_useful.h>
 #include <Core/ServerUUID.h>
 #include <Core/Settings.h>
 #include <Storages/StorageReplicatedMergeTree.h>
 #include <Poco/Timestamp.h>
+#include <Common/ThreadPool.h>
+#include <Common/scope_guard_safe.h>
+#include <Interpreters/ZooKeeperLog.h>
+
 #include <base/sleep.h>
 #include <base/getFQDNOrHostName.h>
-#include <Common/logger_useful.h>
 #include <base/sort.h>
+
 #include <memory>
 #include <random>
 #include <pcg_random.hpp>
-#include <Common/scope_guard_safe.h>
-#include <Common/ThreadPool.h>
 
-#include <Interpreters/ZooKeeperLog.h>
 
 namespace fs = std::filesystem;
 
@@ -65,6 +66,7 @@ namespace ErrorCodes
     extern const int CANNOT_ALLOCATE_MEMORY;
     extern const int MEMORY_LIMIT_EXCEEDED;
     extern const int NOT_IMPLEMENTED;
+    extern const int INVALID_CONFIG_PARAMETER;
 }
 
 constexpr const char * TASK_PROCESSED_OUT_REASON = "Task has been already processed";
@@ -101,6 +103,8 @@ DDLWorker::DDLWorker(
     queue_dir = zk_root_dir;
     if (queue_dir.back() == '/')
         queue_dir.resize(queue_dir.size() - 1);
+
+    replicas_dir = fs::path(zk_root_dir) / "replicas";
 
     if (config)
     {
@@ -1098,6 +1102,7 @@ bool DDLWorker::initializeMainThread()
         {
             auto zookeeper = getAndSetZooKeeper();
             zookeeper->createAncestors(fs::path(queue_dir) / "");
+            initializeReplication();
             initialized = true;
             return true;
         }
@@ -1215,6 +1220,25 @@ void DDLWorker::runMainThread()
     }
 }
 
+
+void DDLWorker::initializeReplication()
+{
+    auto zookeeper = getAndSetZooKeeper();
+    zookeeper->createAncestors(replicas_dir / "");
+    /// Create "active" node (remove previous one if necessary)
+    String active_path = replicas_dir / host_fqdn_id;
+    String active_id = toString(ServerUUID::get());
+    zookeeper->deleteEphemeralNodeIfContentMatches(active_path, active_id);
+    if (active_node_holder)
+        active_node_holder->setAlreadyRemoved();
+    active_node_holder.reset();
+
+    LOG_TRACE(log, "Trying to initialize replication: active_path={}, active_id={}", active_path, active_id);
+
+    zookeeper->create(active_path, active_id, zkutil::CreateMode::Ephemeral);
+    active_node_holder_zookeeper = zookeeper;
+    active_node_holder = zkutil::EphemeralNodeHolder::existing(active_path, *active_node_holder_zookeeper);
+}
 
 void DDLWorker::runCleanupThread()
 {
