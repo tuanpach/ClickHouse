@@ -1,28 +1,29 @@
-#include <Interpreters/executeDDLQueryOnCluster.h>
-#include <Interpreters/DatabaseCatalog.h>
-#include <Interpreters/DDLWorker.h>
-#include <Interpreters/DDLTask.h>
-#include <Interpreters/AddDefaultDatabaseVisitor.h>
-#include <Interpreters/Context.h>
-#include <Parsers/ASTQueryWithOutput.h>
-#include <Parsers/ASTQueryWithOnCluster.h>
-#include <Parsers/ASTAlterQuery.h>
-#include <Parsers/ASTIdentifier.h>
-#include <Parsers/queryToString.h>
+#include <filesystem>
 #include <Access/Common/AccessRightsElement.h>
 #include <Access/ContextAccess.h>
 #include <Core/Settings.h>
-#include <Common/Macros.h>
-#include <Common/ZooKeeper/ZooKeeper.h>
-#include <Databases/DatabaseReplicated.h>
-#include <DataTypes/DataTypesNumber.h>
-#include <DataTypes/DataTypeString.h>
-#include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypeEnum.h>
+#include <DataTypes/DataTypeNullable.h>
+#include <DataTypes/DataTypeString.h>
+#include <DataTypes/DataTypesNumber.h>
+#include <Databases/DatabaseReplicated.h>
+#include <Interpreters/AddDefaultDatabaseVisitor.h>
+#include <Interpreters/Context.h>
+#include <Interpreters/DDLOnClusterQueryStatusSource.h>
+#include <Interpreters/DDLTask.h>
+#include <Interpreters/DDLWorker.h>
+#include <Interpreters/DatabaseCatalog.h>
+#include <Interpreters/executeDDLQueryOnCluster.h>
+#include <Parsers/ASTAlterQuery.h>
+#include <Parsers/ASTIdentifier.h>
+#include <Parsers/ASTQueryWithOnCluster.h>
+#include <Parsers/ASTQueryWithOutput.h>
+#include <Parsers/queryToString.h>
 #include <Processors/Sinks/EmptySink.h>
 #include <QueryPipeline/Pipe.h>
-#include <filesystem>
 #include <base/sort.h>
+#include <Common/Macros.h>
+#include <Common/ZooKeeper/ZooKeeper.h>
 
 
 namespace fs = std::filesystem;
@@ -187,9 +188,8 @@ BlockIO executeDDLQueryOnCluster(const ASTPtr & query_ptr_, ContextPtr context, 
     entry.initial_query_id = context->getClientInfo().initial_query_id;
     String node_path = ddl_worker.enqueueQuery(entry);
 
-    return getDistributedDDLStatus(node_path, entry, context, /* hosts_to_wait */ nullptr);
+    return getDDLOnClusterStatus(node_path, entry, context);
 }
-
 
 class DDLQueryStatusSource final : public ISource
 {
@@ -246,13 +246,16 @@ private:
 };
 
 
-BlockIO getDistributedDDLStatus(const String & node_path, const DDLLogEntry & entry, ContextPtr context, const Strings * hosts_to_wait)
+BlockIO getDDLOnClusterStatus(const String & node_path, const DDLLogEntry & entry, ContextPtr context)
 {
     BlockIO io;
     if (context->getSettingsRef().distributed_ddl_task_timeout == 0)
         return io;
+    Strings hosts_to_wait;
+    for (const HostID & host : entry.hosts)
+        hosts_to_wait.push_back(host.toString());
 
-    auto source = std::make_shared<DDLQueryStatusSource>(node_path, entry, context, hosts_to_wait);
+    auto source = std::make_shared<DDLOnClusterQueryStatusSource>(node_path, context, hosts_to_wait);
     io.pipeline = QueryPipeline(std::move(source));
 
     if (context->getSettingsRef().distributed_ddl_output_mode == DistributedDDLOutputMode::NONE ||
