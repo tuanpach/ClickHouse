@@ -104,7 +104,11 @@ DDLWorker::DDLWorker(
     if (queue_dir.back() == '/')
         queue_dir.resize(queue_dir.size() - 1);
 
-    replicas_dir = fs::path(zk_root_dir) / "replicas";
+    // replicas_dir is at the same level as queue_dir
+    // E.g:
+    //  queue_dir:      /clickhouse/task_queue/ddl
+    //  replicas_dir:   /clickhouse/task_queue/replicas
+    replicas_dir = fs::path(queue_dir).parent_path() / "replicas";
 
     if (config)
     {
@@ -1063,6 +1067,11 @@ String DDLWorker::enqueueQuery(DDLLogEntry & entry)
     String query_path_prefix = fs::path(queue_dir) / "query-";
     zookeeper->createAncestors(query_path_prefix);
 
+    NameSet host_ids;
+    for (const HostID & host : entry.hosts)
+        host_ids.emplace(host.toString());
+    createReplicaDirs(zookeeper, host_ids);
+
     String node_path = zookeeper->create(query_path_prefix, entry.toString(), zkutil::CreateMode::PersistentSequential);
     if (max_pushed_entry_metric)
     {
@@ -1164,6 +1173,7 @@ void DDLWorker::runMainThread()
             }
 
             cleanup_event->set();
+            markReplicasActive(reinitialized);
             scheduleTasks(reinitialized);
             subsequent_errors_count = 0;
 
@@ -1224,20 +1234,92 @@ void DDLWorker::runMainThread()
 void DDLWorker::initializeReplication()
 {
     auto zookeeper = getAndSetZooKeeper();
+
     zookeeper->createAncestors(replicas_dir / "");
-    /// Create "active" node (remove previous one if necessary)
-    String active_path = replicas_dir / host_fqdn_id;
-    String active_id = toString(ServerUUID::get());
-    zookeeper->deleteEphemeralNodeIfContentMatches(active_path, active_id);
-    if (active_node_holder)
-        active_node_holder->setAlreadyRemoved();
-    active_node_holder.reset();
 
-    LOG_TRACE(log, "Trying to initialize replication: active_path={}, active_id={}", active_path, active_id);
+    NameSet host_id_set;
+    for (const auto & it : context->getClusters())
+    {
+        auto cluster = it.second;
+        for (const auto & host_ids : cluster->getHostIDs())
+            for (const auto & host_id : host_ids)
+                host_id_set.emplace(host_id);
+    }
 
-    zookeeper->create(active_path, active_id, zkutil::CreateMode::Ephemeral);
-    active_node_holder_zookeeper = zookeeper;
-    active_node_holder = zkutil::EphemeralNodeHolder::existing(active_path, *active_node_holder_zookeeper);
+    createReplicaDirs(zookeeper, host_id_set);
+}
+
+void DDLWorker::createReplicaDirs(const ZooKeeperPtr & zookeeper, const NameSet & host_ids)
+{
+    for (const auto & host_id : host_ids)
+        zookeeper->createAncestors(replicas_dir / host_id / "");
+}
+
+void DDLWorker::markReplicasActive(bool reinitialized)
+{
+    auto zookeeper = getAndSetZooKeeper();
+
+    if (reinitialized)
+    {
+        // Reset all active_node_holders
+        for (auto & it : active_node_holders)
+        {
+            auto & active_node_holder = it.second.second;
+            if (active_node_holder)
+                active_node_holder->setAlreadyRemoved();
+            active_node_holder.reset();
+        }
+
+        active_node_holders.clear();
+    }
+
+    const auto maybe_secure_port = context->getTCPPortSecure();
+    const auto port = context->getTCPPort();
+
+    Coordination::Stat replicas_stat;
+    Strings host_ids = zookeeper->getChildren(replicas_dir, &replicas_stat);
+    NameSet local_host_ids;
+    for (const auto & host_id : host_ids)
+    {
+        if (active_node_holders.contains(host_id))
+            continue;
+
+        try
+        {
+            HostID host = HostID::fromString(host_id);
+            /// The port is considered local if it matches TCP or TCP secure port that the server is listening.
+            bool is_local_host = (maybe_secure_port && host.isLocalAddress(*maybe_secure_port)) || host.isLocalAddress(port);
+
+            if (is_local_host)
+                local_host_ids.emplace(host_id);
+        }
+        catch (const Exception & e)
+        {
+            LOG_WARNING(log, "Unable to check if host {} is a local address, exception: {}", host_id, e.displayText());
+            continue;
+        }
+    }
+
+    for (const auto & host_id : local_host_ids)
+    {
+        auto it = active_node_holders.find(host_id);
+        if (it != active_node_holders.end())
+        {
+            continue;
+        }
+
+        /// Create "active" node (remove previous one if necessary)
+        String active_path = replicas_dir / host_id / "active";
+        String active_id = toString(ServerUUID::get());
+        zookeeper->deleteEphemeralNodeIfContentMatches(active_path, active_id);
+
+        LOG_TRACE(log, "Trying to mark a replica active: active_path={}, active_id={}", active_path, active_id);
+
+        zookeeper->create(active_path, active_id, zkutil::CreateMode::Ephemeral);
+        auto active_node_holder_zookeeper = zookeeper;
+        auto active_node_holder = zkutil::EphemeralNodeHolder::existing(active_path, *active_node_holder_zookeeper);
+        active_node_holders[host_id] = {active_node_holder_zookeeper, active_node_holder};
+    }
 }
 
 void DDLWorker::runCleanupThread()

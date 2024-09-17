@@ -21,13 +21,14 @@ public:
 
 protected:
     virtual ExecutionStatus checkStatus(const String & host_id) = 0;
-    virtual NameSet getOfflineHosts(const NameSet & hosts_to_wait, const ZooKeeperPtr & zookeeper) = 0;
     virtual Chunk generateChunkWithUnfinishedHosts() const = 0;
     virtual Strings getNodesToWait() = 0;
     virtual Chunk handleTimeoutExceeded() = 0;
     virtual Chunk stopWaitingOfflineHosts() = 0;
     virtual void handleNonZeroStatusCode(const ExecutionStatus & status, const String & host_id) = 0;
     virtual void fillHostStatus(const String & host_id, const ExecutionStatus & status, MutableColumns & columns) = 0;
+
+    virtual NameSet getOfflineHosts(const NameSet & hosts_to_wait, const ZooKeeperPtr & zookeeper);
 
     Strings getNewAndUpdate(const Strings & current_finished_hosts);
     ExecutionStatus getExecutionStatus(const fs::path & status_path);

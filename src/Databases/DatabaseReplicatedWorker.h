@@ -55,6 +55,11 @@ private:
 
     std::optional<Stopwatch> initialization_duration_timer;
     mutable std::mutex initialization_duration_timer_mutex;
+
+    /// EphemeralNodeHolder has reference to ZooKeeper, it may become dangling
+    ZooKeeperPtr active_node_holder_zookeeper;
+    /// It will remove "active" node when database is detached
+    zkutil::EphemeralNodeHolderPtr active_node_holder;
 };
 
 }

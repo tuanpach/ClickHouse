@@ -16,7 +16,6 @@ public:
 
 protected:
     ExecutionStatus checkStatus(const String & host_id) override;
-    NameSet getOfflineHosts(const NameSet & hosts_to_wait, const ZooKeeperPtr & zookeeper) override;
     Chunk generateChunkWithUnfinishedHosts() const override;
     Strings getNodesToWait() override;
     Chunk handleTimeoutExceeded() override;

@@ -31,38 +31,6 @@ ExecutionStatus ReplicatedDatabaseQueryStatusSource::checkStatus(const String & 
 #endif
 }
 
-NameSet ReplicatedDatabaseQueryStatusSource::getOfflineHosts(const NameSet & hosts_to_wait, const ZooKeeperPtr & zookeeper)
-{
-    fs::path replicas_path;
-    if (node_path.ends_with('/'))
-        replicas_path = fs::path(node_path).parent_path().parent_path().parent_path() / "replicas";
-    else
-        replicas_path = fs::path(node_path).parent_path().parent_path() / "replicas";
-
-    Strings paths;
-    Strings hosts_array;
-    for (const auto & host : hosts_to_wait)
-    {
-        hosts_array.push_back(host);
-        paths.push_back(replicas_path / host / "active");
-    }
-
-    NameSet offline;
-    auto res = zookeeper->tryGet(paths);
-    for (size_t i = 0; i < res.size(); ++i)
-        if (res[i].error == Coordination::Error::ZNONODE)
-            offline.insert(hosts_array[i]);
-
-    if (offline.size() == hosts_to_wait.size())
-    {
-        /// Avoid reporting that all hosts are offline
-        LOG_WARNING(log, "Did not find active hosts, will wait for all {} hosts. This should not happen often", offline.size());
-        return {};
-    }
-
-    return offline;
-}
-
 Chunk ReplicatedDatabaseQueryStatusSource::generateChunkWithUnfinishedHosts() const
 {
     NameSet unfinished_hosts = waiting_hosts;

@@ -152,6 +152,9 @@ protected:
     virtual bool initializeMainThread();
     virtual void initializeReplication();
 
+    void createReplicaDirs(const ZooKeeperPtr & zookeeper, const NameSet & host_ids);
+    void markReplicasActive(bool reinitialized);
+
     void runMainThread();
     void runCleanupThread();
 
@@ -162,8 +165,8 @@ protected:
 
     std::string host_fqdn;      /// current host domain name
     std::string host_fqdn_id;   /// host_name:port
-    std::string queue_dir;      /// dir with queue of queries
-    fs::path replicas_dir; /// dir with list of active replicas
+    std::string queue_dir; /// dir with queue of queries
+    fs::path replicas_dir;
 
     mutable std::mutex zookeeper_mutex;
     ZooKeeperPtr current_zookeeper TSA_GUARDED_BY(zookeeper_mutex);
@@ -206,10 +209,7 @@ protected:
     const CurrentMetrics::Metric * max_entry_metric;
     const CurrentMetrics::Metric * max_pushed_entry_metric;
 
-    /// EphemeralNodeHolder has reference to ZooKeeper, it may become dangling
-    ZooKeeperPtr active_node_holder_zookeeper;
-    /// It will remove "active" node when database is detached
-    zkutil::EphemeralNodeHolderPtr active_node_holder;
+    std::unordered_map<String, std::pair<ZooKeeperPtr, zkutil::EphemeralNodeHolderPtr>> active_node_holders;
 };
 
 

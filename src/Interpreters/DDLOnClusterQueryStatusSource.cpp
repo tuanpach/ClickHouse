@@ -7,6 +7,7 @@
 #include <Databases/DatabaseReplicated.h>
 #include <Interpreters/DDLOnClusterQueryStatusSource.h>
 #include <Common/DNSResolver.h>
+#include <Common/isLocalAddress.h>
 
 namespace DB
 {
@@ -26,47 +27,6 @@ ExecutionStatus DDLOnClusterQueryStatusSource::checkStatus(const String & host_i
 {
     fs::path status_path = fs::path(node_path) / "finished" / host_id;
     return getExecutionStatus(status_path);
-}
-
-NameSet DDLOnClusterQueryStatusSource::getOfflineHosts(const NameSet & hosts_to_wait, const ZooKeeperPtr & zookeeper)
-{
-    fs::path replicas_path;
-    if (node_path.ends_with('/'))
-        replicas_path = fs::path(node_path).parent_path().parent_path() / "replicas";
-    else
-        replicas_path = fs::path(node_path).parent_path() / "replicas";
-
-
-    Coordination::Stat stat;
-    auto running_host_ids = zookeeper->getChildren(replicas_path, &stat);
-    NameSet running_host_address_list;
-
-    for (auto & host_id : running_host_ids)
-    {
-        auto [host, port] = parseHostAndPort(host_id);
-        auto socket_address = DNSResolver::instance().resolveAddress(host, port);
-        running_host_address_list.emplace(socket_address.toString());
-    }
-
-    NameSet offline;
-    for (const auto & host_to_wait : hosts_to_wait)
-    {
-        auto [host, port] = parseHostAndPort(host_to_wait);
-        auto socket_address = DNSResolver::instance().resolveAddress(host, port);
-        if (!running_host_address_list.contains(socket_address.toString()))
-        {
-            offline.insert(host_to_wait);
-        }
-    }
-
-    if (offline.size() == hosts_to_wait.size())
-    {
-        /// Avoid reporting that all hosts are offline
-        LOG_WARNING(log, "Did not find active hosts, will wait for all {} hosts. This should not happen often", offline.size());
-        return {};
-    }
-
-    return offline;
 }
 
 Chunk DDLOnClusterQueryStatusSource::generateChunkWithUnfinishedHosts() const
