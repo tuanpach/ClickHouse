@@ -306,13 +306,13 @@ def test_host_is_drop_from_cache_after_consecutive_failures(
     # dns_update_short -> dns_max_consecutive_failures set to 6
     assert node4.wait_for_log_line(
         regexp="Code: 198. DB::NetException: Not found address of host: InvalidHostThatDoesNotExist.",
-        look_behind_lines=300,
+        look_behind_lines=2000,
     )
     assert node4.wait_for_log_line(
         "Cached hosts not found:.*InvalidHostThatDoesNotExist**",
         repetitions=6,
         timeout=60,
-        look_behind_lines=500,
+        look_behind_lines=2000,
     )
     assert node4.wait_for_log_line(
         "Cached hosts dropped:.*InvalidHostThatDoesNotExist.*"

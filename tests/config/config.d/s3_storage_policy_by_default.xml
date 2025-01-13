@@ -1,4 +1,7 @@
 <clickhouse>
+    <database_disk>
+        <disk>disk_s3_plain_rewritable_per_shard_replica</disk>
+    </database_disk>
     <storage_configuration>
         <disks>
             <s3>
@@ -13,6 +16,14 @@
                 <path>cached_s3/</path>
                 <disk>s3</disk>
             </cached_s3>
+            <disk_s3_plain_rewritable_per_shard_replica>
+                <type>object_storage</type>
+                <object_storage_type>s3</object_storage_type>
+                <metadata_type>plain_rewritable</metadata_type>
+                <endpoint>http://localhost:11111/test/test-{shard}|{replica}</endpoint>
+                <access_key_id>clickhouse</access_key_id>
+                <secret_access_key>clickhouse</secret_access_key>
+            </disk_s3_plain_rewritable_per_shard_replica>
         </disks>
         <policies>
             <s3>

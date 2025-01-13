@@ -61,9 +61,16 @@ ${CLICKHOUSE_CLIENT} -q "DETACH TABLE mv"
 
 data_path=$(${CLICKHOUSE_CLIENT} -q "SELECT path FROM system.disks WHERE name = 'default'")
 
-#cat $mv_metadata_path
-sed -i -e 's/`timestamp` DateTime,/`timestamp` DateTime64(9),/g' -e 's/`c12` Nullable(String)/`c12` String/g' "$data_path$mv_metadata_path"
-#cat $mv_metadata_path
+if [ -e "$data_path$mv_metadata_path" ]; then
+    #cat $mv_metadata_path
+    sed -i -e 's/`timestamp` DateTime,/`timestamp` DateTime64(9),/g' -e 's/`c12` Nullable(String)/`c12` String/g' "$data_path$mv_metadata_path"
+    #cat $mv_metadata_path
+else
+    config="${BASH_SOURCE[0]/.sh/.xml}"
+    mv_metadata=$(clickhouse-disks -C "$config" --disk "disk_s3_plain_rewritable_per_shard_replica" --save-logs --query "read $mv_metadata_path")
+    mv_metadata_updated=$(echo $mv_metadata | sed -e 's/`timestamp` DateTime,/`timestamp` DateTime64(9),/g' -e 's/`c12` Nullable(String)/`c12` String/g')
+    echo $mv_metadata_updated | clickhouse-disks -C "$config" --disk "disk_s3_plain_rewritable_per_shard_replica" --save-logs --query "write --path-to $mv_metadata_path"
+fi
 
 ${CLICKHOUSE_CLIENT} -q "ATTACH TABLE mv"
 

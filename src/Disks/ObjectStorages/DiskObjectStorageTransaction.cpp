@@ -1,17 +1,18 @@
-#include <Disks/ObjectStorages/DiskObjectStorageTransaction.h>
-#include <Disks/ObjectStorages/DiskObjectStorage.h>
-#include <Disks/IO/WriteBufferWithFinalizeCallback.h>
-#include <Interpreters/Context.h>
-#include <Common/checkStackSize.h>
+#include <memory>
 #include <ranges>
-#include <Common/logger_useful.h>
-#include <Common/Exception.h>
-#include <Disks/WriteMode.h>
-#include <base/defines.h>
-
+#include <Core/Settings.h>
+#include <Disks/IO/WriteBufferWithFinalizeCallback.h>
+#include <Disks/ObjectStorages/DiskObjectStorage.h>
+#include <Disks/ObjectStorages/DiskObjectStorageTransaction.h>
 #include <Disks/ObjectStorages/MetadataStorageFromDisk.h>
-#include <Disks/ObjectStorages/MetadataStorageFromPlainObjectStorageOperations.h>
+#include <Disks/ObjectStorages/MetadataStorageFromPlainObjectStorage.h>
+#include <Disks/WriteMode.h>
+#include <Interpreters/Context.h>
+#include <base/defines.h>
 #include <boost/algorithm/string/join.hpp>
+#include <Common/Exception.h>
+#include <Common/checkStackSize.h>
+#include <Common/logger_useful.h>
 
 namespace DB
 {
@@ -430,6 +431,11 @@ struct ReplaceFileObjectStorageOperation final : public IDiskObjectStorageOperat
         if (metadata_storage.existsFile(path_to))
         {
             objects_to_remove = metadata_storage.getStorageObjects(path_to);
+            if (auto plain_object_tx = std::dynamic_pointer_cast<MetadataStorageFromPlainObjectStorageTransaction>(tx))
+            {
+                //  MetadataStorageFromPlainObjectStorageTransaction removes the object by itself.
+                objects_to_remove.clear();
+            }
             tx->replaceFile(path_from, path_to);
         }
         else

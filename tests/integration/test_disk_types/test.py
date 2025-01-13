@@ -7,6 +7,7 @@ disk_types = {
     "default": "Local",
     "disk_s3": "S3",
     "disk_encrypted": "S3",
+    "disk_s3_plain_rewritable_per_shard_replica": "S3",
 }
 
 
@@ -102,7 +103,7 @@ def test_select_by_type(cluster):
                     + disk_type
                     + "' ORDER BY name"
                 )
-                == "disk_encrypted\ndisk_s3\n"
+                == "disk_encrypted\ndisk_s3\ndisk_s3_plain_rewritable_per_shard_replica\n"
             )
         else:
             assert (

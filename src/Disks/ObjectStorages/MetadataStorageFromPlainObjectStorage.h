@@ -134,6 +134,10 @@ public:
 
     void moveDirectory(const std::string & path_from, const std::string & path_to) override;
 
+    void moveFile(const std::string & path_from, const std::string & path_to) override;
+
+    void replaceFile(const std::string & path_from, const std::string & path_to) override;
+
     void unlinkFile(const std::string & path) override;
     void removeDirectory(const std::string & path) override;
 
@@ -142,5 +146,26 @@ public:
     void commit() override;
 
     bool supportsChmod() const override { return false; }
+
+private:
+    static void moveFileHelper(
+        ObjectStoragePtr & object_storage,
+        InMemoryDirectoryPathMap & path_map,
+        const std::filesystem::path & path_from,
+        const std::filesystem::path & path_to,
+        bool replaceable);
+    static void handleSourceFileInDirectoryMap(
+        InMemoryDirectoryPathMap::Map & map,
+        InMemoryDirectoryPathMap::FileNames & unique_filenames,
+        const std::filesystem::path & path_from);
+    /**
+     * @return true if a new filename is inserted to `unique_filenames`
+     * @return false otherwise.
+     */
+    static bool handleTargetFileInDirectoryMap(
+        InMemoryDirectoryPathMap::Map & map,
+        InMemoryDirectoryPathMap::FileNames & unique_filenames,
+        const std::filesystem::path & path_to,
+        bool replaceable);
 };
 }

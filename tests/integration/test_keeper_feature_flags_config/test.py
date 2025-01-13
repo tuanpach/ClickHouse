@@ -68,16 +68,16 @@ def test_keeper_feature_flags(started_cluster):
 
     def assert_feature_flags(feature_flags):
         res = keeper_utils.send_4lw_cmd(started_cluster, node, "ftfl")
-
+        node.query("SYSTEM FLUSH LOGS")
         for feature, is_enabled in feature_flags:
             node.wait_for_log_line(
                 f"ZooKeeperClient: Keeper feature flag {feature.upper()}: {'enabled' if is_enabled else 'disabled'}",
-                look_behind_lines=1000,
+                look_behind_lines=5000,
             )
 
             node.wait_for_log_line(
                 f"KeeperContext: Keeper feature flag {feature.upper()}: {'enabled' if is_enabled else 'disabled'}",
-                look_behind_lines=1000,
+                look_behind_lines=5000,
             )
 
             assert f"{feature}\t{1 if is_enabled else 0}" in res

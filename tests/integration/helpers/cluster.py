@@ -553,6 +553,7 @@ class ClickHouseCluster:
         self.minio_ip = None
         self.minio_bucket = "root"
         self.minio_bucket_2 = "root2"
+        self.minio_bucket_db_disk = "root-db-disk"
         self.minio_port = 9001
         self.minio_client = None  # type: Minio
         self.minio_redirect_host = "proxy1"
@@ -1574,6 +1575,7 @@ class ClickHouseCluster:
         with_nginx=False,
         with_redis=False,
         with_minio=False,
+        with_remote_database_disk=None,
         with_azurite=False,
         with_cassandra=False,
         with_ldap=False,
@@ -1634,6 +1636,16 @@ class ClickHouseCluster:
 
         if tag is None:
             tag = DOCKER_BASE_TAG
+        else:
+            if with_remote_database_disk:
+                raise Exception(
+                    f"Can't add instance '{name}': not support remove database disk with the old version {tag}"
+                )
+            with_remote_database_disk = False
+
+        if with_remote_database_disk is None:
+            with_remote_database_disk = True
+
         if not env_variables:
             env_variables = {}
         self.use_keeper = use_keeper
@@ -1679,7 +1691,8 @@ class ClickHouseCluster:
             with_secrets=with_secrets or with_kerberos_kdc or with_kerberized_kafka,
             with_mongo=with_mongo,
             with_redis=with_redis,
-            with_minio=with_minio,
+            with_minio=with_minio or with_remote_database_disk,
+            with_remote_database_disk=with_remote_database_disk,
             with_azurite=with_azurite,
             with_jdbc_bridge=with_jdbc_bridge,
             with_hive=with_hive,
@@ -1860,7 +1873,7 @@ class ClickHouseCluster:
                 self.setup_redis_cmd(instance, env_variables, docker_compose_yml_dir)
             )
 
-        if with_minio and not self.with_minio:
+        if (with_minio or with_remote_database_disk) and not self.with_minio:
             cmds.append(
                 self.setup_minio_cmd(instance, env_variables, docker_compose_yml_dir)
             )
@@ -2475,7 +2488,11 @@ class ClickHouseCluster:
 
                 logging.debug("Connected to Minio.")
 
-                buckets = [self.minio_bucket, self.minio_bucket_2]
+                buckets = [
+                    self.minio_bucket,
+                    self.minio_bucket_2,
+                    self.minio_bucket_db_disk,
+                ]
 
                 for bucket in buckets:
                     if minio_client.bucket_exists(bucket):
@@ -2779,6 +2796,29 @@ class ClickHouseCluster:
                 self.wait_zookeeper_to_start()
                 for command in self.pre_zookeeper_commands:
                     self.run_kazoo_commands_with_retries(command, repeats=5)
+
+            for instance in list(self.instances.values()):
+                if instance.with_remote_database_disk:
+                    config_file_path = os.path.join(
+                        HELPERS_DIR, "remote_database_disk.xml"
+                    )
+                    with open(config_file_path, "r") as p:
+                        data = p.read()
+                    data = data.format(
+                        host=self.minio_host,
+                        port=str(self.minio_port),
+                        bucket=self.minio_bucket_db_disk,
+                        shard="{shard}",
+                        replica="{replica}",
+                    )
+                    instance_config_dir = os.path.join(instance.path, "configs")
+                    target_config_file_path = os.path.join(
+                        instance_config_dir,
+                        "config.d",
+                        "remote_database_disk.xml",
+                    )
+                    with open(target_config_file_path, "w") as p:
+                        p.write(data)
 
             if self.with_mysql_client and self.base_mysql_client_cmd:
                 logging.debug("Setup MySQL Client")
@@ -3283,6 +3323,7 @@ services:
 
 
 class ClickHouseInstance:
+
     def __init__(
         self,
         cluster,
@@ -3309,6 +3350,7 @@ class ClickHouseInstance:
         with_mongo,
         with_redis,
         with_minio,
+        with_remote_database_disk,
         with_azurite,
         with_jdbc_bridge,
         with_hive,
@@ -3381,6 +3423,10 @@ class ClickHouseInstance:
         )
         self.secrets_dir = p.abspath(p.join(base_path, "secrets"))
         self.macros = macros if macros is not None else {}
+        if "shard" not in self.macros:
+            self.macros["shard"] = "default"
+        if "replica" not in self.macros:
+            self.macros["replica"] = self.name
         self.with_zookeeper = with_zookeeper
         self.zookeeper_config_path = zookeeper_config_path
 
@@ -3407,7 +3453,8 @@ class ClickHouseInstance:
             p.join(base_path, "mongo_secure_config")
         )
         self.with_redis = with_redis
-        self.with_minio = with_minio
+        self.with_minio = with_minio or with_remote_database_disk
+        self.with_remote_database_disk = with_remote_database_disk
         self.with_azurite = with_azurite
         self.with_cassandra = with_cassandra
         self.with_ldap = with_ldap

@@ -74,14 +74,15 @@ void MetadataStorageFromPlainObjectStorageCreateDirectoryOperation::execute(std:
         metadata_object_key.serialize());
 
     auto metadata_object = StoredObject(/*remote_path*/ metadata_object_key.serialize(), /*local_path*/ path / PREFIX_PATH_FILE_NAME);
+    auto path_str = path.string();
     auto buf = object_storage->writeObject(
         metadata_object,
         WriteMode::Rewrite,
         /* object_attributes */ std::nullopt,
-        /* buf_size */ DBMS_DEFAULT_BUFFER_SIZE,
+        /* buf_size */ path_str.size(),
         /* settings */ {});
 
-    writeString(path.string(), *buf);
+    writeString(path_str, *buf);
     fiu_do_on(FailPoints::plain_object_storage_write_fail_on_directory_create, {
         throw Exception(ErrorCodes::FAULT_INJECTED, "Injecting fault when creating '{}' directory", path);
     });
@@ -288,13 +289,14 @@ void MetadataStorageFromPlainObjectStorageRemoveDirectoryOperation::undo(std::un
 
     auto metadata_object_key = createMetadataObjectKey(key_prefix, metadata_key_prefix);
     auto metadata_object = StoredObject(metadata_object_key.serialize(), path / PREFIX_PATH_FILE_NAME);
+    auto path_str = path.string();
     auto buf = object_storage->writeObject(
         metadata_object,
         WriteMode::Rewrite,
         /* object_attributes */ std::nullopt,
-        /* buf_size */ DBMS_DEFAULT_BUFFER_SIZE,
+        /* buf_size */ path_str.size(),
         /* settings */ {});
-    writeString(path.string(), *buf);
+    writeString(path_str, *buf);
     buf->finalize();
 }
 

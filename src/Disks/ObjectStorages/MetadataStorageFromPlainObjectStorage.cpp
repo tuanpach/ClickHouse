@@ -8,7 +8,10 @@
 #include <Disks/ObjectStorages/StoredObject.h>
 #include <Common/ObjectStorageKey.h>
 #include <Common/SipHash.h>
+#include <Common/logger_useful.h>
 
+#include <IO/ReadHelpers.h>
+#include <IO/ReadSettings.h>
 #include <Common/filesystemHelpers.h>
 
 #include <filesystem>
@@ -19,6 +22,7 @@ namespace DB
 namespace ErrorCodes
 {
     extern const int FILE_DOESNT_EXIST;
+    extern const int FILE_ALREADY_EXISTS;
 }
 
 namespace
@@ -261,6 +265,21 @@ void MetadataStorageFromPlainObjectStorageTransaction::moveDirectory(const std::
         metadata_storage.getMetadataKeyPrefix()));
 }
 
+void MetadataStorageFromPlainObjectStorageTransaction::moveFile(const std::string & path_from, const std::string & path_to)
+{
+    if (metadata_storage.object_storage->isWriteOnce())
+        throwNotImplemented();
+
+    moveFileHelper(object_storage, *metadata_storage.getPathMap(), path_from, path_to, false);
+}
+
+void MetadataStorageFromPlainObjectStorageTransaction::replaceFile(const std::string & path_from, const std::string & path_to)
+{
+    if (metadata_storage.object_storage->isWriteOnce())
+        throwNotImplemented();
+    moveFileHelper(object_storage, *metadata_storage.getPathMap(), path_from, path_to, true);
+}
+
 UnlinkMetadataFileOperationOutcomePtr MetadataStorageFromPlainObjectStorageTransaction::unlinkMetadata(const std::string & path)
 {
     /// The record has become stale, remove it from cache.
@@ -282,5 +301,123 @@ UnlinkMetadataFileOperationOutcomePtr MetadataStorageFromPlainObjectStorageTrans
 void MetadataStorageFromPlainObjectStorageTransaction::commit()
 {
     MetadataOperationsHolder::commitImpl(metadata_storage.metadata_mutex);
+}
+
+void MetadataStorageFromPlainObjectStorageTransaction::moveFileHelper(
+    ObjectStoragePtr & object_storage,
+    InMemoryDirectoryPathMap & path_map,
+    const std::filesystem::path & path_from,
+    const std::filesystem::path & path_to,
+    bool replaceable)
+{
+    auto logger = getLogger("MetadataStorageFromPlainObjectStorageTransaction");
+    LOG_DEBUG(logger, "Moving file '{}' to '{}', replaceable {}", path_from, path_to, replaceable);
+    bool target_unique_filename_inserted = false;
+    {
+        std::lock_guard lock(path_map.mutex);
+        handleSourceFileInDirectoryMap(path_map.map, path_map.unique_filenames, path_from);
+        target_unique_filename_inserted = handleTargetFileInDirectoryMap(path_map.map, path_map.unique_filenames, path_to, replaceable);
+    }
+
+    if (target_unique_filename_inserted)
+    {
+        auto metric = object_storage->getMetadataStorageMetrics().unique_filenames_count;
+        CurrentMetrics::add(metric, 1);
+    }
+
+    std::unique_ptr<ReadBuffer> read_buf = [&path_from, &object_storage]()
+    {
+        auto metadata_object_key = object_storage->generateObjectKeyForPath(path_from, std::nullopt /* key_prefix */);
+        auto metadata_object = StoredObject(metadata_object_key.serialize());
+
+        bool is_metadata = path_from.string().contains(".sql");
+        ReadSettings read_settings = is_metadata ? getReadSettingsForMetadata() : getReadSettings();
+        return object_storage->readObject(metadata_object, read_settings);
+    }();
+
+    std::unique_ptr<WriteBuffer> write_buf = [&path_to, &object_storage, replaceable]()
+    {
+        auto metadata_object_key = object_storage->generateObjectKeyForPath(path_to, std::nullopt /* key_prefix */);
+        auto metadata_object = StoredObject(metadata_object_key.serialize());
+
+        if (replaceable)
+            object_storage->removeObjectIfExists(metadata_object);
+
+        bool is_metadata = path_to.string().contains(".sql");
+        WriteSettings write_settings = is_metadata ? getWriteSettingsForMetadata() : getWriteSettings();
+        size_t buf_size = is_metadata ? 32768UL : DBMS_DEFAULT_BUFFER_SIZE;
+        return object_storage->writeObject(
+            metadata_object,
+            WriteMode::Rewrite,
+            /* object_attributes */ std::nullopt,
+            /*buf_size*/ buf_size,
+            /*settings*/ write_settings);
+    }();
+
+    chassert(read_buf);
+    chassert(write_buf);
+
+    copyData(*read_buf, *write_buf);
+    write_buf->finalize();
+    {
+        auto metadata_object_key = object_storage->generateObjectKeyForPath(path_from, std::nullopt /* key_prefix */);
+        auto metadata_object = StoredObject(metadata_object_key.serialize());
+        object_storage->removeObjectIfExists(metadata_object);
+    }
+}
+void MetadataStorageFromPlainObjectStorageTransaction::handleSourceFileInDirectoryMap(
+    InMemoryDirectoryPathMap::Map & map, InMemoryDirectoryPathMap::FileNames & unique_filenames, const std::filesystem::path & path_from)
+{
+    /// parent_path() removes the trailing '/'.
+    auto it = map.find(path_from.parent_path());
+    if (it == map.end())
+        throw Exception(
+            ErrorCodes::FILE_DOESNT_EXIST, "Metadata object for the directory of the source path '{}' does not exist", path_from);
+
+    auto & dir_info = it->second;
+
+    auto unique_filename_it = unique_filenames.find(path_from.filename());
+    if (unique_filename_it == unique_filenames.end())
+        throw Exception(ErrorCodes::FILE_DOESNT_EXIST, "Unique filename iterator for the  path '{}' does not exist", path_from);
+
+    if (!dir_info.filename_iterators.contains(unique_filename_it))
+        throw Exception(ErrorCodes::FILE_DOESNT_EXIST, "Filename iterator for the source path '{}' does not exist", path_from);
+
+    dir_info.filename_iterators.erase(unique_filename_it);
+}
+
+bool MetadataStorageFromPlainObjectStorageTransaction::handleTargetFileInDirectoryMap(
+    InMemoryDirectoryPathMap::Map & map,
+    InMemoryDirectoryPathMap::FileNames & unique_filenames,
+    const std::filesystem::path & path_to,
+    bool replaceable)
+{
+    /// parent_path() removes the trailing '/'.
+    auto it = map.find(path_to.parent_path());
+
+    if (it == map.end())
+        throw Exception(ErrorCodes::FILE_DOESNT_EXIST, "Metadata object for the directory of the target path '{}' does not exist", path_to);
+
+    auto & dir_info = it->second;
+    auto unique_filename_it = unique_filenames.find(path_to.filename());
+
+    bool new_unique_filename = false;
+    if (unique_filename_it == unique_filenames.end())
+    {
+        std::tie(unique_filename_it, new_unique_filename) = unique_filenames.emplace(path_to.filename());
+        chassert(new_unique_filename);
+    }
+
+    if (dir_info.filename_iterators.contains(unique_filename_it))
+    {
+        if (!replaceable)
+            throw Exception(ErrorCodes::FILE_ALREADY_EXISTS, "Filename iterator for the destination path '{}' already exists", path_to);
+    }
+    else
+    {
+        dir_info.filename_iterators.emplace(unique_filename_it);
+    }
+
+    return new_unique_filename;
 }
 }
