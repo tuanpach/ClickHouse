@@ -2,9 +2,19 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, List, Optional
 
 from ..settings import _Settings
+from .autoscaling_group import AutoScalingGroup
+from .dedicated_host import DedicatedHost
+from .license_manager import LicenseManager
+from .launch_template import LaunchTemplate
+from .resource_group import ResourceGroup
 from .lambda_function import lambda_app_config, lambda_worker_config
 
 if TYPE_CHECKING:
+    from .autoscaling_group import AutoScalingGroup
+    from .dedicated_host import DedicatedHost
+    from .license_manager import LicenseManager
+    from .launch_template import LaunchTemplate
+    from .resource_group import ResourceGroup
     from .lambda_function import Lambda
 
 
@@ -15,18 +25,31 @@ class CloudInfrastructure:
     class Config:
         name: str
         lambda_functions: List["Lambda.Config"] = field(default_factory=list)
+        dedicated_hosts: List["DedicatedHost.Config"] = field(default_factory=list)
+        resource_groups: List["ResourceGroup.Config"] = field(default_factory=list)
+        license_managers: List["LicenseManager.Config"] = field(default_factory=list)
+        launch_templates: List["LaunchTemplate.Config"] = field(default_factory=list)
+        autoscaling_groups: List["AutoScalingGroup.Config"] = field(default_factory=list)
         _settings: Optional[_Settings] = None
 
-        def deploy(self, all=False):
+        def deploy(self, all=False, resource_groups_only: bool = False):
             """
             Deploy Lambda functions.
 
             Args:
                 all: If False, only deploy code (skip settings validation and IAM policies).
                      If True, deploy everything (validate settings, deploy code, attach IAM policies).
+                resource_groups_only: If True, deploy only resource groups and skip the rest.
             """
-            if not self.lambda_functions:
-                print("No Lambda functions to deploy")
+            if (
+                not self.lambda_functions
+                and not self.dedicated_hosts
+                and not self.resource_groups
+                and not self.license_managers
+                and not self.launch_templates
+                and not self.autoscaling_groups
+            ):
+                print("No infrastructure components to deploy")
                 return
 
             # Full deployment mode: validate settings and configure environments
@@ -48,6 +71,72 @@ class CloudInfrastructure:
                     raise ValueError(
                         f"Missing required settings for Lambda deployment: {', '.join(missing_settings)}"
                     )
+
+            # Deploy only resource groups (skip all other components)
+            if resource_groups_only:
+                for rg_config in self.resource_groups:
+                    if self._settings and self._settings.AWS_REGION:
+                        rg_config.region = self._settings.AWS_REGION
+
+                    print("\n" + "=" * 60)
+                    print(f"Deploying Resource Group: {rg_config.name}")
+                    print("=" * 60)
+                    rg_config.deploy()
+
+                print("\n" + "=" * 60)
+                print("Resource group deployment completed!")
+                print("=" * 60)
+                return
+
+            # Deploy all Dedicated Hosts
+            for host_config in self.dedicated_hosts:
+                if self._settings and self._settings.AWS_REGION:
+                    host_config.region = self._settings.AWS_REGION
+
+                print("\n" + "=" * 60)
+                print(f"Deploying Dedicated Hosts: {host_config.name}")
+                print("=" * 60)
+                host_config.deploy()
+
+            # Deploy all Resource Groups
+            for rg_config in self.resource_groups:
+                if self._settings and self._settings.AWS_REGION:
+                    rg_config.region = self._settings.AWS_REGION
+
+                print("\n" + "=" * 60)
+                print(f"Deploying Resource Group: {rg_config.name}")
+                print("=" * 60)
+                rg_config.deploy()
+
+            # Deploy License Manager associations
+            for lm_config in self.license_managers:
+                if self._settings and self._settings.AWS_REGION:
+                    lm_config.region = self._settings.AWS_REGION
+
+                print("\n" + "=" * 60)
+                print(f"Deploying License Manager: {lm_config.name}")
+                print("=" * 60)
+                lm_config.deploy()
+
+            # Deploy all Launch Templates
+            for lt_config in self.launch_templates:
+                if self._settings and self._settings.AWS_REGION:
+                    lt_config.region = self._settings.AWS_REGION
+
+                print("\n" + "=" * 60)
+                print(f"Deploying Launch Template: {lt_config.name}")
+                print("=" * 60)
+                lt_config.deploy()
+
+            # Deploy all ASGs
+            for asg_config in self.autoscaling_groups:
+                if self._settings and self._settings.AWS_REGION:
+                    asg_config.region = self._settings.AWS_REGION
+
+                print("\n" + "=" * 60)
+                print(f"Deploying Auto Scaling Group: {asg_config.name}")
+                print("=" * 60)
+                asg_config.deploy()
 
             # Deploy all Lambdas (code only or with configuration)
             for lambda_config in self.lambda_functions:
