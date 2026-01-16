@@ -119,8 +119,15 @@ def parse_args():
 def main():
     args = parse_args()
     stop_watch = Utils.Stopwatch()
+    info = Info()
 
     stages = list(JobStages)
+    clickhouse_bin_path = Path(f"{build_dir}/programs/clickhouse")
+
+    if "darwin" in info.job_name:
+        stages = [JobStages.CONFIG, JobStages.TEST]
+        clickhouse_bin_path = Path(f"./ci/tmp/clickhouse")
+
     stage = args.param or JobStages.CHECKOUT_SUBMODULES
     if stage:
         assert stage in JobStages, f"--param must be one of [{list(JobStages)}]"
@@ -128,8 +135,6 @@ def main():
         while stage in stages:
             stages.pop(0)
         stages.insert(0, stage)
-
-    clickhouse_bin_path = Path(f"{build_dir}/programs/clickhouse")
 
     # Global sccache settings for local and CI runs
     os.environ["SCCACHE_DIR"] = f"{temp_dir}/sccache"
@@ -140,7 +145,7 @@ def main():
     os.environ["SCCACHE_ERROR_LOG"] = f"{build_dir}/sccache.log"
     os.environ["SCCACHE_LOG"] = "info"
 
-    if Info().is_local_run:
+    if info.is_local_run:
         os.environ["SCCACHE_S3_NO_CREDENTIALS"] = "true"
         for path in [
             clickhouse_bin_path,

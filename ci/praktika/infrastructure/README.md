@@ -10,16 +10,12 @@ This module provides classes for configuring and deploying cloud infrastructure 
 
 #### [cloud.py](cloud.py)
 Top-level infrastructure configuration class `CloudInfrastructure.Config`:
-- Aggregates cloud resources (currently: Lambda functions, Auto Scaling Groups, and Resource Groups)
+- Aggregates cloud resources (Dedicated Hosts, Image Builder pipelines, Launch Templates, Auto Scaling Groups, Lambda functions)
 - Entry point for infrastructure definition and deployment orchestration
 
 #### [lambda_function.py](lambda_function.py)
 Lambda function configuration class `Lambda.Config`:
 - Defines and deploys AWS Lambda functions used by Praktika (including optional native components)
-
-#### [resource_group.py](resource_group.py)
-Resource Group configuration class `ResourceGroup.Config`:
-- Defines and deploys AWS Resource Groups (used to group Dedicated Hosts for macOS fleets)
 
 #### [launch_template.py](launch_template.py)
 Launch Template configuration class `LaunchTemplate.Config`:
@@ -28,6 +24,19 @@ Launch Template configuration class `LaunchTemplate.Config`:
 #### [autoscaling_group.py](autoscaling_group.py)
 Auto Scaling Group configuration class `AutoScalingGroup.Config`:
 - Defines and deploys AWS EC2 Auto Scaling Groups (ASG) using an existing Launch Template
+
+#### [image_builder.py](image_builder.py)
+Image Builder configuration class `ImageBuilder.Config`:
+- Defines and deploys AWS EC2 Image Builder resources (Recipe, Infrastructure/Distribution configs, Pipeline)
+- Can be used as an AMI source for `LaunchTemplate.Config` via `image_builder_pipeline_name`
+
+#### [iam_instance_profile.py](iam_instance_profile.py)
+IAM Instance Profile configuration class `IAMInstanceProfile.Config`:
+- Defines and deploys IAM Role + Instance Profile (commonly used for EC2 Image Builder Infrastructure Configuration)
+
+#### [dedicated_host.py](dedicated_host.py)
+Dedicated Host configuration class `DedicatedHost.Config`:
+- Defines and deploys EC2 Dedicated Hosts (required for macOS fleets)
 
 ### Native Components
 
@@ -47,9 +56,6 @@ CLOUD = CloudInfrastructure.Config(
     lambda_functions=[
         # Add your Lambda.Config instances here
         *CloudInfrastructure.SLACK_APP_LAMBDAS  # Optional: include native components
-    ],
-    resource_groups=[
-        # Add your ResourceGroup.Config instances here
     ],
     launch_templates=[
         # Add your LaunchTemplate.Config instances here
@@ -80,13 +86,23 @@ Deploy your infrastructure to AWS:
 praktika deploy
 ```
 
+Deploy only selected component types:
+
+```bash
+praktika deploy --only ImageBuilder
+praktika deploy --only ImageBuilder LaunchTemplate
+praktika deploy --only DedicatedHost
+```
+
 This command:
 1. Loads configuration from `Settings.CLOUD_INFRASTRUCTURE_CONFIG_PATH`
-2. Deploys all Resource Groups defined in `CLOUD.resource_groups`
-3. Deploys all Launch Templates defined in `CLOUD.launch_templates`
-4. Deploys all Auto Scaling Groups defined in `CLOUD.autoscaling_groups`
-5. Deploys all Lambda functions defined in `CLOUD.lambda_functions`
-6. Fetches secrets from AWS Parameter Store (for Lambda environment injection)
+2. Deploys all Dedicated Hosts defined in `CLOUD.dedicated_hosts`
+3. Deploys all IAM Instance Profiles defined in `CLOUD.iam_instance_profiles`
+4. Deploys all Image Builder pipelines defined in `CLOUD.image_builders`
+5. Deploys all Launch Templates defined in `CLOUD.launch_templates`
+6. Deploys all Auto Scaling Groups defined in `CLOUD.autoscaling_groups`
+7. Deploys all Lambda functions defined in `CLOUD.lambda_functions`
+8. Fetches secrets from AWS Parameter Store (for Lambda environment injection)
 
 ## macOS Auto Scaling Group (Dedicated Hosts)
 
@@ -191,6 +207,87 @@ Related `LaunchTemplate.Config` fields you will typically set:
 - **`security_group_ids`**.
 - **`user_data`**.
 - **`tenancy`** (for Dedicated Hosts use-cases).
+
+## Image Builder (AMI Pipeline)
+
+`ImageBuilder.Config` deploys an EC2 Image Builder pipeline that produces an AMI.
+
+Minimal (Linux) example:
+
+```python
+from praktika import CloudInfrastructure
+from praktika.infrastructure.image_builder import ImageBuilder
+from praktika.infrastructure.launch_template import LaunchTemplate
+
+CLOUD = CloudInfrastructure.Config(
+    name="cloud_infra",
+    image_builders=[
+        ImageBuilder.Config(
+            name="praktika-linux-ami",
+            image_recipe_name="praktika-linux-recipe",
+            image_recipe_version="1.0.0",
+            parent_image="ami-...",  # base AMI
+            components=[
+                "arn:aws:imagebuilder:us-east-1:aws:component/update-linux/1.0.0",
+            ],
+            infrastructure_configuration_name="praktika-linux-ib-infra",
+            instance_profile_name="praktika-ec2-instance-profile",
+            instance_types=["c6a.large"],
+            subnet_id="subnet-...",
+            security_group_ids=["sg-..."],
+            distribution_configuration_name="praktika-linux-ib-dist",
+            ami_name="praktika-linux-{{imagebuilder:buildDate}}",
+            ami_tags={"praktika": "true"},
+            image_pipeline_name="praktika-linux-ib-pipeline",
+            enabled=True,
+        )
+    ],
+    launch_templates=[
+        LaunchTemplate.Config(
+            name="praktika-linux-lt",
+            image_builder_pipeline_name="praktika-linux-ib-pipeline",
+            instance_type="c6a.large",
+            security_group_ids=["sg-..."],
+        )
+    ],
+)
+```
+
+Notes:
+
+- The pipeline must have produced at least one image build before `LaunchTemplate.Config` can resolve an AMI id.
+- `LaunchTemplate.Config(image_id=...)` still works; `image_builder_pipeline_name` is only used when `image_id` is empty.
+
+Inline components:
+
+If you do not have pre-created component ARNs, you can define installation steps inline and Praktika will create Image Builder Components automatically:
+
+```python
+ImageBuilder.Config(
+    name="my-ami",
+    image_recipe_name="my-recipe",
+    image_recipe_version="1.0.0",
+    parent_image="ami-...",
+    inline_components=[
+        {
+            "name": "my-install-tools",
+            "version": "1.0.0",
+            "platform": "Linux",
+            "commands": [
+                "set -euxo pipefail",
+                "apt-get update",
+                "apt-get install -y python3",
+            ],
+        }
+    ],
+    infrastructure_configuration_name="my-ib-infra",
+    instance_profile_name="praktika-ec2-instance-profile",
+    instance_types=["t3.large"],
+    distribution_configuration_name="my-ib-dist",
+    ami_name="my-ami-{{imagebuilder:buildDate}}",
+    image_pipeline_name="my-ib-pipeline",
+)
+```
 
 ## Roadmap
 

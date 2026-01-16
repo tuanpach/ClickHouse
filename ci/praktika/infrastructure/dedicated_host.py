@@ -1,5 +1,5 @@
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
 
@@ -27,14 +27,12 @@ class DedicatedHost:
         # Tags applied to allocated hosts
         tags: Dict[str, str] = field(default_factory=dict)
 
+        # If set (or defaulted), a Resource Group will be created/updated to select hosts in this pool.
+        # This is useful for launching instances with Placement.HostResourceGroupArn.
+        host_resource_group_name: str = ""
+
         # Extra fetched/derived properties
         ext: Dict[str, Any] = field(default_factory=dict)
-
-        def dump(self):
-            output_path = f"/tmp/dedicated_host_{self.name}.json"
-            with open(output_path, "w") as f:
-                json.dump(asdict(self), f, indent=2, default=str)
-            print(f"DedicatedHost config dumped to: {output_path}")
 
         def _resolved_availability_zones(self) -> List[str]:
             if self.availability_zones:
@@ -65,7 +63,9 @@ class DedicatedHost:
             ]
 
             if self.instance_type:
-                filters.append({"Name": "instance-type", "Values": [self.instance_type]})
+                filters.append(
+                    {"Name": "instance-type", "Values": [self.instance_type]}
+                )
 
             # Stable identification tags
             merged_tags = {"praktika_host_pool": self.name, **(self.tags or {})}
@@ -79,6 +79,8 @@ class DedicatedHost:
 
             ec2 = boto3.client("ec2", region_name=self.region)
 
+            self._ensure_host_resource_group()
+
             azs = self._resolved_availability_zones()
             hosts_by_az: Dict[str, List[str]] = {}
 
@@ -90,6 +92,61 @@ class DedicatedHost:
 
             self.ext["hosts_by_az"] = hosts_by_az
             print(f"Successfully fetched Dedicated Hosts for pool: {self.name}")
+            return self
+
+        def _ensure_host_resource_group(self):
+            import boto3
+
+            group_name = self.host_resource_group_name or self.name
+            self.host_resource_group_name = group_name
+
+            merged_tags = {"praktika_host_pool": self.name, **(self.tags or {})}
+            query_obj = {
+                "ResourceTypeFilters": ["AWS::EC2::Host"],
+                "TagFilters": [
+                    {"Key": k, "Values": [v]} for k, v in merged_tags.items()
+                ],
+            }
+            desired_query = {
+                "Type": "TAG_FILTERS_1_0",
+                "Query": json.dumps(query_obj),
+            }
+
+            rg = boto3.client("resource-groups", region_name=self.region)
+
+            exists = False
+            try:
+                resp = rg.get_group(GroupName=group_name)
+                group = resp.get("Group") or {}
+                arn = group.get("GroupArn")
+                if arn:
+                    self.ext["host_resource_group_arn"] = arn
+                exists = True
+            except Exception:
+                exists = False
+
+            if not exists:
+                resp = rg.create_group(
+                    Name=group_name,
+                    ResourceQuery=desired_query,
+                    Description=f"Praktika Dedicated Host pool {self.name}",
+                )
+                group = resp.get("Group") or {}
+                arn = group.get("GroupArn")
+                if arn:
+                    self.ext["host_resource_group_arn"] = arn
+                print(
+                    f"Created Resource Group '{group_name}' for DedicatedHost pool '{self.name}'"
+                )
+                return self
+
+            rg.update_group_query(
+                GroupName=group_name,
+                ResourceQuery=desired_query,
+            )
+            print(
+                f"Updated Resource Group '{group_name}' query for DedicatedHost pool '{self.name}'"
+            )
             return self
 
         def deploy(self):
@@ -122,7 +179,9 @@ class DedicatedHost:
                 # Enforce desired auto placement on existing hosts
                 if existing:
                     try:
-                        ec2.modify_hosts(HostIds=existing, AutoPlacement=self.auto_placement)
+                        ec2.modify_hosts(
+                            HostIds=existing, AutoPlacement=self.auto_placement
+                        )
                     except Exception as e:
                         print(
                             f"Warning: Failed to set AutoPlacement={self.auto_placement} for existing hosts in {az}: {e}"
@@ -149,8 +208,7 @@ class DedicatedHost:
                         {
                             "ResourceType": "dedicated-host",
                             "Tags": [
-                                {"Key": k, "Value": v}
-                                for k, v in merged_tags.items()
+                                {"Key": k, "Value": v} for k, v in merged_tags.items()
                             ],
                         }
                     ],

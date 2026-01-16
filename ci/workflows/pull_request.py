@@ -1,6 +1,13 @@
 from praktika import Workflow
 
-from ci.defs.defs import BASE_BRANCH, DOCKERS, SECRETS, ArtifactConfigs, JobNames
+from ci.defs.defs import (
+    BASE_BRANCH,
+    DOCKERS,
+    SECRETS,
+    ArtifactConfigs,
+    ArtifactNames,
+    JobNames,
+)
 from ci.defs.job_configs import JobConfigs
 from ci.jobs.scripts.workflow_hooks.filter_job import should_skip_job
 from ci.jobs.scripts.workflow_hooks.trusted import can_be_tested
@@ -41,6 +48,7 @@ workflow = Workflow.Config(
         JobConfigs.style_check,
         JobConfigs.docs_job,
         JobConfigs.fast_test,
+        JobConfigs.fast_test_macos.set_dependency([ArtifactNames.CH_ARM_DARWIN_BIN]),
         *JobConfigs.tidy_build_arm_jobs,
         *[job.set_dependency(STYLE_AND_FAST_TESTS) for job in JobConfigs.build_jobs],
         *[

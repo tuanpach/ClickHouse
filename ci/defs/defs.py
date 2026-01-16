@@ -29,6 +29,7 @@ class RunnerLabels:
     ARM_SMALL = ["self-hosted", "arm-small"]
     AMD_SMALL_MEM = ["self-hosted", "amd-small-mem"]
     ARM_SMALL_MEM = ["self-hosted", "arm-small-mem"]
+    MACOS_ARM_SMALL = ["self-hosted", "arm_macos_small"]
     STYLE_CHECK_AMD = ["self-hosted", "style-checker"]
     STYLE_CHECK_ARM = ["self-hosted", "style-checker-aarch64"]
     # GitHub-hosted macOS runners for native smoke tests
@@ -328,6 +329,7 @@ class JobNames:
     STYLE_CHECK = "Style check"
     PR_BODY = "PR formatter"
     FAST_TEST = "Fast test"
+    FAST_TEST_MACOS = "Fast test (darwin)"
     BUILD = "Build"
     UNITTEST = "Unit tests"
     STATELESS = "Stateless tests"

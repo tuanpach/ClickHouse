@@ -60,6 +60,24 @@ build_digest_config = Job.CacheDigestConfig(
     with_git_submodules=True,
 )
 
+fast_test_digest_config = Job.CacheDigestConfig(
+    include_paths=[
+        "./ci/jobs/fast_test.py",
+        "./tests/queries/0_stateless/",
+        "./tests/config/",
+        "./tests/clickhouse-test",
+        "./src",
+        "./contrib/",
+        "./.gitmodules",
+        "./CMakeLists.txt",
+        "./PreLoad.cmake",
+        "./cmake",
+        "./base",
+        "./programs",
+        "./rust",
+    ],
+)
+
 common_build_job_config = Job.Config(
     name=JobNames.BUILD,
     runs_on=[],  # from parametrize()
@@ -164,23 +182,14 @@ class JobConfigs:
         command="python3 ./ci/jobs/fast_test.py",
         # --network=host required for ec2 metadata http endpoint to work
         run_in_docker="clickhouse/fasttest+--network=host+--volume=./ci/tmp/var/lib/clickhouse:/var/lib/clickhouse+--volume=./ci/tmp/etc/clickhouse-client:/etc/clickhouse-client+--volume=./ci/tmp/etc/clickhouse-server:/etc/clickhouse-server+--volume=./ci/tmp/var/log:/var/log+--volume=.:/ClickHouse",
-        digest_config=Job.CacheDigestConfig(
-            include_paths=[
-                "./ci/jobs/fast_test.py",
-                "./tests/queries/0_stateless/",
-                "./tests/config/",
-                "./tests/clickhouse-test",
-                "./src",
-                "./contrib/",
-                "./.gitmodules",
-                "./CMakeLists.txt",
-                "./PreLoad.cmake",
-                "./cmake",
-                "./base",
-                "./programs",
-                "./rust",
-            ],
-        ),
+        digest_config=fast_test_digest_config,
+        result_name_for_cidb="Tests",
+    )
+    fast_test_macos = Job.Config(
+        name=JobNames.FAST_TEST_MACOS,
+        runs_on=RunnerLabels.MACOS_ARM_SMALL,
+        command="python3 ./ci/jobs/fast_test.py",
+        digest_config=fast_test_digest_config,
         result_name_for_cidb="Tests",
     )
     tidy_build_arm_jobs = common_build_job_config.parametrize(

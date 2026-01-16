@@ -40,17 +40,6 @@ class AutoScalingGroup:
         # Extra fetched/derived properties
         ext: Dict[str, Any] = field(default_factory=dict)
 
-        def dump(self):
-            """
-            Dump ASG config as json into /tmp/asg_{name}.json
-            """
-            output_path = f"/tmp/asg_{self.name}.json"
-
-            with open(output_path, "w") as f:
-                json.dump(asdict(self), f, indent=2, default=str)
-
-            print(f"AutoScalingGroup config dumped to: {output_path}")
-
         def fetch(self):
             """
             Fetch Auto Scaling Group configuration from AWS and store in ext dictionary.
@@ -77,9 +66,7 @@ class AutoScalingGroup:
             self.ext["desired_capacity"] = group.get("DesiredCapacity")
             self.ext["default_cooldown"] = group.get("DefaultCooldown")
             self.ext["health_check_type"] = group.get("HealthCheckType")
-            self.ext["health_check_grace_period"] = group.get(
-                "HealthCheckGracePeriod"
-            )
+            self.ext["health_check_grace_period"] = group.get("HealthCheckGracePeriod")
             self.ext["vpc_zone_identifier"] = group.get("VPCZoneIdentifier", "")
             self.ext["availability_zones"] = group.get("AvailabilityZones", [])
             self.ext["target_group_arns"] = group.get("TargetGroupARNs", [])
@@ -105,15 +92,39 @@ class AutoScalingGroup:
             return self
 
         def _build_launch_template_spec(self) -> Dict[str, str]:
+            version = self.launch_template_version
+            if version in ("$Latest", "$Default"):
+                import boto3
+
+                ec2 = boto3.client("ec2", region_name=self.region)
+                if self.launch_template_id:
+                    lt_resp = ec2.describe_launch_templates(
+                        LaunchTemplateIds=[self.launch_template_id]
+                    )
+                else:
+                    lt_resp = ec2.describe_launch_templates(
+                        LaunchTemplateNames=[self.launch_template_name]
+                    )
+
+                lts = lt_resp.get("LaunchTemplates", []) or []
+                lt = lts[0] if lts else {}
+                num = (
+                    lt.get("LatestVersionNumber")
+                    if version == "$Latest"
+                    else lt.get("DefaultVersionNumber")
+                )
+                if num is not None:
+                    version = str(num)
+
             if self.launch_template_id:
                 return {
                     "LaunchTemplateId": self.launch_template_id,
-                    "Version": self.launch_template_version,
+                    "Version": version,
                 }
             if self.launch_template_name:
                 return {
                     "LaunchTemplateName": self.launch_template_name,
-                    "Version": self.launch_template_version,
+                    "Version": version,
                 }
             raise ValueError(
                 f"launch_template_id or launch_template_name must be specified for ASG '{self.name}'"
@@ -179,10 +190,17 @@ class AutoScalingGroup:
                 - It focuses on core runner-like ASG needs: subnets, LT, capacity, target groups, tags.
             """
             import boto3
+            from botocore.config import Config
 
             subnet_ids = self._resolve_subnet_ids()
 
-            asg_client = boto3.client("autoscaling", region_name=self.region)
+            # Reduce AWS API retries to avoid long "hangs" on transient/opaque InternalFailure.
+            # We want the error to surface quickly with the request payload printed below.
+            asg_client = boto3.client(
+                "autoscaling",
+                region_name=self.region,
+                config=Config(retries={"max_attempts": 1, "mode": "standard"}),
+            )
 
             vpc_zone_identifier = ",".join(subnet_ids)
             launch_template = self._build_launch_template_spec()
@@ -204,31 +222,42 @@ class AutoScalingGroup:
 
             if exists:
                 print(f"Updating ASG: {self.name}")
-                asg_client.update_auto_scaling_group(
-                    AutoScalingGroupName=self.name,
-                    MinSize=self.min_size,
-                    MaxSize=self.max_size,
-                    DesiredCapacity=desired_capacity,
-                    VPCZoneIdentifier=vpc_zone_identifier,
-                    HealthCheckType=self.health_check_type,
-                    HealthCheckGracePeriod=self.health_check_grace_period_sec,
-                    LaunchTemplate=launch_template,
-                    TargetGroupARNs=self.target_group_arns,
+                req: Dict[str, Any] = {
+                    "AutoScalingGroupName": self.name,
+                    "MinSize": self.min_size,
+                    "MaxSize": self.max_size,
+                    "DesiredCapacity": desired_capacity,
+                    "VPCZoneIdentifier": vpc_zone_identifier,
+                    "HealthCheckType": self.health_check_type,
+                    "HealthCheckGracePeriod": self.health_check_grace_period_sec,
+                    "LaunchTemplate": launch_template,
+                }
+                print(
+                    f"ASG '{self.name}': UpdateAutoScalingGroup request: {req}",
+                    flush=True,
                 )
+                asg_client.update_auto_scaling_group(**req)
                 print(f"Successfully updated ASG: {self.name}")
             else:
                 print(f"Creating new ASG: {self.name}")
-                asg_client.create_auto_scaling_group(
-                    AutoScalingGroupName=self.name,
-                    MinSize=self.min_size,
-                    MaxSize=self.max_size,
-                    DesiredCapacity=desired_capacity,
-                    VPCZoneIdentifier=vpc_zone_identifier,
-                    HealthCheckType=self.health_check_type,
-                    HealthCheckGracePeriod=self.health_check_grace_period_sec,
-                    LaunchTemplate=launch_template,
-                    TargetGroupARNs=self.target_group_arns,
+                req = {
+                    "AutoScalingGroupName": self.name,
+                    "MinSize": self.min_size,
+                    "MaxSize": self.max_size,
+                    "DesiredCapacity": desired_capacity,
+                    "VPCZoneIdentifier": vpc_zone_identifier,
+                    "HealthCheckType": self.health_check_type,
+                    "HealthCheckGracePeriod": self.health_check_grace_period_sec,
+                    "LaunchTemplate": launch_template,
+                }
+                if self.target_group_arns:
+                    req["TargetGroupARNs"] = list(self.target_group_arns)
+
+                print(
+                    f"ASG '{self.name}': CreateAutoScalingGroup request: {req}",
+                    flush=True,
                 )
+                asg_client.create_auto_scaling_group(**req)
                 print(f"Successfully created ASG: {self.name}")
 
             if self.tags:

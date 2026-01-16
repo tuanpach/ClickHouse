@@ -1,5 +1,5 @@
-import json
 import base64
+import json
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -14,14 +14,12 @@ class LaunchTemplate:
 
         # High-level fields (optional). If `data` is provided, it is used as-is.
         image_id: str = ""
+        image_builder_pipeline_name: str = ""
         instance_type: str = ""
         # If set, will be base64-encoded and applied as LaunchTemplateData.UserData
         user_data: str = ""
         security_group_ids: List[str] = field(default_factory=list)
         tenancy: str = ""  # e.g. "host"
-        # For scalable macOS fleets prefer HostResourceGroupArn over pinning a single HostId.
-        host_resource_group_arn: str = ""
-        host_resource_group_name: str = ""
         host_id: str = ""
 
         # Raw launch template data (passed directly to EC2 API as LaunchTemplateData)
@@ -30,19 +28,11 @@ class LaunchTemplate:
         # If set, update will create a new version; if False, existing LT must not exist
         create_new_version: bool = True
 
+        # If True, after creating a new version, automatically set it as the default version.
+        set_default_version_to_latest: bool = False
+
         # Extra fetched/derived properties
         ext: Dict[str, Any] = field(default_factory=dict)
-
-        def dump(self):
-            """
-            Dump launch template config as json into /tmp/launch_template_{name}.json
-            """
-            output_path = f"/tmp/launch_template_{self.name}.json"
-
-            with open(output_path, "w") as f:
-                json.dump(asdict(self), f, indent=2, default=str)
-
-            print(f"LaunchTemplate config dumped to: {output_path}")
 
         def fetch(self):
             """
@@ -68,7 +58,9 @@ class LaunchTemplate:
             self.ext["default_version_number"] = lt.get("DefaultVersionNumber")
             self.ext["created_time"] = lt.get("CreateTime")
 
-            print(f"Successfully fetched configuration for Launch Template: {self.name}")
+            print(
+                f"Successfully fetched configuration for Launch Template: {self.name}"
+            )
             return self
 
         def _resolve_launch_template_id(self) -> str:
@@ -76,20 +68,85 @@ class LaunchTemplate:
                 return self.ext["launch_template_id"]
             self.fetch()
             if not self.ext.get("launch_template_id"):
-                raise Exception(f"Failed to resolve Launch Template id for '{self.name}'")
+                raise Exception(
+                    f"Failed to resolve Launch Template id for '{self.name}'"
+                )
             return self.ext["launch_template_id"]
+
+        def _resolve_image_id(self) -> str:
+            if self.image_id:
+                return self.image_id
+
+            if not self.image_builder_pipeline_name:
+                return ""
+
+            import boto3
+
+            client = boto3.client("imagebuilder", region_name=self.region)
+
+            pipeline_arn = ""
+            paginator = client.get_paginator("list_image_pipelines")
+            for page in paginator.paginate():
+                for item in page.get("imagePipelineList", []) or []:
+                    if item.get(
+                        "name"
+                    ) == self.image_builder_pipeline_name and item.get("arn"):
+                        pipeline_arn = item["arn"]
+                        break
+                if pipeline_arn:
+                    break
+
+            if not pipeline_arn:
+                raise Exception(
+                    f"Failed to resolve Image Builder pipeline ARN for '{self.image_builder_pipeline_name}'"
+                )
+
+            resp = client.list_image_pipeline_images(
+                imagePipelineArn=pipeline_arn,
+                maxResults=25,
+            )
+            images = resp.get("imageSummaryList", []) or []
+            if not images:
+                raise Exception(
+                    f"No images found for Image Builder pipeline '{self.image_builder_pipeline_name}'"
+                )
+
+            images.sort(key=lambda s: s.get("dateCreated", "") or "", reverse=True)
+            image_arn = images[0].get("arn", "")
+            if not image_arn:
+                raise Exception(
+                    f"Failed to resolve latest image ARN for pipeline '{self.image_builder_pipeline_name}'"
+                )
+
+            image_resp = client.get_image(imageBuildVersionArn=image_arn)
+            image = image_resp.get("image") or {}
+
+            for output in image.get("outputResources", {}).get("amis", []) or []:
+                if output.get("region") == self.region and output.get("image"):
+                    self.image_id = output["image"]
+                    return self.image_id
+
+            for output in image.get("outputResources", {}).get("amis", []) or []:
+                if output.get("image"):
+                    self.image_id = output["image"]
+                    return self.image_id
+
+            raise Exception(
+                f"Failed to resolve AMI id for pipeline '{self.image_builder_pipeline_name}'"
+            )
 
         def _build_launch_template_data(self) -> Dict[str, Any]:
             if self.data:
                 return self.data
 
-            if not self.image_id or not self.instance_type:
+            resolved_image_id = self._resolve_image_id()
+            if not resolved_image_id or not self.instance_type:
                 raise ValueError(
                     f"Either data must be provided, or image_id + instance_type must be set for Launch Template '{self.name}'"
                 )
 
             lt_data: Dict[str, Any] = {
-                "ImageId": self.image_id,
+                "ImageId": resolved_image_id,
                 "InstanceType": self.instance_type,
             }
 
@@ -112,25 +169,6 @@ class LaunchTemplate:
                 }
                 return lt_data
 
-            host_rg_arn = self.host_resource_group_arn
-            if not host_rg_arn and self.host_resource_group_name:
-                import boto3
-
-                rg = boto3.client("resource-groups", region_name=self.region)
-                group_resp = rg.get_group(GroupName=self.host_resource_group_name)
-                group = group_resp.get("Group", {})
-                host_rg_arn = group.get("GroupArn", "")
-                if not host_rg_arn:
-                    raise Exception(
-                        f"Failed to resolve GroupArn for resource group '{self.host_resource_group_name}'"
-                    )
-
-            if host_rg_arn:
-                lt_data["Placement"] = {
-                    "Tenancy": "host",
-                    "HostResourceGroupArn": host_rg_arn,
-                }
-
             return lt_data
 
         def deploy(self):
@@ -152,9 +190,13 @@ class LaunchTemplate:
             try:
                 self.fetch()
                 exists = True
-                print(f"Fetched existing configuration for Launch Template: {self.name}")
+                print(
+                    f"Fetched existing configuration for Launch Template: {self.name}"
+                )
             except Exception:
-                print(f"Launch Template {self.name} does not exist yet, will create new")
+                print(
+                    f"Launch Template {self.name} does not exist yet, will create new"
+                )
 
             if not exists:
                 resp = ec2.create_launch_template(
@@ -185,6 +227,13 @@ class LaunchTemplate:
             new_version_number: Optional[int] = version.get("VersionNumber")
             if new_version_number is not None:
                 self.ext["latest_version_number"] = new_version_number
+
+            if self.set_default_version_to_latest and new_version_number is not None:
+                ec2.modify_launch_template(
+                    LaunchTemplateId=lt_id,
+                    DefaultVersion=str(new_version_number),
+                )
+                self.ext["default_version_number"] = new_version_number
 
             print(
                 f"Successfully created new version for Launch Template: {self.name} (version={new_version_number})"

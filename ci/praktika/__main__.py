@@ -148,10 +148,14 @@ def create_parser():
         default="",
     )
     _infra_parser.add_argument(
-        "--resource-groups-only",
-        help="Deploy only AWS Resource Groups (skip launch templates, ASGs, and lambdas)",
-        action="store_true",
-        default="",
+        "--only",
+        help=(
+            "Deploy only specified component types (e.g. ImageBuilder LaunchTemplate AutoScalingGroup Lambda). "
+            "If not set, deploys all configured components."
+        ),
+        nargs="+",
+        type=str,
+        default=None,
     )
     return parser
 
@@ -169,7 +173,7 @@ def main():
 
         _get_infra_config().deploy(
             all=args.all,
-            resource_groups_only=args.resource_groups_only,
+            only=args.only,
         )
     elif args.command == "html":
         Html.prepare(args.test)
