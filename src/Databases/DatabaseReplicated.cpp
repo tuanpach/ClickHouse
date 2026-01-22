@@ -114,6 +114,7 @@ namespace ErrorCodes
     extern const int ASYNC_LOAD_CANCELED;
     extern const int KEEPER_EXCEPTION;
     extern const int SYNTAX_ERROR;
+    extern const int NOT_FOUND_NODE;
     }
 namespace FailPoints
 {
@@ -1436,6 +1437,12 @@ void DatabaseReplicated::recoverLostReplica(const ZooKeeperPtr & current_zookeep
         LOG_WARNING(log, "Will recover replica with staled log pointer {} from log pointer {}", our_log_ptr, max_log_ptr);
 
     auto table_name_to_metadata = tryGetConsistentMetadataSnapshot(current_zookeeper, max_log_ptr);
+
+    // If the database zk path was removed, we stop recovering it.
+    // Otherwises, the table might be moved the a new database (with BROKEN_TABLES_SUFFIX).
+    // We cannot restore the database with SYSTEM RESTORE DATABASE REPLICA
+    if (!current_zookeeper->exists(zookeeper_path))
+        throw Exception(ErrorCodes::NOT_FOUND_NODE, "Database zk path does not exist {}", zookeeper_path);
 
     /// For ReplicatedMergeTree tables we can compare only UUIDs to ensure that it's the same table.
     /// Metadata can be different, it's handled on table replication level.
