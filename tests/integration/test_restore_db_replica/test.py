@@ -8,7 +8,7 @@ from helpers.cluster import ClickHouseCluster, ClickHouseKiller
 from helpers.test_tools import TSV
 
 cluster = ClickHouseCluster(__file__)
-configs = ["configs/remote_servers.xml"]
+configs = ["configs/remote_servers.xml", "configs/logger.xml"]
 
 node_1 = cluster.add_instance(
     name="node1",
