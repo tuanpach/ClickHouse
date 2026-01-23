@@ -1,5 +1,5 @@
 <clickhouse>
     <logger>
-        <count>50</count>
+        <count>100</count>
     </logger>
 </clickhouse>
