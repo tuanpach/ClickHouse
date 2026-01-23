@@ -1438,12 +1438,6 @@ void DatabaseReplicated::recoverLostReplica(const ZooKeeperPtr & current_zookeep
 
     auto table_name_to_metadata = tryGetConsistentMetadataSnapshot(current_zookeeper, max_log_ptr);
 
-    // If the database zk path was removed, we stop recovering it.
-    // Otherwises, the table might be moved the a new database (with BROKEN_TABLES_SUFFIX).
-    // We cannot restore the database with SYSTEM RESTORE DATABASE REPLICA
-    if (!current_zookeeper->exists(zookeeper_path))
-        throw Exception(ErrorCodes::NOT_FOUND_NODE, "Database zk path does not exist {}", zookeeper_path);
-
     /// For ReplicatedMergeTree tables we can compare only UUIDs to ensure that it's the same table.
     /// Metadata can be different, it's handled on table replication level.
     /// We need to handle renamed tables only.
@@ -1840,6 +1834,10 @@ std::map<String, String> DatabaseReplicated::getConsistentMetadataSnapshotImpl(
     while (++iteration <= max_retries)
     {
         table_name_to_metadata.clear();
+
+        Coordination::Stat prev_db_path_stat;
+        zookeeper->get(zookeeper_path, &prev_db_path_stat);
+
         LOG_DEBUG(log, "Trying to get consistent metadata snapshot for log pointer {}", max_log_ptr);
 
         Strings escaped_table_names;
@@ -1856,6 +1854,19 @@ std::map<String, String> DatabaseReplicated::getConsistentMetadataSnapshotImpl(
         paths_to_fetch.push_back(zookeeper_path + "/max_log_ptr");
 
         auto table_metadata_and_version = zookeeper->tryGet(paths_to_fetch);
+
+        Coordination::Stat current_db_path_stat;
+        zookeeper->get(zookeeper_path, &current_db_path_stat);
+
+        if (current_db_path_stat.ctime != prev_db_path_stat.ctime)
+        {
+            LOG_DEBUG(
+                log,
+                "Database zookeeper path was recreated. Created time before {}, current {}",
+                prev_db_path_stat.ctime,
+                current_db_path_stat.ctime);
+            continue;
+        }
 
         for (size_t i = 0; i < escaped_table_names.size(); ++i)
         {
