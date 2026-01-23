@@ -5,11 +5,12 @@
 
 #include <Databases/DatabaseAtomic.h>
 #include <Databases/DatabaseReplicatedSettings.h>
-#include <QueryPipeline/BlockIO.h>
 #include <Interpreters/Context_fwd.h>
-#include <base/defines.h>
 #include <Interpreters/QueryFlags.h>
 #include <Parsers/SyncReplicaMode.h>
+#include <QueryPipeline/BlockIO.h>
+#include <base/defines.h>
+#include <Common/ZooKeeper/IKeeper.h>
 
 
 namespace zkutil
@@ -125,7 +126,7 @@ public:
 
     static void dropReplica(DatabaseReplicated * database, const String & database_zookeeper_path, const String & shard, const String & replica, bool throw_if_noop);
 
-    void restoreDatabaseMetadataInKeeper(ContextPtr ctx);
+    void restoreDatabaseInKeeper(ContextPtr ctx);
 
     ReplicasInfo tryGetReplicasInfo(const ClusterPtr & cluster_) const;
 
@@ -147,6 +148,8 @@ protected:
 
 private:
     void tryConnectToZooKeeperAndInitDatabase(LoadingStrictnessLevel mode);
+    void initDatabaseReplica(const ZooKeeperPtr & current_zookeeper, LoadingStrictnessLevel mode);
+    Coordination::Requests buildDatabaseNodesInZooKeeper();
     bool createDatabaseNodesInZooKeeper(const ZooKeeperPtr & current_zookeeper);
     static bool looksLikeReplicatedDatabasePath(const ZooKeeperPtr & current_zookeeper, const String & path);
     void createReplicaNodesInZooKeeper(const ZooKeeperPtr & current_zookeeper);
@@ -205,11 +208,13 @@ private:
     void waitDatabaseStarted() const override;
     void stopLoading() override;
 
-    void initDDLWorkerUnlocked() TSA_REQUIRES(ddl_worker_mutex);
+    void initDDLWorkerUnlocked();
 
-    void restoreTablesMetadataInKeeper();
+    void restoreDatabaseNodesInKeeper(const ZooKeeperPtr & zookeeper);
 
     void reinitializeDDLWorker();
+
+    bool isDDLWorkerActive() const;
 
     static BlockIO
     getQueryStatus(const String & node_path, const String & replicas_path, ContextPtr context, const Strings & hosts_to_wait);
@@ -229,7 +234,7 @@ private:
     std::atomic_bool is_recovering = false;
     std::atomic_bool ddl_worker_initialized = false;
     std::unique_ptr<DatabaseReplicatedDDLWorker> ddl_worker;
-    mutable std::mutex ddl_worker_mutex;
+    mutable std::shared_mutex ddl_worker_mutex;
     UInt32 max_log_ptr_at_creation = 0;
 
     /// Usually operation with metadata are single-threaded because of the way replication works,
