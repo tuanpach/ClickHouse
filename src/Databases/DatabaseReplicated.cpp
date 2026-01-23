@@ -114,7 +114,6 @@ namespace ErrorCodes
     extern const int ASYNC_LOAD_CANCELED;
     extern const int KEEPER_EXCEPTION;
     extern const int SYNTAX_ERROR;
-    extern const int NOT_FOUND_NODE;
     }
 namespace FailPoints
 {
