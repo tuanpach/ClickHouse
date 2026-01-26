@@ -581,7 +581,7 @@ void DatabaseReplicated::tryConnectToZooKeeperAndInitDatabase(LoadingStrictnessL
         if (!current_zookeeper)
             throw Exception(ErrorCodes::NO_ZOOKEEPER, "Can't create replicated database without ZooKeeper");
 
-        if (!current_zookeeper->exists(zookeeper_path))
+        if (mode < LoadingStrictnessLevel::ATTACH && !current_zookeeper->exists(zookeeper_path))
         {
             /// Create new database, multiple nodes can execute it concurrently
             createDatabaseNodesInZooKeeper(current_zookeeper);
@@ -1046,7 +1046,12 @@ void DatabaseReplicated::restoreDatabaseNodesInKeeper(const ZooKeeperPtr & zooke
     }
     Coordination::Responses responses;
     auto code = zookeeper->tryMulti(ops, responses);
+
+    if (code == Coordination::Error::ZOK)
+        return;
+
     zkutil::KeeperMultiException::check(code, ops, responses);
+    UNREACHABLE();
 }
 
 void DatabaseReplicated::reinitializeDDLWorker()
