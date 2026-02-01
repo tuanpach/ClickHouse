@@ -2,6 +2,7 @@
 #include <AggregateFunctions/IAggregateFunction.h>
 #include <Interpreters/WindowDescription.h>
 #include <Common/AlignedBuffer.h>
+#include <Common/PODArray.h>
 
 
 namespace DB
@@ -11,6 +12,7 @@ namespace ErrorCodes
 extern const int BAD_ARGUMENTS;
 }
 class WindowTransform;
+struct WindowTransformBlock;
 
 
 // Interface for true window functions. It's not much of an interface, they just
@@ -24,11 +26,11 @@ public:
     virtual ~IWindowFunction() = default;
 
     // Must insert the result for current_row.
-    virtual void windowInsertResultInto(const WindowTransform * transform, size_t function_index) const = 0;
+    virtual void windowInsertResultInto(const WindowTransform * transform, size_t function_index, const WindowTransformBlock * current_block) const = 0;
 
     virtual std::optional<WindowFrame> getDefaultFrame() const { return {}; }
 
-    virtual ColumnPtr castColumn(const Columns &, const std::vector<size_t> &) { return nullptr; }
+    virtual ColumnPtr castColumn(const Columns &, const PODArray<size_t> &) { return nullptr; }
 
     /// Is the frame type supported by this function.
     virtual bool checkWindowFrameType(const WindowTransform * /*transform*/) const { return true; }
@@ -47,7 +49,7 @@ struct WindowFunctionWorkspace
     // instead.
     IWindowFunction * window_function_impl = nullptr;
 
-    std::vector<size_t> argument_column_indices;
+    PODArray<size_t> argument_column_indices;
 
     // Will not be initialized for a pure window function.
     mutable AlignedBuffer aggregate_function_state;

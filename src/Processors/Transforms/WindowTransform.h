@@ -5,6 +5,7 @@
 #include <Interpreters/WindowDescription.h>
 #include <Processors/IProcessor.h>
 #include <Processors/Port.h>
+#include <Common/PODArray.h>
 
 #include <deque>
 
@@ -89,28 +90,31 @@ public:
     void advancePartitionEnd();
 
     bool arePeers(const RowNumber & x, const RowNumber & y) const;
+    bool arePeersImpl(
+        const RowNumber & x, const RowNumber & y,
+        const ColumnPtr * columns_x, const ColumnPtr * columns_y) const;
 
     void advanceFrameStartRowsOffset();
-    void advanceFrameStartRangeOffset();
-    void advanceFrameStart();
+    void advanceFrameStartRangeOffset(const ColumnPtr * current_row_columns);
+    void advanceFrameStart(const ColumnPtr * current_row_columns);
 
     void advanceFrameEndRowsOffset();
-    void advanceFrameEndCurrentRow();
+    void advanceFrameEndCurrentRow(const ColumnPtr * current_row_columns);
     void advanceFrameEndUnbounded();
-    void advanceFrameEnd();
-    void advanceFrameEndRangeOffset();
+    void advanceFrameEnd(const ColumnPtr * current_row_columns);
+    void advanceFrameEndRangeOffset(const ColumnPtr * current_row_columns);
 
     void updateAggregationState();
-    void writeOutCurrentRow();
+    void writeOutCurrentRow(const WindowTransformBlock * current_block);
 
-    Columns & inputAt(const RowNumber & x)
+    ColumnPtr * inputAt(const RowNumber & x)
     {
         assert(x.block >= first_block_number);
         assert(x.block - first_block_number < blocks.size());
-        return blocks[x.block - first_block_number].input_columns;
+        return blocks[x.block - first_block_number].input_columns.data();
     }
 
-    const Columns & inputAt(const RowNumber & x) const
+    const ColumnPtr * inputAt(const RowNumber & x) const
     {
         return const_cast<WindowTransform *>(this)->inputAt(x);
     }
@@ -247,9 +251,9 @@ public:
     WindowDescription window_description;
 
     // Indices of the PARTITION BY columns in block.
-    std::vector<size_t> partition_by_indices;
+    PODArray<size_t> partition_by_indices;
     // Indices of the ORDER BY columns in block;
-    std::vector<size_t> order_by_indices;
+    PODArray<size_t> order_by_indices;
 
     // Per-window-function scratch spaces.
     std::vector<WindowFunctionWorkspace> workspaces;
