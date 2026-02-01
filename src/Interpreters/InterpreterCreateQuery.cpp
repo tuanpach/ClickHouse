@@ -944,10 +944,11 @@ InterpreterCreateQuery::TableProperties InterpreterCreateQuery::getTableProperti
         /// For refreshable materialized views, use the MV's database as context for the view's SELECT analysis.
         /// This ensures unqualified table/view references resolve in the MV's database, not the session's database.
         ContextPtr select_context = getContext();
-        if (create.is_materialized_view && create.refresh_strategy)
+        bool is_refreshable_mv = create.is_materialized_view && create.refresh_strategy;
+        if (is_refreshable_mv)
         {
             auto mv_context = Context::createCopy(getContext());
-            mv_context->setCurrentDatabaseUnchecked(create.getDatabase());
+            mv_context->setCurrentDatabase(create.getDatabase());
             select_context = mv_context;
         }
 
@@ -961,7 +962,12 @@ InterpreterCreateQuery::TableProperties InterpreterCreateQuery::getTableProperti
         }
         else
         {
-            as_select_sample = InterpreterSelectWithUnionQuery::getSampleBlock(create.select->clone(), select_context);
+            /// For refreshable materialized views, allow parameterized views in the query.
+            /// This prevents the old analyzer from trying to execute table functions during analysis.
+            as_select_sample = InterpreterSelectWithUnionQuery::getSampleBlock(create.select->clone(),
+                select_context,
+                false /* is_subquery */,
+                is_refreshable_mv /* is_create_parameterized_view */);
         }
 
         properties.columns = ColumnsDescription(as_select_sample->getNamesAndTypesList());
@@ -1112,16 +1118,23 @@ void InterpreterCreateQuery::validateMaterializedViewColumnsAndEngine(const ASTC
             {
                 /// For refreshable materialized views with old analyzer, use MV's database context.
                 ContextPtr select_context = getContext();
-                if (create.refresh_strategy)
+                bool is_refreshable_mv = create.refresh_strategy != nullptr;
+                if (is_refreshable_mv)
                 {
                     auto mv_context = Context::createCopy(getContext());
                     mv_context->setCurrentDatabaseUnchecked(create.getDatabase());
                     select_context = mv_context;
                 }
 
+                /// For refreshable materialized views, allow parameterized views in the query.
+                /// This prevents the old analyzer from trying to execute table functions during analysis.
+                auto options = SelectQueryOptions().analyze();
+                if (is_refreshable_mv)
+                    options = options.createParameterizedView();
+
                 input_block = InterpreterSelectWithUnionQuery(create.select->clone(),
                     select_context,
-                    SelectQueryOptions().analyze()).getSampleBlock();
+                    options).getSampleBlock();
             }
         }
         catch (Exception & e)
