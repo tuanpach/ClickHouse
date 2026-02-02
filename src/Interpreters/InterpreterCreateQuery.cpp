@@ -2575,17 +2575,20 @@ void InterpreterCreateQuery::processSQLSecurityOption(ContextMutablePtr context_
         if (definer_name != current_user_name)
             context_->checkAccess(AccessType::SET_DEFINER, definer_name);
 
-        auto & access_control = context_->getAccessControl();
-        const auto user = access_control.read<User>(definer_name);
-        if (access_control.isEphemeral(access_control.getID<User>(definer_name)) && mode <= LoadingStrictnessLevel::CREATE)
+        if (mode <= LoadingStrictnessLevel::CREATE)
         {
-            definer_name = user->getName() + ":definer";
-            sql_security.definer = make_intrusive<ASTUserNameWithHost>(definer_name);
-            auto new_user = typeid_cast<std::shared_ptr<User>>(user->clone());
-            new_user->setName(definer_name);
-            new_user->authentication_methods.clear();
-            new_user->authentication_methods.emplace_back(AuthenticationType::NO_AUTHENTICATION);
-            access_control.insertOrReplace(new_user);
+            auto & access_control = context_->getAccessControl();
+            const auto user = access_control.read<User>(definer_name);
+            if (access_control.isEphemeral(access_control.getID<User>(definer_name)))
+            {
+                definer_name = user->getName() + ":definer";
+                sql_security.definer = make_intrusive<ASTUserNameWithHost>(definer_name);
+                auto new_user = typeid_cast<std::shared_ptr<User>>(user->clone());
+                new_user->setName(definer_name);
+                new_user->authentication_methods.clear();
+                new_user->authentication_methods.emplace_back(AuthenticationType::NO_AUTHENTICATION);
+                access_control.insertOrReplace(new_user);
+            }
         }
     }
 
