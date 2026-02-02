@@ -297,6 +297,7 @@ public:
         bool use_skip_indexes_for_disjunctions;
         bool use_skip_indexes_if_final_exact_mode;
         bool use_skip_indexes_on_data_read;
+	std::optional<VectorSearchParameters> vector_search_parameters;
         std::optional<std::unordered_set<String>> part_values;
     };
 

@@ -8,6 +8,8 @@
 #include <Storages/checkAndGetLiteralArgument.h>
 #include <TableFunctions/TableFunctionFactory.h>
 #include <Common/quoteString.h>
+#include <Parsers/ASTLiteral.h>
+#include <Storages/MergeTree/VectorSearchUtils.h>
 
 namespace
 {
@@ -66,6 +68,7 @@ private:
     StorageID source_table_id{StorageID::createEmpty()};
     String parts_regexp;
     ASTPtr predicate;
+    std::optional<VectorSearchParameters> vector_search_parameters;
 };
 
 std::vector<size_t> TableFunctionMergeTreeAnalyzeIndexes::skipAnalysisForArguments(const QueryTreeNodePtr & /* query_node_table_function */, ContextPtr /* context */) const
@@ -93,7 +96,7 @@ void TableFunctionMergeTreeAnalyzeIndexes::parseArgumentsUUID(const ASTs & args_
 {
     ASTs & args = args_func.at(0)->children;
     /// clang-tidy suggest to use args.empty() over args.size() < 1, which looks wrong here, but OK, let's use empty()
-    if (args.empty() || args.size() > 3)
+    if (args.empty() || args.size() > 4)
         throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
             "Table function '{}' must have at from 1 to 3 arguments (UUID, condition[, parts_regexp]), got: {}", getName(), args.size());
 
@@ -107,6 +110,35 @@ void TableFunctionMergeTreeAnalyzeIndexes::parseArgumentsUUID(const ASTs & args_
     {
         args[2] = evaluateConstantExpressionOrIdentifierAsLiteral(args[2], context);
         parts_regexp = checkAndGetLiteralArgument<String>(args[2], "parts_regexp");
+    }
+
+    /// vector_search_parameters = std::nullopt;
+    if (args.size() > 3)
+    {
+	///auto vector_search_args_map = checkAndGetLiteralArgument<String>(args[3], "vector_search_args_map");
+        LOG_TRACE(getLogger("loggg"), "3rd argument could {}", args[3]->children[0]->children[0]->dumpTree());
+	auto vector_search_args_map = args[3]->children[0]->children[0]->as<ASTLiteral>()->value.safeGet<Array>();
+#if 0
+        for (size_t j = 0; j < vector_search_args_map.size(); j++)
+        {
+            const String & name_ = vector_search_args_map[j].safeGet<String>();
+	    LOG_TRACE(getLogger("loggg"), "Vector search args is {}", name_);
+	}
+#endif
+        LOG_TRACE(getLogger("loggg"), "3rd argument is {}", args[3]->dumpTree());
+	Array field_array = vector_search_args_map[7].safeGet<Array>();
+	std::vector<Float64> reference_vector;
+	for (const auto & field_array_value : field_array)
+	{
+		Float64 float64 = field_array_value.safeGet<Float64>();
+		reference_vector.push_back(float64);
+	}
+	vector_search_parameters = VectorSearchParameters{vector_search_args_map[1].safeGet<String>(),
+		vector_search_args_map[3].safeGet<String>(),
+		vector_search_args_map[5].safeGet<UInt64>(),
+		reference_vector, ///vector_search_args_map[3].safeGet<Array>(),
+		false,
+		true};
     }
 
     source_table_id = StorageID{/*database=*/ "", /*table=*/ "", uuid};
@@ -145,6 +177,7 @@ ColumnsDescription TableFunctionMergeTreeAnalyzeIndexes::getActualTableStructure
             std::make_shared<DataTypeUInt64>(), // begin
             std::make_shared<DataTypeUInt64>(), // end
         }))},
+        {"part_offsets", std::make_shared<DataTypeArray>(std::make_shared<DataTypeUInt64>())},
     }));
 }
 
@@ -175,7 +208,8 @@ StoragePtr TableFunctionMergeTreeAnalyzeIndexes::executeImpl(
         std::move(source_table),
         std::move(columns),
         parts_regexp,
-        predicate);
+        predicate,
+	vector_search_parameters);
     res->startup();
     return res;
 }
