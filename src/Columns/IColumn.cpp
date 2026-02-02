@@ -525,7 +525,8 @@ static void fillColumnFromRowRefs(ColumnType * col, const DataTypePtr & type, co
                 }
                 else
                 {
-                    col->insertRangeFrom(*row_ref_list->columns_info->columns[source_column_index_in_block], row_ref_list->row_num, row_ref_list->rows);
+                    const auto * columns = row_ref_list->columns_info->columns.data();
+                    col->insertRangeFrom(*columns[source_column_index_in_block], row_ref_list->row_num, row_ref_list->rows);
                 }
             }
             else
@@ -535,7 +536,10 @@ static void fillColumnFromRowRefs(ColumnType * col, const DataTypePtr & type, co
                     if (const auto * source_replicated = it->columns_info->replicated_columns[source_column_index_in_block])
                         col->insertFrom(*source_replicated->getNestedColumn(), source_replicated->getIndexes().getIndexAt(it->row_num));
                     else
-                        col->insertFrom(*it->columns_info->columns[source_column_index_in_block], it->row_num);
+                    {
+                        const auto * columns = it->columns_info->columns.data();
+                        col->insertFrom(*columns[source_column_index_in_block], it->row_num);
+                    }
                 }
             }
         }
