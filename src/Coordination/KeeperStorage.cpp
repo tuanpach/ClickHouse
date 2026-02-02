@@ -1249,7 +1249,20 @@ void KeeperStorage<Container>::applyUncommittedState(KeeperStorage & other, int6
         if (!zxids_to_apply.contains(it->zxid))
             continue;
 
-        other.uncommitted_state.applyDelta(*it, /*digest=*/nullptr);
+        if (!it->path.empty())
+        {
+            other.uncommitted_state.applyDelta(*it, /*digest=*/nullptr);
+        }
+        else if (const auto * auth_delta = std::get_if<AddAuthDelta>(&it->operation))
+        {
+            auto & uncommitted_auth = other.uncommitted_state.session_and_auth[auth_delta->session_id];
+            uncommitted_auth.push_back(std::pair{it->zxid, auth_delta->auth_id});
+        }
+        else if (const auto * close_session_delta = std::get_if<CloseSessionDelta>(&it->operation))
+        {
+            other.uncommitted_state.closed_sessions_to_zxids[close_session_delta->session_id].insert(it->zxid);
+        }
+
         other.uncommitted_state.deltas.push_back(*it);
     }
 }
