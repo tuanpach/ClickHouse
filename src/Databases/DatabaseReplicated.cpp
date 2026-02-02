@@ -1352,6 +1352,14 @@ BlockIO DatabaseReplicated::tryEnqueueReplicatedDDL(const ASTPtr & query, Contex
 {
     waitDatabaseStarted();
 
+    String host_fqdn_id;
+    {
+        std::lock_guard lock{ddl_worker_mutex};
+        if (!ddl_worker || is_probably_dropped)
+            throw Exception(ErrorCodes::DATABASE_REPLICATION_FAILED, "Database is not initialized or is being dropped");
+        host_fqdn_id = ddl_worker->getCommonHostID();
+    }
+
     if (!DatabaseCatalog::instance().canPerformReplicatedDDLQueries())
         throw Exception(ErrorCodes::QUERY_IS_PROHIBITED, "Replicated DDL queries are disabled");
 
@@ -1369,7 +1377,7 @@ BlockIO DatabaseReplicated::tryEnqueueReplicatedDDL(const ASTPtr & query, Contex
 
     DDLLogEntry entry;
     entry.query = query->formatWithSecretsOneLine();
-    entry.initiator = ddl_worker->getCommonHostID();
+    entry.initiator = host_fqdn_id;
     entry.setSettingsIfRequired(query_context);
     entry.tracing_context = OpenTelemetry::CurrentContext();
     entry.is_backup_restore = flags.distributed_backup_restore;
