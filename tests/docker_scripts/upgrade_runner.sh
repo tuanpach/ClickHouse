@@ -363,7 +363,6 @@ rg -Fav -e "Code: 236. DB::Exception: Cancelled merging parts" \
            -e "doesn't have metadata version on disk" \
            -e "Unknown codec family: ZSTD_QAT" \
            -e "Unknown codec family: DEFLATE_QPL" \
-           -e "Failed to flush system log" \
            -e "Bad get: has String, requested UInt64. (BAD_GET" \
            -e "Disk does not support stat. (NOT_IMPLEMENTED" \
            -e "QUALIFY clause is not supported in the old analyzer" \
