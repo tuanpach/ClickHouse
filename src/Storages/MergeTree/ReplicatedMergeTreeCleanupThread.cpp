@@ -199,7 +199,7 @@ Float32 ReplicatedMergeTreeCleanupThread::iterate()
         cleaned_logs = clearOldLogs();
 
         size_t deduplication_blocks = clearOldBlocks("deduplication_hashes", (*storage_settings)[MergeTreeSetting::replicated_deduplication_window_seconds],
-                                   (*storage_settings)[MergeTreeSetting::replicated_deduplication_window], cached_block_stats_for_inserts);
+                                   (*storage_settings)[MergeTreeSetting::replicated_deduplication_window], cached_stats_for_insert_deduplication_hashes);
 
         size_t normal_blocks = clearOldBlocks("blocks", (*storage_settings)[MergeTreeSetting::replicated_deduplication_window_seconds],
                                    (*storage_settings)[MergeTreeSetting::replicated_deduplication_window], cached_block_stats_for_sync_inserts);
