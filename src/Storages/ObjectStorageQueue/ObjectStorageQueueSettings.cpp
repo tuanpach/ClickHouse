@@ -33,6 +33,7 @@ namespace ErrorCodes
     DECLARE(String, last_processed_path, "", "For Ordered mode. Files that have lexicographically smaller file name are considered already processed", 0) \
     DECLARE(UInt64, tracked_files_limit, 1000, "For unordered mode. Max set size for tracking processed files in ZooKeeper", 0) \
     DECLARE(UInt64, tracked_file_ttl_sec, 0, "Maximum number of seconds to store processed files in ZooKeeper node (store forever by default)", 0) \
+    DECLARE(UInt64, metadata_cache_size, 1000, "Size for the in-memory cache for metadata received from ZooKeeper", 0) \
     DECLARE(UInt64, polling_min_timeout_ms, 1000, "Minimal timeout before next polling", 0) \
     DECLARE(UInt64, polling_max_timeout_ms, 10 * 60 * 1000, "Maximum timeout before next polling", 0) \
     DECLARE(UInt64, polling_backoff_ms, 30 * 1000, "Polling backoff", 0) \

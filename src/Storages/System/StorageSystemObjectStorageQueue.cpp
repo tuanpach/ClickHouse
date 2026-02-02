@@ -50,7 +50,8 @@ void StorageSystemObjectStorageQueue<type>::fillData(MutableColumns & res_column
         if (type != metadata->getType())
             continue;
 
-        for (const auto & [file_path, file_status] : metadata->getFileStatuses())
+        auto cache = metadata->getFileStatusesCache().dump();
+        for (const auto & [file_path, file_status] : cache)
         {
             size_t i = 0;
             res_columns[i++]->insert(zookeeper_path);

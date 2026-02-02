@@ -123,6 +123,7 @@
     M(ObjectStorageQueueShutdownThreads, "Number of threads in object storage queue shutdown pool.") \
     M(ObjectStorageQueueShutdownThreadsActive, "Number of threads in object storage queue shutdown pool running a task.") \
     M(ObjectStorageQueueShutdownThreadsScheduled, "Number of queued or active jobs in object storage queue shutdown pool.") \
+    M(ObjectStorageQueueMetadataCacheSize, "Size of ObjectStorageQueue metadata cache.") \
     M(BackupsIOThreads, "Number of threads in the BackupsIO thread pool.") \
     M(BackupsIOThreadsActive, "Number of threads in the BackupsIO thread pool running a task.") \
     M(BackupsIOThreadsScheduled, "Number of queued or active jobs in the BackupsIO thread pool.") \

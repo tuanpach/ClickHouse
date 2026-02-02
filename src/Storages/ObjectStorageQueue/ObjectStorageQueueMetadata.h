@@ -9,6 +9,7 @@
 #include <Storages/ObjectStorageQueue/ObjectStorageQueueOrderedFileMetadata.h>
 #include <Storages/ObjectStorageQueue/ObjectStorageQueueTableMetadata.h>
 #include <Storages/ObjectStorageQueue/ObjectStorageQueueFilenameParser.h>
+#include <Common/CacheBase.h>
 #include <Common/ZooKeeper/ZooKeeper.h>
 #include <Common/ZooKeeper/ZooKeeperRetries.h>
 #include <Common/SettingsChanges.h>
@@ -40,7 +41,7 @@ struct StorageInMemoryMetadata;
  * we can differently store metadata in /processed node.
  *
  * Implements caching of zookeeper metadata for faster responses.
- * Cached part is located in LocalFileStatuses.
+ * Cached part is located in FileStatusesCache.
  *
  * In case of Unordered mode - if files TTL is enabled or maximum tracked files limit is set
  * starts a background cleanup thread which is responsible for maintaining them.
@@ -48,10 +49,8 @@ struct StorageInMemoryMetadata;
 class ObjectStorageQueueMetadata
 {
 public:
-    using FileStatus = ObjectStorageQueueIFileMetadata::FileStatus;
     using FileMetadataPtr = std::shared_ptr<ObjectStorageQueueIFileMetadata>;
-    using FileStatusPtr = std::shared_ptr<FileStatus>;
-    using FileStatuses = std::unordered_map<std::string, FileStatusPtr>;
+    using FileStatusesCache = CacheBase<std::string, ObjectStorageQueueIFileMetadata::FileStatus>;
     using Bucket = size_t;
     using Processor = std::string;
 
@@ -64,7 +63,8 @@ public:
         size_t cleanup_interval_max_ms_,
         bool use_persistent_processing_nodes_,
         size_t persistent_processing_nodes_ttl_seconds_,
-        size_t keeper_multiread_batch_size_);
+        size_t keeper_multiread_batch_size_,
+        size_t metadata_cache_size_);
 
     ~ObjectStorageQueueMetadata();
 
@@ -99,8 +99,8 @@ public:
     /// Get base path to keeper metadata.
     std::string getPath() const { return zookeeper_path; }
     /// Get statuses (state, processed rows, processing time)
-    /// of all files stored in LocalFileStatuses cache.
-    FileStatuses getFileStatuses() const;
+    /// of all files stored in FileStatusesCache cache.
+    const FileStatusesCache & getFileStatusesCache() const { return local_file_statuses; }
 
     /// Get TableMetadata, which is the exact information we store in keeper.
     const ObjectStorageQueueTableMetadata & getTableMetadata() const { return table_metadata; }
@@ -218,8 +218,7 @@ private:
     std::atomic_bool startup_called = false;
     BackgroundSchedulePoolTaskHolder cleanup_task;
 
-    class LocalFileStatuses;
-    std::shared_ptr<LocalFileStatuses> local_file_statuses;
+    FileStatusesCache local_file_statuses;
 
     /// A set of currently known "active" servers.
     /// The set is updated by updateRegistryFunc().
