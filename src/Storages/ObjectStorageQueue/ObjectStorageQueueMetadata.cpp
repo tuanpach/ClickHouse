@@ -222,7 +222,8 @@ ObjectStorageQueueMetadata::FileMetadataPtr ObjectStorageQueueMetadata::getFileM
 {
     chassert(metadata_ref_count);
     auto [file_status, _] = local_file_statuses.getOrSet(
-        path, []() {
+        path, []()
+        {
             return std::make_shared<ObjectStorageQueueIFileMetadata::FileStatus>();
         });
     switch (mode)
