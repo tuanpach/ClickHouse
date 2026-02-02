@@ -98,7 +98,6 @@ void ParquetV3BlockInputFormat::initializeIfNeeded()
             std::lock_guard lock(reader_mutex);
             reader.emplace();
             reader->reader.prefetcher.init(in, read_options, parser_shared_resources);
-            auto log = getLogger("ParquetMetadataCache");
             if (metadata_cache && metadata.has_value())
             {
                 String file_name = metadata->getFileName();
@@ -130,7 +129,6 @@ Chunk ParquetV3BlockInputFormat::read()
         Parquet::Prefetcher temp_prefetcher;
         parquet::format::FileMetaData file_metadata;
         temp_prefetcher.init(in, read_options, parser_shared_resources);
-        auto log = getLogger("ParquetMetadataCache");
         if (metadata_cache && metadata.has_value())
         {
             String file_name = metadata->getFileName();
@@ -200,7 +198,6 @@ void NativeParquetSchemaReader::initializeIfNeeded()
         return;
     Parquet::Prefetcher prefetcher;
     prefetcher.init(&in, read_options, /*parser_shared_resources_=*/ nullptr);
-    auto log = getLogger("ParquetMetadataCache");
     file_metadata = Parquet::Reader::readFileMetaData(prefetcher);
     initialized = true;
 }

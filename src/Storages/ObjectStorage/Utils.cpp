@@ -271,16 +271,9 @@ static bool isParquetFromContentType(const ObjectMetadata & metadata)
     return upper_content_type || lower_content_type;
 }
 
-static bool isParquetFromFormat(const StorageObjectStorageConfigurationPtr & conf)
+bool isParquetFormat(const ObjectInfoPtr & object_info)
 {
-    if (conf->format == "Parquet" || conf->format == "parquet")
-        return true;
-    return false;
-}
-
-bool isParquetFormat(const ObjectInfoPtr & object_info, const StorageObjectStorageConfigurationPtr & conf)
-{
-    return isParquetFromFormat(conf) || isParquetFromContentType(object_info->relative_path_with_metadata.metadata.value());
+    return isParquetFromContentType(object_info->relative_path_with_metadata.metadata.value());
 }
 
 namespace Setting
