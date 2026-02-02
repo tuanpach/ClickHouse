@@ -566,11 +566,15 @@ def main():
 
     if JobStages.RETRIES in stages and test_result and test_result.is_failure():
         # retry all failed tests and mark original failed either as success on retry or failed on retry
-        failed_tests = [
-            t.name
-            for t in test_result.results
-            if t.is_failure() and t.name and t.name[0].isdigit()
-        ]
+        failed_tests = []
+        for t in test_result.results:
+            if t.is_failure() and t.name and t.name[0].isdigit():
+                failed_tests.append(t.name)
+            elif t.is_error():
+                failed_tests = []
+                print("NOTE: Skipping retry stage because the main test run ended with errors")
+                break
+
         if len(failed_tests) > 10:
             results.append(
                 Result(
