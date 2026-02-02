@@ -109,6 +109,9 @@ void ExactContainsRuntimeFilter::merge(const IRuntimeFilter * source)
 
 void ExactContainsRuntimeFilter::finishInsert()
 {
+    if (filters_to_merge != 0)
+            return;
+    
     Base::finishInsert();
 
     if (isFull())
