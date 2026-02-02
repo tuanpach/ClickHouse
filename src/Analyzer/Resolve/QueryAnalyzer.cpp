@@ -1625,6 +1625,18 @@ void QueryAnalyzer::updateMatchedColumnsFromJoinUsing(
 
                 const auto & join_using_column_nodes_list = join_using_column_node.getExpressionOrThrow()->as<ListNode &>();
                 const auto & join_using_column_nodes = join_using_column_nodes_list.getNodes();
+                for (const auto & join_using_column_inner_node : join_using_column_nodes)
+                {
+                    const auto * join_using_column_inner_column_node = join_using_column_inner_node->as<ColumnNode>();
+                    if (!join_using_column_inner_column_node || !join_using_column_inner_column_node->hasExpression())
+                        continue;
+                    if (matched_column_node_typed.getColumnSource().get() == join_using_column_inner_column_node->getColumnSource().get())
+                    {
+                        /// If the USING key was taken from the SELECT projection (`analyzer_compatibility_join_using_top_level_identifier`),
+                        /// do not override the matched column type, keep one based on table columns in this case.
+                        return;
+                    }
+                }
 
                 auto it = node_to_projection_name.find(matched_column_node);
                 matched_column_node = matched_column_node->clone();
