@@ -575,7 +575,7 @@ enum class DeduplicationUnificationStage : uint8_t
 {
     OLD_SEPARATE_HASHES = 0,
     COMPATIBLE_DOUBLE_HASHES,
-    NEW_UNIFICATED_HASHES
+    NEW_UNIFIED_HASHES,
 };
 
 DECLARE_SETTING_ENUM(DeduplicationUnificationStage)

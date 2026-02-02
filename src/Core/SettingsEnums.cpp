@@ -449,5 +449,5 @@ IMPLEMENT_SETTING_ENUM(DeduplicateInsertMode, ErrorCodes::BAD_ARGUMENTS,
 IMPLEMENT_SETTING_ENUM(DeduplicationUnificationStage, ErrorCodes::BAD_ARGUMENTS,
     {{"old_separate_hashes", DeduplicationUnificationStage::OLD_SEPARATE_HASHES},
      {"compatible_double_hashes", DeduplicationUnificationStage::COMPATIBLE_DOUBLE_HASHES},
-     {"new_unified_hash", DeduplicationUnificationStage::NEW_UNIFICATED_HASHES}})
+     {"new_unified_hash", DeduplicationUnificationStage::NEW_UNIFIED_HASHES}})
 }

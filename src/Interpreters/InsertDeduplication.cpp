@@ -52,7 +52,7 @@ DeduplicationHash::DeduplicationHash(UInt128 hash_, std::string partition_id_, H
 {}
 
 
-DeduplicationHash DeduplicationHash::createUnufiedHash(UInt128 hash, std::string partition_id)
+DeduplicationHash DeduplicationHash::createUnifiedHash(UInt128 hash, std::string partition_id)
 {
     return DeduplicationHash(hash, std::move(partition_id), HashType::UNIFIED);
 }
@@ -377,7 +377,7 @@ DeduplicationHash DeduplicationInfo::getBlockUnifiedHash(size_t offset, const st
 
     SipHash hash;
     hash.update(extension.data(), extension.size());
-    return DeduplicationHash::createUnufiedHash(hash.get128(), partition_id);
+    return DeduplicationHash::createUnifiedHash(hash.get128(), partition_id);
 }
 
 
@@ -460,7 +460,7 @@ std::vector<DeduplicationHash> DeduplicationInfo::chooseDeduplicationHashes(size
             result.push_back(getBlockHash(offset, partition_id));
             result.push_back(getBlockUnifiedHash(offset, partition_id));
             break;
-        case DeduplicationUnificationStage::NEW_UNIFICATED_HASHES:
+        case DeduplicationUnificationStage::NEW_UNIFIED_HASHES:
             result.push_back(getBlockUnifiedHash(offset, partition_id));
             break;
     }

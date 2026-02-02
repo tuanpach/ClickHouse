@@ -32,7 +32,7 @@ class AddDeduplicationInfoTransform : public ISimpleTransform
     StorageIDMaybeEmpty root_view_id;
     std::string user_token;
     size_t block_number = 0;
-    DeduplicationUnificationStage unification_stage = DeduplicationUnificationStage::NEW_UNIFICATED_HASHES;
+    DeduplicationUnificationStage unification_stage = DeduplicationUnificationStage::NEW_UNIFIED_HASHES;
 public:
     explicit AddDeduplicationInfoTransform(SharedHeader header_);
 

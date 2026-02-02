@@ -26,14 +26,14 @@ struct DeduplicationHash
 {
     enum class HashType : uint8_t
     {
-        SYNC= 0,
+        SYNC = 0,
         ASYNC = 1,
         UNIFIED = 2,
     };
 
     DeduplicationHash(UInt128 hash_, std::string partition_id_, HashType htype);
 
-    static DeduplicationHash createUnufiedHash(UInt128 hash, std::string partition_id);
+    static DeduplicationHash createUnifiedHash(UInt128 hash, std::string partition_id);
     static DeduplicationHash createSyncHash(UInt128 hash, std::string partition_id);
     static DeduplicationHash createAsyncHash(UInt128 hash, std::string partition_id);
 

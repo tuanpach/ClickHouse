@@ -148,7 +148,7 @@ protected:
     StorageSnapshotPtr storage_snapshot;
 
     bool is_async_insert = true;
-    DeduplicationUnificationStage deduplication_unification_stage = DeduplicationUnificationStage::NEW_UNIFICATED_HASHES;
+    DeduplicationUnificationStage deduplication_unification_stage = DeduplicationUnificationStage::NEW_UNIFIED_HASHES;
 };
 
 }

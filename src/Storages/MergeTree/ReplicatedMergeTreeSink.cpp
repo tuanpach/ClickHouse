@@ -576,10 +576,10 @@ bool ReplicatedMergeTreeSink::writeExistingPart(MergeTreeData::MutableDataPartPt
                 break;
             case DeduplicationUnificationStage::COMPATIBLE_DOUBLE_HASHES:
                 deduplication_hashes.emplace_back(DeduplicationHash::createSyncHash(part->checksums.getTotalChecksumUInt128(), part->info.getPartitionId()));
-                deduplication_hashes.emplace_back(DeduplicationHash::createUnufiedHash(part->checksums.getTotalChecksumUInt128(), part->info.getPartitionId()));
+                deduplication_hashes.emplace_back(DeduplicationHash::createUnifiedHash(part->checksums.getTotalChecksumUInt128(), part->info.getPartitionId()));
                 break;
-            case DeduplicationUnificationStage::NEW_UNIFICATED_HASHES:
-                deduplication_hashes.emplace_back(DeduplicationHash::createUnufiedHash(part->checksums.getTotalChecksumUInt128(), part->info.getPartitionId()));
+            case DeduplicationUnificationStage::NEW_UNIFIED_HASHES:
+                deduplication_hashes.emplace_back(DeduplicationHash::createUnifiedHash(part->checksums.getTotalChecksumUInt128(), part->info.getPartitionId()));
                 break;
         }
     }
@@ -635,7 +635,7 @@ bool ReplicatedMergeTreeSink::writeExistingPart(MergeTreeData::MutableDataPartPt
 
 std::vector<DeduplicationHash> ReplicatedMergeTreeSink::detectConflictsInAsyncBlockIDs(const std::vector<DeduplicationHash> & deduplication_hashes)
 {
-    if (deduplication_unification_stage != DeduplicationUnificationStage::NEW_UNIFICATED_HASHES)
+    if (deduplication_unification_stage != DeduplicationUnificationStage::NEW_UNIFIED_HASHES)
     {
         auto conflict_block_ids = storage.async_block_ids_cache.detectConflicts(deduplication_hashes, cache_version);
         if (!conflict_block_ids.empty())
