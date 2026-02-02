@@ -357,7 +357,7 @@ void updateImpl(const ColumnArray * column_array, const ColumnArray::Offsets & c
     for (size_t row = 0; row < rows; ++row)
     {
         auto key = static_cast<USearchIndex::vector_key_t>(index_size + row);
-        /// Passing add_vector_to_index by refence is safe because it outlives the runner
+        /// Passing add_vector_to_index by reference is safe because it outlives the runner
         runner.enqueueAndKeepTrack([&add_vector_to_index, key, row] { add_vector_to_index(key, row); });
     }
 

@@ -7872,7 +7872,7 @@ void StorageReplicatedMergeTree::fetchPartition(
         for (const String & part : parts_to_fetch)
         {
             /// Passing by reference here is ok. All passed variables are created before the runner, so they will outlive it
-            fetch_partition_runner.enqueueAndKeepTrack([this, &part, &metadata_snapshot, &from_zookeeper_name, &best_replica_path, &zookeeper]()
+            fetch_partition_runner.enqueueAndKeepTrack([this, &part, &metadata_snapshot, &from_zookeeper_name, &best_replica_path, &zookeeper, &missing_parts_mutex, &missing_parts]()
             {
                 bool fetched = false;
 
