@@ -44,7 +44,7 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"deduplicate_insert", "backward_compatible_choice", "backward_compatible_choice", "New setting to control deduplication for INSERT queries."},
             {"default_dictionary_database", "", "", "New setting"},
             {"parallel_replicas_filter_pushdown", false, false, "New setting"},
-            {"use_statistics_cache", 0, 120, "Enable statistics cache"},
+            {"use_statistics_cache", 0, 300, "Enable statistics cache"},
         });
         addSettingsChanges(settings_changes_history, "26.1",
         {
@@ -97,6 +97,7 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"use_paimon_partition_pruning", false, false, "New setting."},
             {"use_skip_indexes_for_disjunctions", false, true, "New setting"},
             {"allow_statistics_optimize", false, true, "Enable this optimization by default."},
+            {"allow_statistic_optimize", false, true, "Enable this optimization by default."},
             {"query_plan_text_index_add_hint", true, true, "New setting"},
             {"query_plan_read_in_order_through_join", false, true, "New setting"},
             {"query_plan_max_limit_for_lazy_materialization", 10, 10000, "Increase the limit after performance improvement"},
