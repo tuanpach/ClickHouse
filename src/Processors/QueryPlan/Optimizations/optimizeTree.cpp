@@ -544,10 +544,10 @@ void optimizeTreeSecondPass(
             continue;
         }
 
-        /// Prewhere optimization relies on PK optimization (getConditionSelectivityEstimatorByPredicate)
-        if (optimization_settings.optimize_prewhere)
-            optimizePrewhere(*frame.node);
-
+//        /// Prewhere optimization relies on PK optimization (getConditionSelectivityEstimatorByPredicate)
+//        if (optimization_settings.optimize_prewhere)
+//            optimizePrewhere(*frame.node);
+//
         stack.pop_back();
     }
 
@@ -600,12 +600,21 @@ void optimizeTreeSecondPass(
                         break;
                 }
             },
-            [&](auto & frame_node)
+            [](auto &)
             {
-                if (optimization_settings.optimize_prewhere)
-                    optimizePrewhere(frame_node);
             });
     }
+
+    /// Do optimizePrewhere after possible RuntimeFilter pushdown
+    traverseQueryPlan(stack, root,
+        [](auto &)
+        {
+        },
+        [&](auto & frame_node)
+        {
+            if (optimization_settings.optimize_prewhere)
+                optimizePrewhere(frame_node);
+        });
 
     traverseQueryPlan(stack, root,
         [&](auto & frame_node)
