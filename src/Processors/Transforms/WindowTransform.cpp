@@ -1340,7 +1340,6 @@ void WindowTransform::appendChunk(Chunk & chunk)
         assert(current_row == partition_start);
         current_row_number = 1;
         peer_group_start = partition_start;
-        peer_group_start_columns = inputAt(peer_group_start);
         peer_group_start_row_number = 1;
         peer_group_number = 1;
 
