@@ -201,7 +201,7 @@ size_t tryUseVectorSearch(QueryPlan::Node * parent_node, QueryPlan::Nodes & /*no
     return no_layers_updated;
 }
 
-bool optimizeVectorSearchSecondPass(QueryPlan::Node & /*root*/, Stack & stack, QueryPlan::Nodes & nodes, const Optimization::ExtraSettings & settings)
+bool optimizeVectorSearchSecondPass(QueryPlan::Node & /*root*/, Stack & stack, QueryPlan::Nodes & /*nodes*/, const Optimization::ExtraSettings & settings)
 {
     /// QueryPlan::Node * node = parent_node;
 
@@ -369,25 +369,8 @@ bool optimizeVectorSearchSecondPass(QueryPlan::Node & /*root*/, Stack & stack, Q
 
         if (optimize_plan)
         {
-	    auto initial_header = read_from_mergetree_step->getOutputHeader();
             /// Remove the physical vector column from ReadFromMergeTreeStep, add virtual "_distance" column
             read_from_mergetree_step->replaceVectorColumnWithDistanceColumn(search_column);
-        
-	    auto updated_header = read_from_mergetree_step->getOutputHeader();
-        if (!blocksHaveEqualStructure(*initial_header, *updated_header))
-        {
-            auto dag = ActionsDAG::makeConvertingActions(
-                updated_header->getColumnsWithTypeAndName(),
-                initial_header->getColumnsWithTypeAndName(),
-                ActionsDAG::MatchColumnsMode::Name, read_from_mergetree_step->getContext());
-
-            auto converting_step = std::make_unique<ExpressionStep>(updated_header, std::move(dag));
-            auto & converting_node = nodes.emplace_back();
-            converting_node.step = std::move(converting_step);
-
-            node->children.push_back(&converting_node);
-            std::swap(node->step, converting_node.step);
-	}
 
             /// Bug #85514: cosineDistance/L2Distance can have return types Float64 or Float32, depending on the
             /// input types but the "_distance" column is always of type Float32. Add a CAST if needed.

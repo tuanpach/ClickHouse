@@ -46,7 +46,7 @@ public:
         MergeTreeData::DataPartsVector data_parts_,
         MergeTreeSettingsPtr table_settings_,
         const ASTPtr & predicate_,
-        const std::optional<VectorSearchParameters> & vector_search_parameters_,
+        const OptionalVectorSearchParameters & vector_search_parameters_,
         ContextPtr context_)
         : ISource(header_)
         , WithContext(context_)
@@ -93,14 +93,6 @@ protected:
                     field.push_back(Tuple{range.begin, range.end});
                 res_columns[res_index++]->insert(std::move(field));
             }
-
-            Array offsets;
-	    if (ranges_in_part.read_hints.vector_search_results)
-	    {
-                for (auto offset : ranges_in_part.read_hints.vector_search_results->rows)
-                    offsets.push_back(offset);
-	    }
-            res_columns[res_index++]->insert(std::move(offsets));
 
             processed_parts.insert(ranges_in_part.data_part->name);
         }
@@ -191,7 +183,7 @@ protected:
             filter_dag ? &filter_dag.value() : nullptr,
             *merge_tree_data,
             parts_ranges,
-            vector_search_parameters, /// /*vector_search_parameters=*/ std::nullopt,
+            vector_search_parameters,
             /*top_k_filter_info=*/ std::nullopt,
             context,
             query_info,
@@ -218,7 +210,6 @@ protected:
             .has_projections = false,
             .result = analysis_result,
         };
-	/// filter_context.indexes.vector_search_parameters = std::nullopt,
         return MergeTreeDataSelectExecutor::filterPartsByPrimaryKeyAndSkipIndexes(filter_context, parts_ranges, analysis_result.index_stats);
     }
 
@@ -229,7 +220,7 @@ private:
     SelectQueryInfo query_info;
     size_t num_streams;
     ASTPtr predicate;
-    std::optional<VectorSearchParameters> vector_search_parameters;
+    OptionalVectorSearchParameters vector_search_parameters;
     MergeTreeData::DataPartsVector data_parts;
     MergeTreeSettingsPtr table_settings;
 
@@ -289,7 +280,7 @@ void ReadFromMergeTreeAnalyzeIndexes::initializePipeline(QueryPipelineBuilder & 
         storage->data_parts,
         storage->table_settings,
         storage->predicate,
-	storage->vector_search_parameters,
+        storage->vector_search_parameters,
         context)));
 }
 
@@ -303,7 +294,7 @@ StorageMergeTreeAnalyzeIndexes::StorageMergeTreeAnalyzeIndexes(
     const ColumnsDescription & columns,
     const String & parts_regexp_,
     const ASTPtr & predicate_,
-    const std::optional<VectorSearchParameters> & vector_search_parameters_)
+    const OptionalVectorSearchParameters & vector_search_parameters_)
     : IStorage(table_id_)
     , source_table(source_table_)
     , predicate(predicate_)

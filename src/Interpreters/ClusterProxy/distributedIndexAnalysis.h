@@ -32,7 +32,7 @@ DistributedIndexAnalysisPartsRanges distributedIndexAnalysisOnReplicas(
     const ActionsDAG * filter_actions_dag,
     const Names & primary_key_column_names,
     const RangesInDataParts & parts_with_ranges,
-    std::optional<VectorSearchParameters> vector_search_parameters,
+    const OptionalVectorSearchParameters & vector_search_parameters,
     LocalIndexAnalysisCallback local_index_analysis_callback,
     ContextPtr context);
 

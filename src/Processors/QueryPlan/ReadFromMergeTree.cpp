@@ -1848,9 +1848,6 @@ void ReadFromMergeTree::buildIndexes(
 
     ActionsDAGWithInversionPushDown filter_dag((filter_actions_dag_ ? filter_actions_dag_->getOutputs().front() : nullptr), query_context);
 
-    if (filter_actions_dag_)
-        LOG_TRACE(getLogger("aaaa"), "filter tag for query {}    xxx    {}", filter_actions_dag_->dumpNames(), filter_actions_dag_->dumpDAG());
-
     indexes.emplace(
         ReadFromMergeTree::Indexes{KeyCondition{
             filter_dag,
@@ -1892,8 +1889,6 @@ void ReadFromMergeTree::buildIndexes(
 
     const auto & all_indexes = metadata_snapshot->getSecondaryIndices();
 
-    LOG_TRACE(getLogger("aaaa"), "Number of skip indexes {}", all_indexes.size());
-
     if (all_indexes.empty())
         return;
 
@@ -1911,7 +1906,6 @@ void ReadFromMergeTree::buildIndexes(
 
     for (const auto & index : all_indexes)
     {
-        LOG_TRACE(getLogger("aaaa"), "Checking index name {}", index.name);
         if (ignored_index_names.contains(index.name))
             continue;
 
@@ -1976,8 +1970,6 @@ void ReadFromMergeTree::buildIndexes(
                                                         && settings[Setting::use_skip_indexes_if_final_exact_mode]
                                                         && !areSkipIndexColumnsInPrimaryKey(primary_key_column_names, skip_indexes,
                                                                 indexes->key_condition_rpn_template->hasOnlyConjunctions());
-
-    indexes->vector_search_parameters = vector_search_parameters;
     {
         std::vector<size_t> index_sizes;
         index_sizes.reserve(skip_indexes.useful_indices.size());
@@ -2849,10 +2841,7 @@ std::unique_ptr<LazilyReadFromMergeTree> ReadFromMergeTree::keepOnlyRequiredColu
     NameSet columns_to_keep;
 
     for (const auto & column_name : required_outputs)
-    {
-	LOG_TRACE(log, "column to keep {}", column_name);
         columns_to_keep.insert(column_name);
-    }
 
     if (query_info.row_level_filter)
     {
@@ -2873,7 +2862,6 @@ std::unique_ptr<LazilyReadFromMergeTree> ReadFromMergeTree::keepOnlyRequiredColu
     Names columns_to_remove;
     for (const auto & column_name : all_column_names)
     {
-	LOG_TRACE(log, "Checking column {}", column_name);
         if (columns_to_keep.contains(column_name) || virtuals->has(column_name))
             new_column_names.push_back(column_name);
         else
@@ -2882,8 +2870,6 @@ std::unique_ptr<LazilyReadFromMergeTree> ReadFromMergeTree::keepOnlyRequiredColu
 
     if (columns_to_remove.empty())
         return {};
-
-    LOG_TRACE(log, "Looking good here");
 
     auto lazy_reading_header = std::make_shared<const Block>(
         MergeTreeSelectProcessor::transformHeader(

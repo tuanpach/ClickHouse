@@ -135,7 +135,9 @@ std::vector<ConnectionPoolPtr> prepareConnectionPools(const ContextPtr & context
     return pools_to_use;
 }
 
-IndexAnalysisPartsRanges getIndexAnalysisFromReplica(const LoggerPtr & logger, const StorageID & storage_id, const std::optional<std::string> & filter, std::optional<VectorSearchParameters> vector_search_parameters, ContextPtr context, const Tables & external_tables, const std::vector<std::string_view> & parts, ConnectionPoolPtr pool)
+IndexAnalysisPartsRanges getIndexAnalysisFromReplica(const LoggerPtr & logger, const StorageID & storage_id, const std::optional<std::string> & filter,
+                                                     const OptionalVectorSearchParameters & vector_search_parameters, ContextPtr context, const Tables & external_tables,
+                                                     const std::vector<std::string_view> & parts, ConnectionPoolPtr pool)
 {
     std::string analyze_index_query = fmt::format("SELECT * FROM mergeTreeAnalyzeIndexesUUID('{}', {}, '^({})$'",
         storage_id.uuid,
@@ -144,11 +146,13 @@ IndexAnalysisPartsRanges getIndexAnalysisFromReplica(const LoggerPtr & logger, c
 
     if (vector_search_parameters)
     {
-        std::string vector_search_args_map = fmt::format(", array('column', '{}', 'distance_function', '{}', 'limit', {}, 'reference_vector', {})",
-			vector_search_parameters->column, vector_search_parameters->distance_function, vector_search_parameters->limit,
-			vector_search_parameters->reference_vector);
-	analyze_index_query += vector_search_args_map;
+        std::string vector_search_args = fmt::format(", 'vector_search_index_analysis', array('{}', '{}', {}, {}, {}, {})",
+                        vector_search_parameters->column, vector_search_parameters->distance_function,
+                        vector_search_parameters->limit, vector_search_parameters->reference_vector,
+                        vector_search_parameters->additional_filters_present, vector_search_parameters->return_distances);
+        analyze_index_query += vector_search_args;
     }
+
     analyze_index_query += ")";
 
     IndexAnalysisPartsRanges res;
@@ -224,7 +228,7 @@ DistributedIndexAnalysisPartsRanges distributedIndexAnalysisOnReplicas(
     const ActionsDAG * filter_actions_dag,
     const Names & primary_key_column_names,
     const RangesInDataParts & parts_with_ranges,
-    std::optional<VectorSearchParameters> vector_search_parameters,
+    const OptionalVectorSearchParameters & vector_search_parameters,
     LocalIndexAnalysisCallback local_index_analysis_callback,
     ContextPtr context)
 {

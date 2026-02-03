@@ -16,7 +16,7 @@ public:
         const ColumnsDescription & columns,
         const String & parts_regexp_,
         const ASTPtr & primary_key_predicate_,
-        const std::optional<VectorSearchParameters> & vector_search_parameters_);
+        const OptionalVectorSearchParameters & vector_search_parameters_);
 
     void read(
         QueryPlan & query_plan,
@@ -37,7 +37,7 @@ private:
     MergeTreeData::DataPartsVector data_parts;
     MergeTreeSettingsPtr table_settings;
     ASTPtr predicate;
-    std::optional<VectorSearchParameters> vector_search_parameters;
+    OptionalVectorSearchParameters vector_search_parameters;
 };
 
 }

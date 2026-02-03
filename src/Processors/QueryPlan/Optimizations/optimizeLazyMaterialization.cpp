@@ -32,10 +32,10 @@ static bool canUseLazyMaterializationForReadingStep(ReadFromMergeTree * reading)
 
     if (reading->isQueryWithSampling())
         return false;
-/*
+
     if (reading->isVectorColumnReplaced())
         return false;
-*/
+
     return true;
 }
 
