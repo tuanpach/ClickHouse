@@ -91,14 +91,6 @@ save_mergetree_settings_clean 'old_merge_tree_settings.native'
 save_major_version 'old_version.native'
 old_major_version=$(clickhouse-local -q "select a[1] || '.' || a[2] from (select splitByChar('.', version()) as a)")
 
-# Initial run without S3 to create system.*_log on local file system to make it
-# available for dump via clickhouse-local
-configure
-
-start_server || (echo "Failed to start server" && exit 1)
-stop_server || (echo "Failed to stop server" && exit 1)
-mv /var/log/clickhouse-server/clickhouse-server.log /var/log/clickhouse-server/clickhouse-server.initial.log
-
 configure_opts=(
     # Let's enable S3 storage by default
     --s3-storage
