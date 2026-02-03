@@ -179,10 +179,22 @@ public:
         return std::nullopt;
     }
 
+    bool supportsTotalRows() const override
+    {
+        assertInitialized();
+        return current_metadata->supportsTotalRows();
+    }
+
     std::optional<size_t> totalRows(ContextPtr local_context) override
     {
         assertInitialized();
         return current_metadata->totalRows(local_context);
+    }
+
+    bool supportsTotalBytes() const override
+    {
+        assertInitialized();
+        return current_metadata->supportsTotalBytes();
     }
 
     std::optional<size_t> totalBytes(ContextPtr local_context) override
