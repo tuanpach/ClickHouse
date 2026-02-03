@@ -202,9 +202,7 @@ set(SRCS_MATH
 "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/ufromfpx.cpp"
 "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/ufromfpxf.cpp"
 "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/ufromfpxl.cpp"
-)
 
-set(SRC_F16
 "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/canonicalizef16.cpp"
 "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/ceilf16.cpp"
 "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/copysignf16.cpp"
@@ -279,9 +277,7 @@ set(SRC_F16
 "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/truncf16.cpp"
 "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/ufromfpf16.cpp"
 "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/ufromfpxf16.cpp"
-)
 
-set(SRC_F128
 "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/canonicalizef128.cpp"
 "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/ceilf128.cpp"
 "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/copysignf128.cpp"
@@ -338,7 +334,7 @@ set(SRC_F128
 )
 
 if (ARCH_AMD64 OR ARCH_AARCH64)
-    list(APPEND SRCS ${SRCS_MATH} ${SRCS_F16} ${SRCS_F128})
+    list(APPEND SRCS ${SRCS_MATH})
 endif()
 
 set(LIBC_NAMESPACE "__llvm_libc")
