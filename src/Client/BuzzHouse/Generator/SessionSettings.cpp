@@ -63,7 +63,6 @@ std::unordered_map<String, CHSetting> performanceSettings
        {"allow_push_predicate_when_subquery_contains_with", trueOrFalseSetting},
        {"allow_reorder_prewhere_conditions", trueOrFalseSetting},
        {"allow_simdjson", trueOrFalseSetting},
-       {"allow_statistics_optimize", trueOrFalseSetting},
        {"cluster_function_process_archive_on_multiple_nodes", trueOrFalseSetting},
        {"compile_aggregate_expressions", trueOrFalseSetting},
        {"compile_expressions", trueOrFalseSetting},
@@ -270,6 +269,7 @@ std::unordered_map<String, CHSetting> performanceSettings
        {"use_skip_indexes_for_top_k", trueOrFalseSetting},
        {"use_skip_indexes_if_final", trueOrFalseSetting},
        {"use_skip_indexes_on_data_read", trueOrFalseSetting},
+       {"use_statistics", trueOrFalseSetting},
        {"use_statistics_cache", trueOrFalseSetting},
        {"use_top_k_dynamic_filtering", trueOrFalseSetting},
        {"use_uncompressed_cache", trueOrFalseSetting}};
@@ -292,6 +292,7 @@ std::unordered_map<String, CHSetting> serverSettings = {
     {"allow_changing_replica_until_first_data_packet", trueOrFalseSettingNoOracle},
     {"allow_dynamic_type_in_join_keys", trueOrFalseSettingNoOracle},
     {"allow_experimental_delta_kernel_rs", trueOrFalseSettingNoOracle},
+    {"allow_experimental_nullable_tuple_type", trueOrFalseSettingNoOracle},
     {"allow_get_client_http_header", trueOrFalseSettingNoOracle},
     {"allow_introspection_functions", trueOrFalseSetting},
     {"allow_special_bool_values_inside_variant", trueOrFalseSettingNoOracle},
@@ -1020,7 +1021,6 @@ static std::unordered_map<String, CHSetting> serverSettings2 = {
     {"query_cache_compress_entries", trueOrFalseSetting},
     {"query_cache_share_between_users", trueOrFalseSettingNoOracle},
     {"query_cache_squash_partial_results", trueOrFalseSetting},
-    {"query_condition_cache_store_conditions_as_plaintext", trueOrFalseSettingNoOracle},
     {"query_plan_display_internal_aliases", trueOrFalseSettingNoOracle},
     {"query_plan_max_limit_for_top_k_optimization",
      CHSetting(
