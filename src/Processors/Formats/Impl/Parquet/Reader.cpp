@@ -1986,7 +1986,7 @@ void Reader::readRowsInPage(size_t end_row_idx, ColumnSubchunk & subchunk, Colum
             auto & indices_column_uint32 = assert_cast<ColumnUInt32 &>(*page.indices_column);
             auto & data = indices_column_uint32.getData();
             chassert(data.empty());
-            page.decoder->decode(encoded_values_to_read, *page.indices_column);
+            page.decoder->decode(encoded_values_to_read, *page.indices_column, nullptr, 0);
             if (filter)
             {
                 auto filtered_indices = ColumnUInt32::create();

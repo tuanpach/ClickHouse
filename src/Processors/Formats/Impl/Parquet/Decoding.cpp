@@ -1206,7 +1206,7 @@ void Dictionary::decode(parq::Encoding::type encoding, const PageDecoderInfo & i
         auto decoder = info.makeDecoder(encoding, data_);
         auto c = raw_decoded_type.createColumn();
         c->reserve(num_values);
-        decoder->decode(num_values, *c);
+        decoder->decode(num_values, *c, nullptr, 0);
         col = std::move(c);
 
         if (col->isFixedAndContiguous())
