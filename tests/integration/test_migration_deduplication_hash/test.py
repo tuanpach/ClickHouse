@@ -36,7 +36,7 @@ def cluster():
         )
         cluster.add_instance(
             "node_restart",
-            macros={"replica": "node_old"},
+            macros={"replica": "node_restart"},
             main_configs=[
                 "configs/migration_restart.xml",
             ],
