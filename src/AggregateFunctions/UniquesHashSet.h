@@ -231,11 +231,11 @@ private:
 #endif
         }
 
-        if (buf[place_value] == x)
-            return;
-
-        buf[place_value] = x;
-        ++m_size;
+        if (!buf[place_value])
+        {
+            buf[place_value] = x;
+            ++m_size;
+        }
     }
 
     /** Insert a value into the new buffer that was in the old buffer.
@@ -332,6 +332,82 @@ public:
 
         insertImpl(hash_value);
         shrinkIfNeed();
+    }
+
+    /// This value is arbitrary. The optimal value might depend on the CPU pipeline depth, cache line size (64B = 8 UInt64s),
+    /// hash collision rate, instruction parallelism, etc.
+    /// We choose a value that is big enough to provide sufficient instruction level parallelism but not too big to bloat the code size.
+    static constexpr size_t insert_many_batch_size = 8;
+
+    template <typename SourceType, auto Transform>
+    requires std::is_invocable_r_v<Value, decltype(Transform), const SourceType &>
+    void insertMany(const SourceType * data, size_t size)
+    {
+        size_t i = 0;
+        while (i < size)
+        {
+            if ((max_fill() - m_size) > insert_many_batch_size && ((size - i) > insert_many_batch_size))
+            {
+                /// We read and transform multiple values at once which allows both the compiler and the CPU to better optimize the code.
+                /// We calculate place() even for !good() hashes to maximize data independence and enable better out-of-order execution.
+                /// The extra work is negligible compared to the instruction level parallelization benefits.
+                HashValue hash_value[insert_many_batch_size];
+                for (size_t j = 0; j < insert_many_batch_size; ++j)
+                {
+                    hash_value[j] = hash(Transform(data[i + j]));
+                }
+                i += insert_many_batch_size;
+
+                size_t place_value_batch[insert_many_batch_size];
+                for (size_t j = 0; j < insert_many_batch_size; ++j)
+                {
+                    place_value_batch[j] = place(hash_value[j]);
+                }
+
+                for (size_t j = 0; j < insert_many_batch_size; ++j)
+                {
+                    const HashValue & x = hash_value[j];
+                    if (!good(x))
+                        continue;
+
+                    if (x == 0)
+                    {
+                        m_size += !has_zero;
+                        has_zero = true;
+                        continue;
+                    }
+
+                    size_t place_value = place_value_batch[j];
+                    while (buf[place_value] && buf[place_value] != x)
+                    {
+                        ++place_value;
+                        place_value &= mask();
+
+#ifdef UNIQUES_HASH_SET_COUNT_COLLISIONS
+                        ++collisions;
+#endif
+                    }
+
+                    if (!buf[place_value])
+                    {
+                        buf[place_value] = x;
+                        ++m_size;
+                    }
+                }
+            }
+            else
+            {
+                const HashValue hash_value = hash(Transform(data[i]));
+                i++;
+                if (!good(hash_value))
+                    continue;
+
+                insertImpl(hash_value);
+            }
+
+            /// We need to check shrink condition after each batch or single insert
+            shrinkIfNeed();
+        }
     }
 
     size_t size() const
