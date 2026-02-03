@@ -15,6 +15,7 @@
 #include <Interpreters/evaluateConstantExpression.h>
 #include <Storages/checkAndGetLiteralArgument.h>
 #include <Poco/UUIDGenerator.h>
+#include <Common/logger_useful.h>
 
 namespace DB
 {
@@ -248,32 +249,6 @@ ParseFromDiskResult parseFromDisk(ASTs args, bool with_structure, ContextPtr con
         result.compression_method = compression_method_value.value();
     }
     return result;
-}
-
-static bool isParquetFromContentType(const ObjectMetadata & metadata)
-{
-    /// there's no official MIME type for parquet, so we will do our best
-    /// based off the most common headers
-    auto check_content_type_header = [](const String & header, const ObjectMetadata & meta)-> bool {
-        auto content_type_header = meta.attributes.find(header);
-        if (content_type_header != meta.attributes.end())
-        {
-            const String & content_type = content_type_header->second;
-            return content_type == "application/parquet" ||
-                content_type == "application/vnd.apache.parquet" ||
-                content_type == "application/octet-stream" ||
-                content_type == "binary/octet-stream";
-        }
-        return false;
-    };
-    bool upper_content_type = check_content_type_header("Content-Type", metadata);
-    bool lower_content_type = check_content_type_header("content-type", metadata);
-    return upper_content_type || lower_content_type;
-}
-
-bool isParquetFormat(const ObjectInfoPtr & object_info)
-{
-    return isParquetFromContentType(object_info->relative_path_with_metadata.metadata.value());
 }
 
 namespace Setting
