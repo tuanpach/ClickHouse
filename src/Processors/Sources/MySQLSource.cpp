@@ -103,7 +103,10 @@ void MySQLWithFailoverSource::onStart()
     {
         try
         {
-            connection = std::make_unique<Connection>(pool->get(), query_str);
+            mysqlxx::PoolWithFailover::Entry entry = pool->get();
+            mysqlxx::Connection & mysql_conn = entry;
+            mysql_connection_id = mysql_conn.getDriverThreadID();
+            connection = std::make_unique<Connection>(entry, query_str);
             break;
         }
         catch (const mysqlxx::ConnectionLost & ecl)  /// There are two retriable failures: CR_SERVER_GONE_ERROR, CR_SERVER_LOST
@@ -132,16 +135,73 @@ void MySQLWithFailoverSource::onStart()
 
 Chunk MySQLWithFailoverSource::generate()
 {
-    if (!is_initialized)
+    try
     {
-        onStart();
-        is_initialized = true;
-    }
+        if (!is_initialized)
+        {
+            onStart();
+            is_initialized = true;
+        }
 
-    return MySQLSource::generate();
+        return MySQLSource::generate();
+    }
+    catch (...)
+    {
+        LOG_ERROR(log, "Error in MySQLWithFailoverSource::generate()");
+        return {};
+    }
 }
 
+void MySQLWithFailoverSource::onCancel() noexcept
+{
+    try
+    {
+        LOG_DEBUG(log, "Entering onCancel()");
 
+        if (mysql_connection_id == 0)
+        {
+            LOG_DEBUG(log, "No valid MySQL connection ID to cancel");
+            return;
+        }
+
+        LOG_DEBUG(log, "Attempting to cancel MySQL query with connection ID {}", mysql_connection_id);
+
+        std::string kill_query = "KILL QUERY " + std::to_string(mysql_connection_id);
+
+        try
+        {
+            auto cancel_connection = std::make_unique<Connection>(pool->get(), kill_query);
+            cancel_connection->query.execute();
+            LOG_DEBUG(log, "Successfully cancelled MySQL query with connection ID {}", mysql_connection_id);
+        }
+        catch (const mysqlxx::ConnectionFailed & e)
+        {
+            LOG_WARNING(log, "Failed to connect for cancel query: {}", e.displayText());
+        }
+        catch (const mysqlxx::BadQuery & e)
+        {
+            LOG_WARNING(log, "Failed to execute cancel query: {}", e.displayText());
+        }
+        catch (const mysqlxx::Exception & e)
+        {
+            LOG_WARNING(log, "MySQL exception during cancellation: {}", e.displayText());
+        }
+        catch (const Poco::Exception & e)
+        {
+            LOG_WARNING(log, "Poco exception during cancellation: {}", e.displayText());
+        }
+        catch (const std::exception & e)
+        {
+            LOG_WARNING(log, "std::exception during cancellation: {}", e.what());
+        }
+
+        LOG_DEBUG(log, "Exiting onCancel()");
+    }
+    catch (...)
+    {
+        tryLogCurrentException(log, "Unexpected error in MySQLWithFailoverSource::onCancel");
+    }
+}
 namespace
 {
     using ValueType = ExternalResultDescription::ValueType;
