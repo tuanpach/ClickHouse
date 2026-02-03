@@ -124,7 +124,7 @@ std::span<const ManifestFileEntryPtr> defineDeletesSpan(
         assert(*previous_it);
         LOG_DEBUG(
             logger,
-            "Preliminary Got {} {} delete elements for data file {}, taken data file object info: {}, first taken delete object info is "
+            "Preliminary got {} {} delete elements for data file {}, taken data file object info: {}, first taken delete object info is "
             "{}, last taken "
             "delete object info is {}",
             std::distance(beg_it, end_it),
