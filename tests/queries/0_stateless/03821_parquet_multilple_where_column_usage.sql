@@ -37,6 +37,6 @@ insert into function file('03821_fil.parquet')
     n::Decimal128(20)/123456789012345 as d128,
     n::Decimal256(40)/123456789012345/678901234567890 as d256
 
-    from numbers(10000);
+    from numbers(10000) settings engine_file_truncate_on_insert=1;
 
 SELECT DISTINCT ((u16 < 4000) AND (u16 <= 61000)) OR assumeNotNull(2) OR ((u16 = 42) OR ((61000 >= u16) AND (4000 >= u16))), deltaSumDistinct(number) IGNORE NULLS FROM file('03821_fil.parquet') PREWHERE and(and(notEquals(u32, (4000 >= u16) AND (u16 >= toUInt128(61000)) AS alias184), equals(dt64_ms, 4000 != u16)), equals(assumeNotNull(toNullable(56)), u16)) WHERE isNotDistinctFrom(u16, not(equals(u32, and(4000, (i8 >= -3) OR (assumeNotNull(42) = u16), 4000 != u16, equals(number, assumeNotNull(56))))));
