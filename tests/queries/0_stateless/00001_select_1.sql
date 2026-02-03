@@ -1,2 +1,1 @@
---REMOVEME
 SELECT 1
