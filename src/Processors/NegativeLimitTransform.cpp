@@ -34,7 +34,7 @@ NegativeLimitTransform::NegativeLimitTransform(SharedHeader header_, UInt64 limi
 
 /// First, our goal is to pull all the data from input ports. Once we have reached the end,
 /// then it is clear what should be part of the `limit`, `offset` and what should be pushed out to the output ports.
-IProcessor::Status NegativeLimitTransform::prepare(const PortNumbers & /*updated_input_ports*/, const PortNumbers & /*updated_output_ports*/)
+NegativeLimitTransform::Status NegativeLimitTransform::prepare()
 {
     if (allOutputsFinished())
     {
@@ -137,14 +137,6 @@ IProcessor::Status NegativeLimitTransform::prepare(const PortNumbers & /*updated
     }
 
     throw Exception(ErrorCodes::LOGICAL_ERROR, "NegativeLimitTransform::prepare in unknown stage");
-}
-
-NegativeLimitTransform::Status NegativeLimitTransform::prepare()
-{
-    if (ports_data.size() != 1)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "prepare without arguments is not supported for multi-port NegativeLimitTransform");
-
-    return prepare({0}, {0});
 }
 
 bool NegativeLimitTransform::allOutputsFinished() const

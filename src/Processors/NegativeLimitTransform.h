@@ -74,8 +74,7 @@ public:
 
     String getName() const override { return "NegativeLimit"; }
 
-    Status prepare(const PortNumbers & /*updated_input_ports*/, const PortNumbers & /*updated_output_ports*/) override;
-    Status prepare() override; /// Compatibility for TreeExecutor.
+    Status prepare() override;
 
     InputPort & getInputPort() { return inputs.front(); }
     OutputPort & getOutputPort() { return outputs.front(); }
