@@ -425,6 +425,7 @@ class Runner:
             # Get host user's UID and GID (not from inside the container)
             uid = os.getuid()
             gid = os.getgid()
+            Shell.check(f"docker run --rm --user root --volume ./:{current_dir} --workdir={current_dir} {docker} ls -l {Settings.TEMP_DIR}", verbose=True)
             chown_cmd = f"docker run --rm --user root --volume ./:{current_dir} --workdir={current_dir} {docker} chown -R {uid}:{gid} {Settings.TEMP_DIR}"
             Shell.check(chown_cmd, verbose=True)
 
