@@ -2139,7 +2139,10 @@ void Reader::applyPrewhere(RowSubgroup & row_subgroup, const RowGroup & row_grou
             const ColumnWithTypeAndName & col = extended_sample_block.getByPosition(idx_in_output_block);
             block.insert({getOrFormOutputColumn(row_subgroup, idx_in_output_block), col.type, col.name});
         }
-        addDummyColumnWithRowCount(block, block.rows());
+        addDummyColumnWithRowCount(block, row_subgroup.filter.rows_pass);
+
+        ProfileEvents::increment(ProfileEvents::ParquetRowsFilterExpression, block.rows());
+        ProfileEvents::increment(ProfileEvents::ParquetColumnsFilterExpression, block.columns());
 
         if (block.rows() == 0)
         {
@@ -2147,11 +2150,6 @@ void Reader::applyPrewhere(RowSubgroup & row_subgroup, const RowGroup & row_grou
             return;
         }
         step.actions.execute(block);
-        size_t rows_for_metric = row_subgroup.accumulated_filter.empty()
-            ? block.rows()
-            : countBytesInFilter(row_subgroup.accumulated_filter.data(), 0, row_subgroup.accumulated_filter.size());
-        ProfileEvents::increment(ProfileEvents::ParquetRowsFilterExpression, rows_for_metric);
-        ProfileEvents::increment(ProfileEvents::ParquetColumnsFilterExpression, block.columns());
 
         for (const auto & [name, idx] : step.idxs_in_output_block)
         {
@@ -2173,43 +2171,28 @@ void Reader::applyPrewhere(RowSubgroup & row_subgroup, const RowGroup & row_grou
         ColumnPtr filter_column = block.getByName(step.filter_column_name.value()).column;
         filter_column = FilterDescription::preprocessFilterColumn(std::move(filter_column));
         const IColumnFilter & filter = typeid_cast<const ColumnUInt8 &>(*filter_column).getData();
-        chassert(filter.size() == block.rows());
-
-        if (row_subgroup.accumulated_filter.empty())
-            row_subgroup.accumulated_filter.assign(filter.data(), filter.data() + filter.size());
-        else
-        {
-            chassert(row_subgroup.accumulated_filter.size() == filter.size());
-            for (size_t i = 0; i < filter.size(); ++i)
-                row_subgroup.accumulated_filter[i] &= filter[i];
-        }
-
-        size_t rows_pass = countBytesInFilter(row_subgroup.accumulated_filter.data(), 0, row_subgroup.accumulated_filter.size());
+        chassert(filter.size() == row_subgroup.filter.rows_pass);
+        size_t rows_pass = countBytesInFilter(filter.data(), 0, filter.size());
         if (rows_pass == 0 || !row_group.need_to_process)
         {
+            /// Whole row group was filtered out.
             row_subgroup.filter.rows_pass = 0;
-            row_subgroup.accumulated_filter.clear();
             return;
         }
 
-        const bool is_last_step = (step_idx == steps.size());
+        /// Filter columns that were already read.
+        for (auto & state : row_subgroup.output)
+            if (state.column)
+                state.column = state.column->filter(filter, /*result_size_hint=*/ rows_pass);
 
-        if (is_last_step)
-        {
-            IColumnFilter previous_full_filter;
-            previous_full_filter.assign(row_subgroup.filter.filter.begin(), row_subgroup.filter.filter.end());
-            auto mut_col = ColumnUInt8::create();
-            mut_col->getData().assign(row_subgroup.accumulated_filter.begin(), row_subgroup.accumulated_filter.end());
-            if (row_subgroup.filter.rows_pass != row_subgroup.filter.rows_total)
-                mut_col->expand(previous_full_filter, /*inverted*/ false);
-            row_subgroup.filter.filter = std::move(mut_col->getData());
-            row_subgroup.filter.rows_pass = rows_pass;
-
-            for (auto & state : row_subgroup.output)
-                if (state.column)
-                    state.column = state.column->filter(row_subgroup.accumulated_filter, /*result_size_hint=*/ rows_pass);
-            row_subgroup.accumulated_filter.clear();
-        }
+        /// Expand the filter to correspond to all column subchunk rows, rather than only rows that
+        /// passed previous filters (previous prewhere steps).
+        auto mut_col = IColumn::mutate(std::move(filter_column));
+        auto & mut_filter = typeid_cast<ColumnUInt8 &>(*mut_col);
+        if (row_subgroup.filter.rows_pass != row_subgroup.filter.rows_total)
+            mut_filter.expand(row_subgroup.filter.filter, /*inverted*/ false);
+        row_subgroup.filter.filter = std::move(mut_filter.getData());
+        row_subgroup.filter.rows_pass = rows_pass;
     }
 }
 
