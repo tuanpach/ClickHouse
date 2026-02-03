@@ -122,6 +122,7 @@ class MetadataStorageFromPlainObjectStorageUnlinkMetadataFileOperation final : p
 {
 private:
     const std::filesystem::path path;
+    const bool if_exists;
     const std::shared_ptr<IObjectStorage> object_storage;
     const std::shared_ptr<InMemoryDirectoryTree> fs_tree;
     const std::shared_ptr<PlainRewritableLayout> layout;
@@ -137,6 +138,7 @@ private:
 public:
     MetadataStorageFromPlainObjectStorageUnlinkMetadataFileOperation(
         std::filesystem::path path_,
+        bool if_exists_,
         std::shared_ptr<IObjectStorage> object_storage_,
         std::shared_ptr<InMemoryDirectoryTree> fs_tree_,
         std::shared_ptr<PlainRewritableLayout> layout_,

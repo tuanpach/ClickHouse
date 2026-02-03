@@ -356,11 +356,13 @@ void MetadataStorageFromPlainObjectStorageWriteFileOperation::undo()
 
 MetadataStorageFromPlainObjectStorageUnlinkMetadataFileOperation::MetadataStorageFromPlainObjectStorageUnlinkMetadataFileOperation(
     std::filesystem::path path_,
+    bool if_exists_,
     std::shared_ptr<IObjectStorage> object_storage_,
     std::shared_ptr<InMemoryDirectoryTree> fs_tree_,
     std::shared_ptr<PlainRewritableLayout> layout_,
     std::shared_ptr<PlainRewritableMetrics> metrics_)
     : path(std::move(path_))
+    , if_exists(if_exists_)
     , object_storage(object_storage_)
     , fs_tree(fs_tree_)
     , layout(std::move(layout_))
@@ -377,7 +379,12 @@ void MetadataStorageFromPlainObjectStorageUnlinkMetadataFileOperation::execute()
         path);
 
     if (!fs_tree->existsFile(path))
+    {
+        if (if_exists)
+            return;
+
         throw Exception(ErrorCodes::FILE_DOESNT_EXIST, "File '{}' does not exist", path);
+    }
 
     file_remote_info = fs_tree->getFileRemoteInfo(path);
 

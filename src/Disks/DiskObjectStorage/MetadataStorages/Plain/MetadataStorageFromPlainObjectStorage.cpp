@@ -193,17 +193,16 @@ MetadataStorageFromPlainObjectStorageTransaction::MetadataStorageFromPlainObject
 {
 }
 
-const IMetadataStorage & MetadataStorageFromPlainObjectStorageTransaction::getStorageForNonTransactionalReads() const
+void MetadataStorageFromPlainObjectStorageTransaction::commit(const TransactionCommitOptionsVariant &)
 {
-    return metadata_storage;
 }
 
-std::optional<StoredObjects> MetadataStorageFromPlainObjectStorageTransaction::tryGetBlobsFromTransactionIfExists(const std::string & path) const
+TransactionCommitOutcomeVariant MetadataStorageFromPlainObjectStorageTransaction::tryCommit(const TransactionCommitOptionsVariant &)
 {
-    return metadata_storage.getStorageObjectsIfExist(path);
+    return true;
 }
 
-void MetadataStorageFromPlainObjectStorageTransaction::unlinkFile(const std::string & path)
+void MetadataStorageFromPlainObjectStorageTransaction::unlinkFile(const std::string & path, bool /*if_exists*/, bool /*should_remove_objects*/)
 {
     if (metadata_storage.object_metadata_cache)
     {
@@ -217,19 +216,13 @@ void MetadataStorageFromPlainObjectStorageTransaction::unlinkFile(const std::str
     metadata_storage.object_storage->removeObjectIfExists(StoredObject(object_key.serialize()));
 }
 
-UnlinkMetadataFileOperationOutcomePtr MetadataStorageFromPlainObjectStorageTransaction::unlinkMetadata(const std::string & path)
-{
-    unlinkFile(path);
-    return std::make_shared<UnlinkMetadataFileOperationOutcome>(UnlinkMetadataFileOperationOutcome{0});
-}
-
 void MetadataStorageFromPlainObjectStorageTransaction::removeDirectory(const std::string & path)
 {
     for (auto it = metadata_storage.iterateDirectory(path); it->isValid(); it->next())
         metadata_storage.object_storage->removeObjectIfExists(StoredObject(it->path()));
 }
 
-void MetadataStorageFromPlainObjectStorageTransaction::removeRecursive(const std::string & path)
+void MetadataStorageFromPlainObjectStorageTransaction::removeRecursive(const std::string & path, const ShouldRemoveObjectsPredicate & /*should_remove_objects*/)
 {
     /// TODO: Implement recursive listing.
     removeDirectory(path);

@@ -387,6 +387,15 @@ void MetadataStorageFromPlainRewritableObjectStorageTransaction::commit(const Tr
     operations.finalize();
 }
 
+TransactionCommitOutcomeVariant MetadataStorageFromPlainRewritableObjectStorageTransaction::tryCommit(const TransactionCommitOptionsVariant & options)
+{
+    if (!std::holds_alternative<NoCommitOptions>(options))
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Metadata storage from disk supports only tryCommit without options");
+
+    commit(NoCommitOptions{});
+    return true;
+}
+
 void MetadataStorageFromPlainRewritableObjectStorageTransaction::createMetadataFile(const std::string & path, const StoredObjects & objects)
 {
     operations.addOperation(std::make_unique<MetadataStorageFromPlainObjectStorageWriteFileOperation>(
@@ -456,16 +465,15 @@ void MetadataStorageFromPlainRewritableObjectStorageTransaction::moveDirectory(c
         metadata_storage.metrics));
 }
 
-UnlinkMetadataFileOperationOutcomePtr MetadataStorageFromPlainRewritableObjectStorageTransaction::unlinkMetadata(const std::string & path)
+void MetadataStorageFromPlainRewritableObjectStorageTransaction::unlinkFile(const std::string & path, bool if_exists, bool /*should_remove_objects*/)
 {
     operations.addOperation(std::make_unique<MetadataStorageFromPlainObjectStorageUnlinkMetadataFileOperation>(
         path,
+        if_exists,
         metadata_storage.object_storage,
         metadata_storage.fs_tree,
         metadata_storage.layout,
         metadata_storage.metrics));
-
-    return std::make_shared<UnlinkMetadataFileOperationOutcome>(UnlinkMetadataFileOperationOutcome{0});
 }
 
 void MetadataStorageFromPlainRewritableObjectStorageTransaction::removeDirectory(const std::string & path)
@@ -482,7 +490,7 @@ void MetadataStorageFromPlainRewritableObjectStorageTransaction::removeDirectory
         metadata_storage.metrics));
 }
 
-void MetadataStorageFromPlainRewritableObjectStorageTransaction::removeRecursive(const std::string & path)
+void MetadataStorageFromPlainRewritableObjectStorageTransaction::removeRecursive(const std::string & path, const ShouldRemoveObjectsPredicate & /*should_remove_objects*/)
 {
     if (!normalizePath(path).empty())
         if (uncommitted_fs_tree->existsDirectory(path).first)
@@ -529,16 +537,6 @@ void MetadataStorageFromPlainRewritableObjectStorageTransaction::replaceFile(con
         metadata_storage.fs_tree,
         metadata_storage.layout,
         metadata_storage.metrics));
-}
-
-const IMetadataStorage & MetadataStorageFromPlainRewritableObjectStorageTransaction::getStorageForNonTransactionalReads() const
-{
-    return metadata_storage;
-}
-
-std::optional<StoredObjects> MetadataStorageFromPlainRewritableObjectStorageTransaction::tryGetBlobsFromTransactionIfExists(const std::string & path) const
-{
-    return metadata_storage.getStorageObjectsIfExist(path);
 }
 
 ObjectStorageKey MetadataStorageFromPlainRewritableObjectStorageTransaction::generateObjectKeyForPath(const std::string & path)
