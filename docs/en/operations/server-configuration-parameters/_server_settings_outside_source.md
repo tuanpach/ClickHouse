@@ -835,7 +835,9 @@ The location and format of log messages.
 | `async`                | When `true` (default) logging will happen asynchronously (one background thread per output channel). Otherwise it will log inside the thread calling LOG           |
 | `async_queue_max_size` | When using async logging, the max amount of messages that will be kept in the the queue waiting for flushing. Extra messages will be dropped                       |
 | `startup_level`        | Startup level is used to set the root logger level at server startup. After startup log level is reverted to the `level` setting                                   |
-| `shutdown_level`       | Shutdown level is used to set the root logger level at server Shutdown.                                                                                            |
+| `shutdown_level`       | Shutdown level is used to set the root logger level at server Shutdown.          
+| `console_startup_level`        | Startup level is used to set the console log level at server startup. After startup log level is reverted to the `console_log_level` setting                                   |
+| `console_shutdown_level`       | Shutdown level is used to set the console log level at server Shutdown.                                                                                      |
 
 **Log format specifiers**
 
