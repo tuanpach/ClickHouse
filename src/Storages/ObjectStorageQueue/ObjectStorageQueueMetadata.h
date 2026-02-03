@@ -24,6 +24,14 @@ struct ObjectStorageQueueSettings;
 struct ObjectStorageQueueTableMetadata;
 struct StorageInMemoryMetadata;
 
+struct ObjectStorageQueueMetadataCacheWeightFunction
+{
+    size_t operator()(const ObjectStorageQueueIFileMetadata::FileStatus & cell) const
+    {
+        return sizeof(cell);
+    }
+};
+
 /**
  * A class for managing ObjectStorageQueue metadata in zookeeper, e.g.
  * the following folders:
@@ -50,7 +58,7 @@ class ObjectStorageQueueMetadata
 {
 public:
     using FileMetadataPtr = std::shared_ptr<ObjectStorageQueueIFileMetadata>;
-    using FileStatusesCache = CacheBase<std::string, ObjectStorageQueueIFileMetadata::FileStatus>;
+    using FileStatusesCache = CacheBase<std::string, ObjectStorageQueueIFileMetadata::FileStatus, std::hash<String>, ObjectStorageQueueMetadataCacheWeightFunction>;
     using Bucket = size_t;
     using Processor = std::string;
 
@@ -64,7 +72,8 @@ public:
         bool use_persistent_processing_nodes_,
         size_t persistent_processing_nodes_ttl_seconds_,
         size_t keeper_multiread_batch_size_,
-        size_t metadata_cache_size_);
+        size_t metadata_cache_size_bytes_,
+        size_t metadata_cache_size_elements_);
 
     ~ObjectStorageQueueMetadata();
 

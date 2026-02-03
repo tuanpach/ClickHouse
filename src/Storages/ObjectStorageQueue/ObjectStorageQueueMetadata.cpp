@@ -33,7 +33,8 @@ namespace ProfileEvents
 namespace CurrentMetrics
 {
     extern const Metric ObjectStorageQueueRegisteredServers;
-    extern const Metric ObjectStorageQueueMetadataCacheSize;
+    extern const Metric ObjectStorageQueueMetadataCacheSizeBytes;
+    extern const Metric ObjectStorageQueueMetadataCacheSizeElements;
 };
 
 namespace DB
@@ -96,7 +97,8 @@ ObjectStorageQueueMetadata::ObjectStorageQueueMetadata(
     bool use_persistent_processing_nodes_,
     size_t persistent_processing_nodes_ttl_seconds_,
     size_t keeper_multiread_batch_size_,
-    size_t metadata_cache_size_)
+    size_t metadata_cache_size_bytes_,
+    size_t metadata_cache_size_elements_)
     : table_metadata(table_metadata_)
     , storage_type(storage_type_)
     , mode(table_metadata.getMode())
@@ -118,9 +120,10 @@ ObjectStorageQueueMetadata::ObjectStorageQueueMetadata(
         zookeeper_name_ == zkutil::DEFAULT_ZOOKEEPER_NAME ? "" : zookeeper_name_ + ":",
         zookeeper_path_.string())))
     , local_file_statuses(
-        CurrentMetrics::ObjectStorageQueueMetadataCacheSize,
-        CurrentMetrics::end(),
-        metadata_cache_size_) /// Default weight is 1, so it is equal to count limit
+        CurrentMetrics::ObjectStorageQueueMetadataCacheSizeBytes,
+        CurrentMetrics::ObjectStorageQueueMetadataCacheSizeElements,
+        metadata_cache_size_bytes_,
+        metadata_cache_size_elements_)
 {
     // Initialize regex-based parser if configured
     if (partitioning_mode == ObjectStorageQueuePartitioningMode::REGEX)
@@ -317,11 +320,19 @@ void ObjectStorageQueueMetadata::alterSettings(const SettingsChanges & changes, 
 
     for (const auto & change : changes)
     {
-        if (change.name == "metadata_cache_size")
+        if (change.name == "metadata_cache_size_bytes")
         {
             const auto value = change.value.safeGet<UInt64>();
             LOG_INFO(log, "Setting new metadata cache size to {}", value);
             local_file_statuses.setMaxSizeInBytes(value);
+            continue;
+        }
+
+        if (change.name == "metadata_cache_size_elements")
+        {
+            const auto value = change.value.safeGet<UInt64>();
+            LOG_INFO(log, "Setting new metadata cache elements to {}", value);
+            local_file_statuses.setMaxCount(value);
             continue;
         }
 

@@ -364,7 +364,8 @@ def test_alter_settings(started_cluster):
         cleanup_interval_max_ms=45600,
         persistent_processing_node_ttl_seconds=89,
         commit_on_select=true,
-        metadata_cache_size=12345
+        metadata_cache_size_bytes=12345,
+        metadata_cache_size_elements=54321
     """
     )
 
@@ -388,7 +389,8 @@ def test_alter_settings(started_cluster):
         "cleanup_interval_min_ms": 34500,
         "cleanup_interval_max_ms": 45600,
         "persistent_processing_node_ttl_seconds": 89,
-        "metadata_cache_size": 12345,
+        "metadata_cache_size_bytes": 12345,
+        "metadata_cache_size_elements": 54321,
     }
     string_settings = {
         "after_processing": "tag",
