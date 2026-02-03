@@ -70,7 +70,7 @@ struct BitPackedRLEDecoder : public PageDecoder
     {
         skipOrDecode<true>(num_values, nullptr);
     }
-    void decode(size_t num_values, IColumn & col, const UInt8 * filter = nullptr, size_t filter_offset = 0) override
+    void decode(size_t num_values, IColumn & col, const UInt8 * filter, size_t filter_offset) override
     {
         (void)filter;
         (void)filter_offset;
@@ -195,7 +195,7 @@ struct PlainFixedSizeDecoder : public PageDecoder
         data += bytes;
     }
 
-    void decode(size_t num_values, IColumn & col, const UInt8 * filter = nullptr, size_t filter_offset = 0) override
+    void decode(size_t num_values, IColumn & col, const UInt8 * filter, size_t filter_offset) override
     {
         const char * from = data;
         if (!filter)
@@ -229,7 +229,7 @@ struct PlainBooleanDecoder : public PageDecoder
         bit_idx += num_values;
     }
 
-    void decode(size_t num_values, IColumn & col, const UInt8 * filter = nullptr, size_t filter_offset = 0) override
+    void decode(size_t num_values, IColumn & col, const UInt8 * filter, size_t filter_offset) override
     {
         if (!filter)
         {
@@ -336,7 +336,7 @@ struct PlainStringDecoder : public PageDecoder
         }
     }
 
-    void decode(size_t num_values, IColumn & col, const UInt8 * filter = nullptr, size_t filter_offset = 0) override
+    void decode(size_t num_values, IColumn & col, const UInt8 * filter, size_t filter_offset) override
     {
         if (converter->isTrivial())
         {
@@ -529,7 +529,7 @@ struct DeltaBinaryPackedDecoder : public PageDecoder
         }
     }
 
-    void decode(size_t num_values, IColumn & col, const UInt8 * filter = nullptr, size_t filter_offset = 0) override
+    void decode(size_t num_values, IColumn & col, const UInt8 * filter, size_t filter_offset) override
     {
         if (!filter)
         {
@@ -551,7 +551,7 @@ struct DeltaBinaryPackedDecoder : public PageDecoder
         {
             auto to_span = col.insertRawUninitialized(pass_count);
             to = to_span.data();
-            temp_values.resize(1); // scratch for skip
+            temp_values.resize(1);
         }
         else
         {
@@ -559,7 +559,6 @@ struct DeltaBinaryPackedDecoder : public PageDecoder
             temp_values.resize(std::max(num_u64s, size_t(1)));
             to = reinterpret_cast<char *>(temp_values.data());
         }
-        /// Scratch buffer for advancing state when skipping a value (decodeImpl needs a non-null output).
         char * skip_buf = reinterpret_cast<char *>(temp_values.data());
         size_t out_idx = 0;
         for (size_t i = 0; i < num_values; ++i)
@@ -678,7 +677,7 @@ struct DeltaLengthByteArrayDecoder : public PageDecoder
         idx += num_values;
     }
 
-    void decode(size_t num_values, IColumn & col, const UInt8 * filter = nullptr, size_t filter_offset = 0) override
+    void decode(size_t num_values, IColumn & col, const UInt8 * filter, size_t filter_offset) override
     {
         if (num_values > offsets.size() - idx)
             throw Exception(ErrorCodes::INCORRECT_DATA, "Too few values in page");
@@ -766,12 +765,12 @@ struct DeltaByteArrayDecoder : public PageDecoder
     void skip(size_t num_values) override
     {
         if (fixed_size_converter)
-            decodeImpl<true, true>(num_values, nullptr, nullptr);
+            decodeImpl<true, true>(num_values, nullptr, nullptr, nullptr, 0);
         else
-            decodeImpl<true, false>(num_values, nullptr, nullptr);
+            decodeImpl<true, false>(num_values, nullptr, nullptr, nullptr, 0);
     }
 
-    void decode(size_t num_values, IColumn & col, const UInt8 * filter = nullptr, size_t filter_offset = 0) override
+    void decode(size_t num_values, IColumn & col, const UInt8 * filter, size_t filter_offset) override
     {
         if (fixed_size_converter)
         {
@@ -783,7 +782,7 @@ struct DeltaByteArrayDecoder : public PageDecoder
                     pass_count += filter[filter_offset + i];
                 if (pass_count == 0)
                 {
-                    decodeImpl<true, true>(num_values, nullptr, nullptr);
+                    decodeImpl<true, true>(num_values, nullptr, nullptr, nullptr, 0);
                     return;
                 }
             }
@@ -848,7 +847,7 @@ struct DeltaByteArrayDecoder : public PageDecoder
     }
 
     template <bool skip, bool is_fixed_size>
-    void decodeImpl(size_t num_values, ColumnString * out_str, char * out_fixed_size, const UInt8 * filter = nullptr, size_t filter_offset = 0)
+    void decodeImpl(size_t num_values, ColumnString * out_str, char * out_fixed_size, const UInt8 * filter, size_t filter_offset)
     {
         if (num_values > prefixes.size() - idx)
             throw Exception(ErrorCodes::INCORRECT_DATA, "Too few values in page");
@@ -907,7 +906,7 @@ struct ByteStreamSplitDecoder : public PageDecoder
         data += num_values;
     }
 
-    void decode(size_t num_values, IColumn & col, const UInt8 * filter = nullptr, size_t filter_offset = 0) override
+    void decode(size_t num_values, IColumn & col, const UInt8 * filter, size_t filter_offset) override
     {
         size_t num_streams = converter->input_size;
 
