@@ -18,7 +18,7 @@ SELECT
     ProfileEvents['ParquetMetadataCacheHits'] AS hits,
     ProfileEvents['ParquetMetadataCacheMisses'] AS misses
 FROM system.query_log
-WHERE (log_comment = '03707-first-test-query') AND (type = 'QueryFinish');
+WHERE (log_comment = '03707-first-test-query') AND (type = 'QueryFinish') AND (current_database = currentDatabase());
 
 -- Should be a cache hit as we use the same file
 SELECT
@@ -34,7 +34,7 @@ SELECT
     ProfileEvents['ParquetMetadataCacheHits'] AS hits,
     ProfileEvents['ParquetMetadataCacheMisses'] AS misses
 FROM system.query_log
-WHERE (log_comment = '03707-second-test-query') AND (type = 'QueryFinish');
+WHERE (log_comment = '03707-second-test-query') AND (type = 'QueryFinish') AND (current_database = currentDatabase());
 
 SYSTEM DROP PARQUET METADATA CACHE;
 
@@ -51,5 +51,5 @@ SELECT
     ProfileEvents['ParquetMetadataCacheHits'] AS hits,
     ProfileEvents['ParquetMetadataCacheMisses'] AS misses
 FROM system.query_log
-WHERE (log_comment = '03707-third-test-query') AND (type = 'QueryFinish');
+WHERE (log_comment = '03707-third-test-query') AND (type = 'QueryFinish') AND (current_database = currentDatabase());
 
