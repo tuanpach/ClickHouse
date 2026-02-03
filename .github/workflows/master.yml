@@ -5,9 +5,6 @@ name: MasterCI
 on:
   push:
     branches: ['master']
-  #REMOVEME
-  pull_request:
-    branches: ['master']
 
 env:
   # Force the stdout and stderr streams to be unbuffered
