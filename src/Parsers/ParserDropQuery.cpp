@@ -107,7 +107,7 @@ bool parseDropQuery(IParser::Pos & pos, ASTPtr & node, Expected & expected, cons
     }
     else
     {
-        if (s_temporary.ignore(pos, expected))
+        if ((kind == ASTDropQuery::Kind::Drop || kind == ASTDropQuery::Kind::Truncate) && s_temporary.ignore(pos, expected))
             temporary = true;
 
         if (s_view.ignore(pos, expected))
