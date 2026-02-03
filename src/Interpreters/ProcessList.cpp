@@ -872,8 +872,9 @@ ProcessListForUser::ProcessListForUser(ContextPtr global_context, ProcessList * 
             .metrics = {}, /// Metrics are set by child scopes
         };
 
-        user_temp_data_on_disk = std::make_shared<TemporaryDataOnDiskScope>(global_context->getSharedTempDataOnDisk(),
-            std::move(temporary_data_on_disk_settings));
+        if (auto shared_temp_data = global_context->getSharedTempDataOnDisk())
+            user_temp_data_on_disk = std::make_shared<TemporaryDataOnDiskScope>(std::move(shared_temp_data),
+                std::move(temporary_data_on_disk_settings));
     }
 }
 
