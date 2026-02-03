@@ -214,6 +214,7 @@ namespace FailPoints
 {
     extern const char execute_query_calling_empty_set_result_func_on_exception[];
     extern const char terminate_with_exception[];
+    extern const char terminate_with_std_exception[];
 }
 
 static void checkASTSizeLimits(const IAST & ast, const Settings & settings)
@@ -2003,6 +2004,18 @@ std::pair<ASTPtr, BlockIO> executeQuery(
             try
             {
                 throw Exception(ErrorCodes::FAULT_INJECTED, "Failpoint terminate_with_exception");
+            }
+            catch (...)
+            {
+                std::terminate();
+            }
+        });
+
+        fiu_do_on(FailPoints::terminate_with_std_exception,
+        {
+            try
+            {
+                throw std::runtime_error("Failpoint terminate_with_std_exception");
             }
             catch (...)
             {

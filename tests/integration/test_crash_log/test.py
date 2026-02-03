@@ -63,7 +63,14 @@ def test_crash_log_synchronous(started_node):
         )
 
 
-def test_crash_log_extra_fields(started_node):
+@pytest.mark.parametrize(
+    "failpoint",
+    [
+        "terminate_with_exception",
+        "terminate_with_std_exception",
+    ]
+)
+def test_crash_log_extra_fields(started_node, failpoint):
     if (
         started_node.is_built_with_thread_sanitizer()
         or started_node.is_built_with_address_sanitizer()
@@ -72,7 +79,7 @@ def test_crash_log_extra_fields(started_node):
         pytest.skip("doesn't fit in timeouts for stacktrace generation")
 
     started_node.query("TRUNCATE TABLE IF EXISTS system.crash_log")
-    started_node.query("SYSTEM ENABLE FAILPOINT terminate_with_exception")
+    started_node.query(f"SYSTEM ENABLE FAILPOINT {failpoint}")
     started_node.query("SELECT 1", ignore_error=True)
     wait_for_clickhouse_stop(started_node)
     started_node.restart_clickhouse()
@@ -88,7 +95,7 @@ def test_crash_log_extra_fields(started_node):
             AND signal_description = 'Sent by tkill.'
             AND fault_access_type = ''
             AND fault_address IS NULL
-            -- TODO(mstetsyuk): handle this
+            AND arrayExists(x -> x LIKE '%executeQuery%', current_exception_trace_full)
             AND query = 'SELECT 1'
             AND length(git_hash) > 0
             AND length(architecture) > 0

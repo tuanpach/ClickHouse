@@ -167,17 +167,31 @@ static void signalHandler(int sig, siginfo_t * info, void * context)
         std::string exception_message = getCurrentExceptionMessage(true);
         log_message = "Terminate called for uncaught exception:\n" + exception_message;
 
-        StackTrace stack_trace;
-        size_t stack_trace_size = stack_trace.getSize();
-        size_t stack_trace_offset = stack_trace.getOffset();
-        terminate_current_exception_trace_size = std::min(stack_trace_size - stack_trace_offset, FRAMEPOINTER_CAPACITY);
-        for (size_t i = 0; i < terminate_current_exception_trace_size; ++i)
-            terminate_current_exception_trace[i] = stack_trace.getFramePointers()[stack_trace_offset + i];
+        try
+        {
+            throw;
+        }
+        catch (const Exception & e)
+        {
+            const auto & frame_pointers = e.getStackFramePointers();
+            terminate_current_exception_trace_size = std::min(frame_pointers.size(), FRAMEPOINTER_CAPACITY);
+            for (size_t i = 0; i < terminate_current_exception_trace_size; ++i)
+                terminate_current_exception_trace[i] = frame_pointers[i];
+        }
+        catch (const std::exception & e)
+        {
+            const auto * stack_trace_frames = e.get_stack_trace_frames();
+            const size_t stack_trace_size = e.get_stack_trace_size();
+            __msan_unpoison(stack_trace_frames, stack_trace_size * sizeof(stack_trace_frames[0]));
+            terminate_current_exception_trace_size = std::min(stack_trace_size, FRAMEPOINTER_CAPACITY);
+            for (size_t i = 0; i < terminate_current_exception_trace_size; ++i)
+                terminate_current_exception_trace[i] = stack_trace_frames[i];
+        }
+        catch (...) {} // NOLINT(bugprone-empty-catch)
     }
     else
     {
         log_message = "Terminate called without an active exception";
-        terminate_current_exception_trace_size = 0;
     }
 
     /// POSIX.1 says that write(2)s of less than PIPE_BUF bytes must be atomic - man 7 pipe
