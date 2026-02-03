@@ -433,8 +433,8 @@ ColumnRawPtrs Aggregator::Params::makeRawKeyColumns(const Block & block) const
 
     for (size_t i = 0; i < keys_size; ++i)
     {
-#ifdef DEBUG_OR_SANITIZER_BUILD
         const auto & column = block.safeGetByPosition(i);
+#ifdef DEBUG_OR_SANITIZER_BUILD
         if (column.name != keys[i])
         {
             throw Exception(ErrorCodes::LOGICAL_ERROR,
