@@ -1328,7 +1328,10 @@ void Reader::decodePrimitiveColumn(ColumnChunk & column, const PrimitiveColumnIn
 
     /// Find ranges of rows that pass filter and decode them.
 
-    const bool use_filter_in_decoder = (column_info.levels.back().rep == 0) && !row_subgroup.filter.filter.empty();
+    const bool use_filter_in_decoder = (column_info.levels.back().rep == 0) &&
+        !row_subgroup.filter.filter.empty() &&
+        column.page.initialized &&
+        !column.page.is_dictionary_encoded;
     const size_t subgroup_end_row_idx = row_subgroup.start_row_idx + row_subgroup.filter.rows_total;
 
     if (use_filter_in_decoder)
@@ -2152,6 +2155,11 @@ void Reader::applyPrewhere(RowSubgroup & row_subgroup, const RowGroup & row_grou
             return;
         }
         step.actions.execute(block);
+        size_t rows_for_metric = row_subgroup.accumulated_filter.empty()
+            ? block.rows()
+            : countBytesInFilter(row_subgroup.accumulated_filter.data(), 0, row_subgroup.accumulated_filter.size());
+        ProfileEvents::increment(ProfileEvents::ParquetRowsFilterExpression, rows_for_metric);
+        ProfileEvents::increment(ProfileEvents::ParquetColumnsFilterExpression, block.columns());
 
         for (const auto & [name, idx] : step.idxs_in_output_block)
         {
@@ -2174,12 +2182,6 @@ void Reader::applyPrewhere(RowSubgroup & row_subgroup, const RowGroup & row_grou
         filter_column = FilterDescription::preprocessFilterColumn(std::move(filter_column));
         const IColumnFilter & filter = typeid_cast<const ColumnUInt8 &>(*filter_column).getData();
         chassert(filter.size() == block.rows());
-
-        size_t rows_for_metric = row_subgroup.accumulated_filter.empty()
-            ? block.rows()
-            : countBytesInFilter(row_subgroup.accumulated_filter.data(), 0, row_subgroup.accumulated_filter.size());
-        ProfileEvents::increment(ProfileEvents::ParquetRowsFilterExpression, rows_for_metric);
-        ProfileEvents::increment(ProfileEvents::ParquetColumnsFilterExpression, block.columns());
 
         if (row_subgroup.accumulated_filter.empty())
             row_subgroup.accumulated_filter.assign(filter.data(), filter.data() + filter.size());
