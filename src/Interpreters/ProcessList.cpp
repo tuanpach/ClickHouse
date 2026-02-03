@@ -286,8 +286,9 @@ ProcessList::EntryPtr ProcessList::insert(
                 if (temporary_data_on_disk_settings.buffer_size > 1_GiB)
                     throw Exception(ErrorCodes::ARGUMENT_OUT_OF_BOUND, "Too large `temporary_files_buffer_size`, maximum 1 GiB");
 
-                query_context->setTempDataOnDisk(std::make_shared<TemporaryDataOnDiskScope>(
-                    user_process_list.user_temp_data_on_disk, std::move(temporary_data_on_disk_settings)));
+                if (user_process_list.user_temp_data_on_disk)
+                    query_context->setTempDataOnDisk(std::make_shared<TemporaryDataOnDiskScope>(
+                        user_process_list.user_temp_data_on_disk, std::move(temporary_data_on_disk_settings)));
             }
 
             /// Set query-level memory trackers
