@@ -1,3 +1,4 @@
+-- Tags: no-fasttest, no-ordinary-database
 
 set allow_experimental_parallel_reading_from_replicas=0;
 
