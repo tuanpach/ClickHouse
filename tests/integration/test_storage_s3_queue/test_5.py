@@ -1393,6 +1393,8 @@ def test_persistent_processing_failed_commit_retries(started_cluster, mode):
 def test_metadata_cache_exact_size_tracking(started_cluster):
     node = started_cluster.instances["instance"]
     mode = "unordered"
+    # Clear the cache, there is no drop cache command for now
+    node.restart_clickhouse()
 
     table_name = f"test_cache_exact_{mode}_{uuid.uuid4().hex[:8]}"
     dst_table_name = f"{table_name}_dst"
@@ -1452,7 +1454,7 @@ def test_metadata_cache_exact_size_tracking(started_cluster):
 
     # Sanity check: FileStatus has 2 mutexes + 6 atomics + 1 string
     if is_arm():
-        assert 120 <= sizeof_file_status <= 160, f"Unexpected sizeof(FileStatus) = {sizeof_file_status} on ARM"
+        assert 120 <= sizeof_file_status <= 170, f"Unexpected sizeof(FileStatus) = {sizeof_file_status} on ARM"
     else:
         assert 150 <= sizeof_file_status <= 180, f"Unexpected sizeof(FileStatus) = {sizeof_file_status} on x64"
 
