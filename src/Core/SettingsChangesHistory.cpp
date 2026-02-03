@@ -43,6 +43,7 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
         {
             {"deduplicate_insert", "backward_compatible_choice", "backward_compatible_choice", "New setting to control deduplication for INSERT queries."},
             {"default_dictionary_database", "", "", "New setting"},
+            {"variant_throw_on_type_mismatch", false, false, "Controls Variant type behavior on type mismatch: false returns NULL (default), true throws exception like Dynamic."},
         });
         addSettingsChanges(settings_changes_history, "26.1",
         {
