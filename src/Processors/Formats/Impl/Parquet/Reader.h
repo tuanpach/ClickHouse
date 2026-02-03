@@ -387,6 +387,8 @@ struct Reader
         /// Initially `filter` is based only on column index, then it's updated after running prewhere.
         RowSet filter;
 
+        IColumnFilter accumulated_filter;
+
         std::vector<ColumnSubchunk> columns;
         BlockMissingValues block_missing_values;
 
