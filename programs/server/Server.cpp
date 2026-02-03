@@ -1046,18 +1046,18 @@ try
 
     // If the console_startup_level is set in the config, we override the console logger level.
     // Specific loggers can still override it.
-    std::string default_logger_console_log_level_config = config().getString("logger.console_log_level", "");
-    bool should_restore_default_logger_console_log_level = false;
-    if (config().has("logger.console_startup_level") && !config().getString("logger.console_startup_level").empty())
+    std::string original_console_log_level_config = config().getString("logger.console_log_level", "");
+    bool should_restore_console_log_level = false;
+    if (config().has("logger.console_startup_level") && !config().getString("logger.startup_console_log_level").empty())
     {
         /// Set the console logger level to the startup console level.
         /// This is useful for debugging startup issues.
         /// The console logger level will be reset to the default level after the server is fully initialized.
-        config().setString("logger.console_log_level", config().getString("logger.console_startup_level"));
+        config().setString("logger.console_log_level", config().getString("logger.startup_console_log_level"));
         Loggers::updateLevels(config(), logger());
-        should_restore_default_logger_console_log_level = true;
+        should_restore_console_log_level = true;
 
-        LOG_INFO(log, "Starting console logger in level {}", config().getString("logger.console_startup_level"));
+        LOG_INFO(log, "Starting console logger in level {}", config().getString("logger.startup_console_log_level"));
     }
 
     MainThreadStatus::getInstance();
@@ -2804,11 +2804,11 @@ try
             }
 
             // Restore the root logger level to the default level after the server is fully initialized.
-            if (should_restore_default_logger_console_log_level)
+            if (should_restore_console_log_level)
             {
-                config().setString("logger.console_log_level", default_logger_console_log_level_config);
+                config().setString("logger.console_log_level", original_console_log_level_config);
                 Loggers::updateLevels(config(), logger());
-                LOG_INFO(log, "Restored console logger level to {}", default_logger_console_log_level_config);
+                LOG_INFO(log, "Restored console logger level to {}", original_console_log_level_config);
             }
 
             global_context->setServerCompletelyStarted();
