@@ -1989,17 +1989,9 @@ void Reader::readRowsInPage(size_t end_row_idx, ColumnSubchunk & subchunk, Colum
             auto & indices_column_uint32 = assert_cast<ColumnUInt32 &>(*page.indices_column);
             auto & data = indices_column_uint32.getData();
             chassert(data.empty());
+            chassert(!filter);
             page.decoder->decode(encoded_values_to_read, *page.indices_column, nullptr, 0);
-            if (filter)
-            {
-                auto filtered_indices = ColumnUInt32::create();
-                for (size_t i = 0; i < encoded_values_to_read; ++i)
-                    if (filter[filter_offset + i])
-                        filtered_indices->insertValue(data[i]);
-                column.dictionary.index(assert_cast<const ColumnUInt32 &>(*filtered_indices), *subchunk.column);
-            }
-            else
-                column.dictionary.index(indices_column_uint32, *subchunk.column);
+            column.dictionary.index(indices_column_uint32, *subchunk.column);
             data.clear();
         }
         else
