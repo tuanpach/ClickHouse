@@ -31,6 +31,7 @@
 #include <Common/ZooKeeper/ZooKeeper.h>
 #include <Common/ZooKeeper/ZooKeeperLock.h>
 #include <Common/ZooKeeper/ZooKeeperRetries.h>
+#include <Common/ZooKeeper/ZooKeeperCommon.h>
 #include <Common/isLocalAddress.h>
 #include <Common/logger_useful.h>
 #include <Common/randomSeed.h>
@@ -1305,7 +1306,6 @@ void DDLWorker::runMainThread()
     }
 }
 
-
 void DDLWorker::initializeReplication()
 {
     auto zookeeper = getZooKeeper();
@@ -1314,6 +1314,7 @@ void DDLWorker::initializeReplication()
 
 void DDLWorker::createReplicaDirs(const ZooKeeperPtr & zookeeper, const NameSet & host_ids)
 {
+    auto component_guard = Coordination::setCurrentComponent("DDLWorker::createReplicaDirs");
     for (const auto & host_id : host_ids)
     {
         LOG_INFO(log, "Creating replica dir for host id {}", host_id);

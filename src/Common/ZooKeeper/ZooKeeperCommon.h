@@ -879,5 +879,34 @@ std::string_view parentNodePath(std::string_view path);
 
 std::string_view getBaseNodeName(std::string_view path);
 
+/// RAII guard for setting component name in thread-local storage
+class ComponentGuard
+{
+public:
+    explicit ComponentGuard(std::string_view component);
+    ~ComponentGuard();
+
+    ComponentGuard(const ComponentGuard &) = delete;
+    ComponentGuard & operator=(const ComponentGuard &) = delete;
+    ComponentGuard(ComponentGuard &&) = delete;
+    ComponentGuard & operator=(ComponentGuard &&) = delete;
+
+private:
+    std::string_view previous_component;
+};
+
+/// Sets component name (must be a compile-time string literal) and returns RAII guard
+template <typename T>
+[[nodiscard]] ComponentGuard setCurrentComponent(const T & component)
+{
+    /// Component name must be a compile-time string literal
+    static_assert(!std::is_same_v<std::string, std::decay_t<T>>, "Component must be a string literal, not std::string");
+    static_assert(std::is_nothrow_convertible_v<T, const char * const>, "Component must be convertible to const char*");
+    static_assert(!std::is_pointer_v<T>, "Component must be a string literal, not a pointer");
+
+    return ComponentGuard(std::string_view(component));
+}
+
+std::string_view getCurrentComponent();
 
 }
