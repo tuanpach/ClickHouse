@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Interpreters/ExpressionActions.h>
+#include <Parsers/IAST_fwd.h>
 
 namespace DB
 {
@@ -11,7 +12,10 @@ struct IndexDescription;
 class MergeTreeIndexTextPreprocessor
 {
 public:
-    MergeTreeIndexTextPreprocessor(const String & expression, const IndexDescription & index_description);
+    /// This function parses an expression string to create MergeTreeIndexTextPreprocessorExpression.
+    /// The conversion is not direct and requires many steps and validations, but long story short
+    /// ParserExpression(String) => AST; ActionsVisitor(AST) => ActionsDAG; ExpressionActions(ActionsDAG)
+    static std::shared_ptr<MergeTreeIndexTextPreprocessor> create(const IndexDescription & index_description, const String & expression);
 
     /// Processes n_rows rows of input column, starting at start_row.
     /// The transformation is only applied in the range [start_row, start_row + n_rows)
@@ -24,14 +28,21 @@ public:
     /// Kind of equivalent to 'SELECT expression(input)'.
     String process(const String & input) const;
 
-    /// This function parses an string to build an ExpressionActions.
-    /// The conversion is not direct and requires many steps and validations, but long story short
-    /// ParserExpression(String) => AST; ActionsVisitor(AST) => ActionsDAG; ExpressionActions(ActionsDAG)
-    static ExpressionActions parseExpression(const IndexDescription & index, const String & expression);
+    const ASTPtr & getAST() const { return ast; }
+    const NamesAndTypesList & getSourceColumns() const { return source_columns; }
+    const ExpressionActions & getExpressionActions() const { return expression_actions; }
+
 private:
-    ExpressionActions expression;
-    DataTypePtr inner_type; /// For String columns: String. For Array(String) columns: String
-    String column_name;
+    MergeTreeIndexTextPreprocessor(ASTPtr ast_, NamesAndTypesList source_columns_, ExpressionActions expression_actions_)
+        : ast(std::move(ast_))
+        , source_columns(std::move(source_columns_))
+        , expression_actions(std::move(expression_actions_))
+    {
+    }
+
+    ASTPtr ast;
+    NamesAndTypesList source_columns;
+    ExpressionActions expression_actions;
 };
 
 }
