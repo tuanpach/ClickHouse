@@ -1,8 +1,10 @@
--- Test Parquet metadata cache functionality
--- Tag: no-fasttest: Depends on AWS
+-- Tags: no-fasttest, no-parallel
+/*
+Because the parquet metadata cache is system-wide, parallel runs of 
+SYSTEM DROP PARQUET METADATA CACHE will lead to non-deterministic results
+*/
 SET log_queries = 1;
 SYSTEM DROP PARQUET METADATA CACHE;
-DELETE FROM system.query_log WHERE log_comment like '03707%';
 
 -- Triggers caching of the file
 -- should be a cache miss as we load the cache the first time
