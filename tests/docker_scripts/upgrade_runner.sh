@@ -99,14 +99,16 @@ start_server || (echo "Failed to start server" && exit 1)
 stop_server || (echo "Failed to stop server" && exit 1)
 mv /var/log/clickhouse-server/clickhouse-server.log /var/log/clickhouse-server/clickhouse-server.initial.log
 
-# Start server from previous release
-# Let's enable S3 storage by default
-export USE_S3_STORAGE_FOR_MERGE_TREE=1
-export USE_ENCRYPTED_STORAGE=$((RANDOM % 2))
+configure_opts=(
+    # Let's enable S3 storage by default
+    --s3-storage
+)
+if [ $((RANDOM % 2)) -eq 0 ]; then
+    configure_opts+=(--encrypted-storage)
+fi
 
-# Previous version may not be ready for fault injections
-export ZOOKEEPER_FAULT_INJECTION=0
-configure
+# Start server from previous release
+configure "${configure_opts[@]}"
 
 # But we still need default disk because some tables loaded only into it
 sudo sed -i "s|<main><disk>s3</disk></main>|<main><disk>s3</disk></main><default><disk>default</disk></default>|" /etc/clickhouse-server/config.d/s3_storage_policy_by_default.xml
@@ -139,8 +141,7 @@ mv /var/log/clickhouse-server/clickhouse-server.log /var/log/clickhouse-server/c
 
 # Install and start new server
 install_packages $PACKAGES_DIR
-export ZOOKEEPER_FAULT_INJECTION=1
-configure
+configure "${configure_opts[@]}"
 
 # Check that all new/changed setting were added in settings changes history.
 # Some settings can be different for builds with sanitizers, so we check
