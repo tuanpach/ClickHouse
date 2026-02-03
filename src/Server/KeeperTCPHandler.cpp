@@ -356,7 +356,7 @@ Poco::Timespan KeeperTCPHandler::receiveHandshake(int32_t handshake_length, bool
         /// It was padded to Coordination::PASSWORD_LENGTH with '\0'
         boost::trim_right_if(password, [](char c) { return c == '\0'; });
         AuthenticationData client_auth_data(auth_data->getType());
-        client_auth_data.setPassword(password, true);
+        client_auth_data.setPassword(password, /* second_factor */ {}, /* validate */ true);
         if (client_auth_data != *auth_data)
             throw Exception(ErrorCodes::AUTHENTICATION_FAILED, "Wrong password specified, authentication failed");
     }
@@ -386,7 +386,7 @@ void KeeperTCPHandler::runImpl()
 
     if (in->eof())
     {
-        LOG_WARNING(log, "Client has not sent any data.");
+        LOG_WARNING(log, "Client has not sent any data. peer address = {}  address = {}", socket().peerAddress().toString(), socket().address().toString());
         return;
     }
 
