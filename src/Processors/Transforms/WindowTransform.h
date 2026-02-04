@@ -68,10 +68,7 @@ public:
 
     ~WindowTransform() override;
 
-    String getName() const override
-    {
-        return "WindowTransform";
-    }
+    String getName() const override;
 
     static Block transformHeader(Block header, const ExpressionActionsPtr & expression);
 
@@ -103,130 +100,29 @@ public:
     void updateAggregationState();
     void writeOutCurrentRow();
 
-    Columns & inputAt(const RowNumber & x)
-    {
-        assert(x.block >= first_block_number);
-        assert(x.block - first_block_number < blocks.size());
-        return blocks[x.block - first_block_number].input_columns;
-    }
+    Columns & inputAt(const RowNumber & x);
+    const Columns & inputAt(const RowNumber & x) const;
 
-    const Columns & inputAt(const RowNumber & x) const
-    {
-        return const_cast<WindowTransform *>(this)->inputAt(x);
-    }
+    WindowTransformBlock & blockAt(UInt64 block_number);
+    const WindowTransformBlock & blockAt(UInt64 block_number) const;
+    WindowTransformBlock & blockAt(const RowNumber & x);
+    const WindowTransformBlock & blockAt(const RowNumber & x) const;
 
-    auto & blockAt(const UInt64 block_number)
-    {
-        assert(block_number >= first_block_number);
-        assert(block_number - first_block_number < blocks.size());
-        return blocks[block_number - first_block_number];
-    }
+    size_t blockRowsNumber(const RowNumber & x) const;
+    MutableColumns & outputAt(const RowNumber & x);
 
-    const auto & blockAt(const UInt64 block_number) const
-    {
-        return const_cast<WindowTransform *>(this)->blockAt(block_number);
-    }
+    void advanceRowNumber(RowNumber & x) const;
+    RowNumber nextRowNumber(const RowNumber & x) const;
 
-    auto & blockAt(const RowNumber & x)
-    {
-        return blockAt(x.block);
-    }
-
-    const auto & blockAt(const RowNumber & x) const
-    {
-        return const_cast<WindowTransform *>(this)->blockAt(x);
-    }
-
-    size_t blockRowsNumber(const RowNumber & x) const
-    {
-        return blockAt(x).rows;
-    }
-
-    MutableColumns & outputAt(const RowNumber & x)
-    {
-        assert(x.block >= first_block_number);
-        assert(x.block - first_block_number < blocks.size());
-        return blocks[x.block - first_block_number].output_columns;
-    }
-
-    void advanceRowNumber(RowNumber & x) const
-    {
-        assert(x.block >= first_block_number);
-        assert(x.block - first_block_number < blocks.size());
-
-        const auto block_rows = blockAt(x).rows;
-        assert(x.row < block_rows);
-
-        ++x.row;
-        if (x.row < block_rows)
-        {
-            return;
-        }
-
-        x.row = 0;
-        ++x.block;
-    }
-
-    RowNumber nextRowNumber(const RowNumber & x) const
-    {
-        RowNumber result = x;
-        advanceRowNumber(result);
-        return result;
-    }
-
-    void retreatRowNumber(RowNumber & x) const
-    {
-#ifndef NDEBUG
-        auto original_x = x;
-#endif
-
-        if (x.row > 0)
-        {
-            --x.row;
-            return;
-        }
-
-        --x.block;
-        assert(x.block >= first_block_number);
-        assert(x.block < first_block_number + blocks.size());
-        assert(blockAt(x).rows > 0);
-        x.row = blockAt(x).rows - 1;
-
-#ifndef NDEBUG
-        auto advanced_retreated_x = x;
-        advanceRowNumber(advanced_retreated_x);
-        assert(advanced_retreated_x == original_x);
-#endif
-    }
-
-    RowNumber prevRowNumber(const RowNumber & x) const
-    {
-        RowNumber result = x;
-        retreatRowNumber(result);
-        return result;
-    }
+    void retreatRowNumber(RowNumber & x) const;
+    RowNumber prevRowNumber(const RowNumber & x) const;
 
     auto moveRowNumber(const RowNumber & original_row_number, Int64 offset) const;
     auto moveRowNumberNoCheck(const RowNumber & original_row_number, Int64 offset) const;
 
-    void assertValid(const RowNumber & x) const
-    {
-        assert(x.block >= first_block_number);
-        if (x.block == first_block_number + blocks.size())
-            assert(x.row == 0);
-        else
-            assert(x.row < blockRowsNumber(x));
-    }
-
-    RowNumber blocksEnd() const
-    {
-        return RowNumber{first_block_number + blocks.size(), 0};
-    }
-
-    RowNumber blocksBegin() const
-    {
-        return RowNumber{first_block_number, 0};
-    }
+    void assertValid(const RowNumber & x) const;
+    RowNumber blocksEnd() const;
+    RowNumber blocksBegin() const;
 
     /* Data (formerly) inherited from ISimpleTransform, needed for the
      * implementation of the IProcessor interface.
