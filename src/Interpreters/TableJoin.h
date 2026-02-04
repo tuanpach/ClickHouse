@@ -391,7 +391,6 @@ public:
     void addJoinedColumn(const NameAndTypePair & joined_column);
     void setUsedColumn(const NameAndTypePair & joined_column, JoinTableSide side);
     void setUsedColumns(const Names & column_names);
-    void setUsedColumns(const NamesAndTypesList & column_names_and_types);
 
     void setColumnsAddedByJoin(const NamesAndTypesList & columns_added_by_join_value)
     {

@@ -47,8 +47,6 @@
 #include <Core/ServerSettings.h>
 #include <Core/Settings.h>
 
-#include <Common/logger_useful.h>
-
 #include <stack>
 
 
@@ -1271,9 +1269,6 @@ std::shared_ptr<IJoin> chooseJoinAlgorithm(
         throw Exception(ErrorCodes::NOT_IMPLEMENTED,
             "JOIN with mixed conditions supports only hash join or grace hash join");
     }
-
-    LOG_TRACE(&Poco::Logger::get("chooseJoinAlgorithm"), "right_table_expression_header->dumpStructure()e {}",
-        right_table_expression_header->dumpStructure());
 
     /// JOIN with Join engine.
     if (auto storage = table_join->getStorageJoin())

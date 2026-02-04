@@ -316,8 +316,6 @@ std::shared_ptr<TableJoin> JoinedTables::makeTableJoin(const ASTSelectQuery & se
     if (tables_with_columns.size() < 2)
         return {};
 
-    LOG_TRACE(getLogger("JoinedTables"), "Top of makeTableJoin");
-
     const auto & settings = context->getSettingsRef();
     MultiEnum<JoinAlgorithm> join_algorithm = settings[Setting::join_algorithm];
     bool try_use_direct_join = join_algorithm.isSet(JoinAlgorithm::DIRECT) || join_algorithm.isSet(JoinAlgorithm::DEFAULT);
@@ -370,7 +368,6 @@ std::shared_ptr<TableJoin> JoinedTables::makeTableJoin(const ASTSelectQuery & se
     if (!table_join->isSpecialStorage() && settings[Setting::enable_optimize_predicate_expression])
         replaceJoinedTable(select_query_);
 
-    LOG_TRACE(getLogger("JoinedTables"), "Bottom of makeTableJoin");
     return table_join;
 }
 

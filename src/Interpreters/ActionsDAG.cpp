@@ -1713,17 +1713,6 @@ ActionsDAG ActionsDAG::makeConvertingActions(
     size_t num_input_columns = source.size();
     size_t num_result_columns = result.size();
 
-    for (const auto & s : source)
-    {
-        LOG_TRACE(&Poco::Logger::get("ActionsDAG"), "makeConvertingActions source {} {}", s.name, s.type->getName());
-    }
-    for (const auto & r : result)
-    {
-        LOG_TRACE(&Poco::Logger::get("ActionsDAG"), "makeConvertingActions result {} {}", r.name, r.type->getName());
-    }
-
-
-
     if (mode == MatchColumnsMode::Position && num_input_columns != num_result_columns)
         throw Exception(ErrorCodes::NUMBER_OF_COLUMNS_DOESNT_MATCH, "Number of columns doesn't match (source: {} and result: {})", num_input_columns, num_result_columns);
 
@@ -1740,11 +1729,7 @@ ActionsDAG ActionsDAG::makeConvertingActions(
     {
         size_t input_nodes_size = actions_dag.inputs.size();
         for (size_t pos = 0; pos < input_nodes_size; ++pos)
-        {
-            LOG_TRACE(&Poco::Logger::get("ActionsDAG"), "makeConvertingActions input name {}", actions_dag.inputs[pos]->result_name);
             inputs[actions_dag.inputs[pos]->result_name].push_back(pos);
-        }
-
     }
 
     for (size_t result_col_num = 0; result_col_num < num_result_columns; ++result_col_num)

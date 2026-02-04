@@ -15,8 +15,6 @@
 #include <Interpreters/DatabaseCatalog.h>
 #include <Interpreters/interpretSubquery.h>
 
-#include <Common/logger_useful.h>
-
 namespace DB
 {
 namespace Setting
@@ -54,8 +52,6 @@ std::shared_ptr<InterpreterSelectWithUnionQuery> interpretSubquery(
 
         return interpretSubquery(table, context, required_source_columns, options);
     }
-
-    LOG_TRACE(getLogger("interpretSubquery"), "top");
 
     /// Subquery or table name. The name of the table is similar to the subquery `SELECT * FROM t`.
     const auto * subquery = table_expression->as<ASTSubquery>();
@@ -123,8 +119,7 @@ std::shared_ptr<InterpreterSelectWithUnionQuery> interpretSubquery(
     else
     {
         query = subquery->children.at(0);
-        subquery_options.removeDuplicates();  // !!!
-        LOG_TRACE(getLogger("interpretSubquery"), "setting removeDuplicates");
+        subquery_options.removeDuplicates();
     }
 
     return std::make_shared<InterpreterSelectWithUnionQuery>(query, subquery_context, subquery_options, required_source_columns);

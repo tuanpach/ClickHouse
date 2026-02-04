@@ -16,11 +16,6 @@ class ASTSelectWithUnionQuery;
 class ASTFunction : public ASTWithAlias
 {
 public:
-    ASTFunction() =default;
-    ASTFunction(const ASTFunction &) =default;
-    ASTFunction& operator=(const ASTFunction &) =default;
-
-
     String name;
     ASTPtr arguments;
     /// parameters - for parametric aggregate function. Example: quantile(0.9)(x) - what in first parens are 'parameters'.

@@ -160,9 +160,6 @@ HashJoin::HashJoin(
     {
         if (!column.column)
             column.column = column.type->createColumn();
-        LOG_TEST(
-            log,
-            "column: {}, {} ", column.name, column.type);
     }
 
     LOG_TEST(

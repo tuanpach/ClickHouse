@@ -5,7 +5,6 @@
 #include <Parsers/ASTTablesInSelectQuery.h>
 #include <Parsers/ASTSelectQuery.h>
 #include <Storages/IStorage.h>
-#include <Common/logger_useful.h>
 
 namespace DB
 {
@@ -89,11 +88,7 @@ static NamesAndTypesList getColumnsFromTableExpression(
     if (table_expression.subquery)
     {
         const auto & subquery = table_expression.subquery->children.at(0);
-        LOG_TRACE(getLogger("getColumnsFromTableExpression"), "sample block {}", InterpreterSelectWithUnionQuery::getSampleBlock(subquery, context, true, is_create_parameterized_view)->dumpStructure());
-
         names_and_type_list = InterpreterSelectWithUnionQuery::getSampleBlock(subquery, context, true, is_create_parameterized_view)->getNamesAndTypesList();
-
-
     }
     else if (table_expression.table_function)
     {
@@ -140,12 +135,6 @@ TablesWithColumns getDatabaseAndTablesWithColumns(
         NamesAndTypesList virtuals;
         NamesAndTypesList names_and_types = getColumnsFromTableExpression(
             *table_expression, context, materialized, aliases, virtuals, is_create_parameterized_view);
-
-        for (const auto & col : names_and_types)
-        {
-            LOG_TRACE(getLogger("getDatabaseAndTablesWithColumns"), "name {}, type {}", col.name, col.type->getName());
-        }
-
 
         removeDuplicateColumns(names_and_types);
 

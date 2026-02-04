@@ -47,9 +47,9 @@ void ColumnWithTypeAndName::dumpStructure(WriteBuffer & out) const
     dumpNameAndType(out);
 
     if (column)
-        out << "<==>" << ' ' << column->dumpStructure();
+        out << ' ' << column->dumpStructure();
     else
-        out << "<==>" << " nullptr";
+        out << " nullptr";
 }
 
 String ColumnWithTypeAndName::dumpStructure() const
