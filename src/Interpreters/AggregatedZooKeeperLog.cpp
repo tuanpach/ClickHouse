@@ -11,7 +11,7 @@
 #include <Storages/ColumnsDescription.h>
 #include <Columns/ColumnMap.h>
 #include <base/getFQDNOrHostName.h>
-#include <Common/SipHash.h>
+#include <city.h>
 #include <Common/DateLUTImpl.h>
 #include <Common/ZooKeeper/SystemTablesDataTypes.h>
 
@@ -112,11 +112,10 @@ bool AggregatedZooKeeperLog::EntryKey::operator==(const EntryKey & other) const
 
 size_t AggregatedZooKeeperLog::EntryKeyHash::operator()(const EntryKey & entry_key) const
 {
-    SipHash hash;
-    hash.update(entry_key.session_id);
-    hash.update(entry_key.operation);
-    hash.update(entry_key.parent_path);
-    return hash.get64();
+    return CityHash_v1_0_2::CityHash64WithSeed(
+        entry_key.parent_path.data(),
+        entry_key.parent_path.size(),
+        static_cast<uint64_t>(entry_key.operation) ^ static_cast<uint64_t>(entry_key.session_id));
 }
 
 void AggregatedZooKeeperLog::EntryStats::observe(UInt64 latency_microseconds, Coordination::Error error)
