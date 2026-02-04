@@ -3024,14 +3024,14 @@ try
                 LOG_INFO(log, "Set root logger in level {} before shutdown", logger_shutdown_level_setting.value);
             }
 
-            if (config().has("logger.shutdown_console_level") && !config().getString("logger.shutdown_console_level").empty())
+            if (config().has("logger.shutdown_console_log_level") && !config().getString("logger.shutdown_console_log_level").empty())
             {
                 /// Set the root logger level to the shutdown level.
                 /// This is useful for debugging shutdown issues.
                 config().setString("logger.console_log_level", config().getString("logger.shutdown_console_log_level"));
                 Loggers::updateLevels(config(), logger());
 
-                LOG_INFO(log, "Set console logger in level {} before shutdown", config().getString("logger.shutdown_console_level"));
+                LOG_INFO(log, "Set console logger in level {} before shutdown", config().getString("logger.shutdown_console_log_level"));
             }
 
             LOG_DEBUG(log, "Received termination signal.");
