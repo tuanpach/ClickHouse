@@ -1208,11 +1208,11 @@ try
         LOG_INFO(log, "Starting root logger in level {}", logger_startup_level_setting.value);
     }
 
-    // If the console_startup_level is set in the config, we override the console logger level.
+    // If the startup_console_log_level is set in the config, we override the console logger level.
     // Specific loggers can still override it.
-    std::string original_console_log_level_config = config().getString("logger.console_log_level", "");
+    std::string original_console_log_level_config = config().getString("logger.startup_console_log_level", "");
     bool should_restore_console_log_level = false;
-    if (config().has("logger.console_startup_level") && !config().getString("logger.startup_console_log_level").empty())
+    if (config().has("logger.startup_console_log_level") && !config().getString("logger.startup_console_log_level").empty())
     {
         /// Set the console logger level to the startup console level.
         /// This is useful for debugging startup issues.
