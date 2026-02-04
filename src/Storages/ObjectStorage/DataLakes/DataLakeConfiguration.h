@@ -181,8 +181,7 @@ public:
 
     bool supportsTotalRows() const override
     {
-        assertInitialized();
-        return current_metadata->supportsTotalRows();
+        return DataLakeMetadata::supportsTotalRows();
     }
 
     std::optional<size_t> totalRows(ContextPtr local_context) override
@@ -193,8 +192,7 @@ public:
 
     bool supportsTotalBytes() const override
     {
-        assertInitialized();
-        return current_metadata->supportsTotalBytes();
+        return DataLakeMetadata::supportsTotalBytes();
     }
 
     std::optional<size_t> totalBytes(ContextPtr local_context) override

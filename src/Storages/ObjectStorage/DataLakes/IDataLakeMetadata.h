@@ -85,9 +85,9 @@ public:
 
     virtual void modifyFormatSettings(FormatSettings &, const Context &) const {}
 
-    virtual bool supportsTotalRows() const { return false; }
+    static constexpr bool supportsTotalRows() { return false; }
     virtual std::optional<size_t> totalRows(ContextPtr) const { return {}; }
-    virtual bool supportsTotalBytes() const { return false; }
+    static constexpr bool supportsTotalBytes() { return false; }
     virtual std::optional<size_t> totalBytes(ContextPtr) const { return {}; }
 
     /// Data which we are going to read is sorted by sorting key specified in StorageMetadataPtr.
