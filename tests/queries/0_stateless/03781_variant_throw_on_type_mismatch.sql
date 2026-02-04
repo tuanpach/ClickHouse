@@ -1,53 +1,47 @@
-DROP TABLE IF EXISTS test_variant_type_mismatch;
+-- Test that Variant throws exceptions on type mismatches like Dynamic does.
+-- This fixes issue https://github.com/ClickHouse/ClickHouse/issues/95839 where incompatible types caused LOGICAL_ERROR.
+-- Old behavior: returned NULL, causing logical errors in some cases.
+-- New behavior: throws proper exceptions on incompatible types.
+
 DROP TABLE IF EXISTS test_variant_compatible;
+DROP TABLE IF EXISTS test_variant_incompatible;
+DROP TABLE IF EXISTS test_variant_array;
 
 SET enable_variant_type = 1;
 SET allow_suspicious_variant_types = 1;
 SET allow_suspicious_types_in_order_by = 1;
 
--- Test default behavior: type mismatch returns NULL
-SET variant_throw_on_type_mismatch = 0;
+SELECT 'Compatible types work correctly';
 
-SELECT 'Default behavior: type mismatch returns NULL';
-
--- String values should return NULL when added to a number
-SELECT number % 2 ? number : 'even' AS x, x + 1 AS result
-FROM numbers(6)
-ORDER BY number;
-
-SELECT 'Type of result';
-SELECT toTypeName(x + 1)
-FROM (SELECT number % 2 ? number : 'even' AS x FROM numbers(1));
-
--- Test with table
-CREATE TABLE test_variant_type_mismatch (v Variant(UInt64, String)) ENGINE = Memory;
-INSERT INTO test_variant_type_mismatch VALUES (10), ('hello'), (NULL), (20), ('world');
-
-SELECT 'Table test: plus operation with type mismatch';
-SELECT v, v + 5 AS result FROM test_variant_type_mismatch ORDER BY v;
-
-SELECT 'Type of table result';
-SELECT toTypeName(v + 5) FROM test_variant_type_mismatch LIMIT 1;
-
--- Test with multiple operations
-SELECT 'Multiple operations with type mismatch';
-SELECT v, v * 2 AS mult, v - 1 AS sub FROM test_variant_type_mismatch ORDER BY v;
-
--- Test strict behavior: type mismatch throws exception
-SET variant_throw_on_type_mismatch = 1;
-
-SELECT 'Strict behavior: type mismatch throws exception';
-
--- This should work fine (all compatible types)
 CREATE TABLE test_variant_compatible (v Variant(UInt64, Float64)) ENGINE = Memory;
 INSERT INTO test_variant_compatible VALUES (10), (3.14), (NULL), (20);
 
-SELECT 'Strict mode with compatible types';
 SELECT v, v + 1 AS result FROM test_variant_compatible ORDER BY v;
+SELECT toTypeName(v + 1) FROM test_variant_compatible LIMIT 1;
 
--- This should throw an exception (incompatible type)
-SELECT 'Attempting operation with incompatible type (should fail)';
-SELECT number % 2 ? number : 'even' AS x, x + 1 AS result FROM numbers(2); -- {serverError ILLEGAL_TYPE_OF_ARGUMENT}
+SELECT 'Multiple operations with compatible types';
+SELECT v, v * 2 AS mult, v - 1 AS sub FROM test_variant_compatible ORDER BY v;
 
-DROP TABLE IF EXISTS test_variant_type_mismatch;
+SELECT 'Incompatible types throw exceptions';
+
+SELECT number % 2 ? number : 'even' AS x, x + 1 FROM numbers(2); -- {serverError ILLEGAL_TYPE_OF_ARGUMENT}
+
+CREATE TABLE test_variant_incompatible (v Variant(UInt64, String)) ENGINE = Memory;
+INSERT INTO test_variant_incompatible VALUES (10), ('hello'), (20);
+
+SELECT v + 5 FROM test_variant_incompatible; -- {serverError ILLEGAL_TYPE_OF_ARGUMENT}
+
+SELECT 'Test for issue 95839';
+
+SELECT v = 5 FROM test_variant_incompatible; -- {serverError NO_COMMON_TYPE}
+
+CREATE TABLE test_variant_array (v Variant(UInt64, Array(String))) ENGINE = Memory;
+INSERT INTO test_variant_array VALUES (42), (['a', 'b']);
+
+SELECT arrayRemove([42, v], 100) FROM test_variant_array; -- {serverError ILLEGAL_TYPE_OF_ARGUMENT}
+
+SELECT arrayRemove([[[isNotDistinctFrom(16, isNotDistinctFrom(16, assumeNotNull(isNotNull(materialize(8)))))]], [[materialize(toUInt128(8)), equals(2, isNull(isZeroOrNull(*)))], *], [isNotDistinctFrom(isNull(assumeNotNull(16)), isNotDistinctFrom(isZeroOrNull(NULL), 16)), [], [arrayMap(x -> materialize(0), [NULL])]], [isZeroOrNull(8), [isZeroOrNull(8)]]], [[arrayRemove(['hello', 'world'], concat('a', 1, equals(16, isNullable(8)))), isNotDistinctFrom(16, isNotDistinctFrom(isZeroOrNull(8), 16))]]); -- {serverError ILLEGAL_TYPE_OF_ARGUMENT}
+
 DROP TABLE IF EXISTS test_variant_compatible;
+DROP TABLE IF EXISTS test_variant_incompatible;
+DROP TABLE IF EXISTS test_variant_array;
