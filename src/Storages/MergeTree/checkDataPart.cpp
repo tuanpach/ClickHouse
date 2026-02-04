@@ -377,6 +377,8 @@ static IMergeTreeDataPart::Checksums checkDataPart(
         /// MergeTree will never use.
         if (require_checksums && !projections_on_disk.empty())
         {
+            is_broken_projection = true;
+
             throw Exception(ErrorCodes::UNEXPECTED_FILE_IN_DATA_PART,
                 "Found unexpected projection directories: {}",
                 fmt::join(projections_on_disk, ","));
