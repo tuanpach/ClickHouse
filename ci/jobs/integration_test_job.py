@@ -483,8 +483,6 @@ tar -czf ./ci/tmp/logs.tar.gz \
     failed_tests_files = []
 
     has_error = False
-    if args.session_timeout:
-        session_timeout = args.session_timeout
     if not is_targeted_check:
         session_timeout_parallel = 3600 * 2
         session_timeout_sequential = 3600
@@ -499,6 +497,10 @@ tar -czf ./ci/tmp/logs.tar.gz \
         session_timeout_parallel = 7200
         session_timeout_sequential = 7200
 
+    if args.session_timeout:
+        session_timeout_parallel =  args.session_timeout * 2
+        session_timeout_sequential = args.session_timeout
+
     error_info = []
 
     module_repeat_cnt = 1
@@ -510,8 +512,6 @@ tar -czf ./ci/tmp/logs.tar.gz \
     if parallel_test_modules:
         for attempt in range(module_repeat_cnt):
             log_file = f"{temp_path}/pytest_parallel.log"
-            print("2 session_timeout:", session_timeout) #REMOVEME
-            print("--session-timeout={session_timeout}")
             test_result_parallel = Result.from_pytest_run(
                 command=f"{' '.join(parallel_test_modules)} --report-log-exclude-logs-on-passed-tests -n {workers} --dist=loadfile --tb=short {repeat_option} --session-timeout={session_timeout_parallel}",
                 cwd="./tests/integration/",
