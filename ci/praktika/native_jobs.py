@@ -504,13 +504,15 @@ def _config_workflow(workflow: Workflow.Config, job_name) -> Result:
                         )
                         unaffected_jobs_with_artifacts[job.name] = job.provides
 
+            print(f"All required artifacts [{all_required_artifacts}]")
+            print(f"Affected artifacts [{affected_artifacts}]")
             for job_name, artifacts in unaffected_jobs_with_artifacts.items():
                 if (
                     any(a in all_required_artifacts for a in artifacts)
                     or job_name in all_required_artifacts
                 ):
                     print(
-                        f"NOTE: Job [{job_name}] provides required artifacts — cannot be skipped"
+                        f"NOTE: Job [{job_name}] provides required artifacts - cannot be skipped"
                     )
                 else:
                     workflow_config.set_job_as_filtered(
