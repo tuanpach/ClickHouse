@@ -1,6 +1,7 @@
 -- Tags: no-fasttest, no-ordinary-database
 
 set allow_experimental_parallel_reading_from_replicas=0;
+set enable_analyzer = 1;
 
 DROP TABLE IF EXISTS dist_vec;
 
