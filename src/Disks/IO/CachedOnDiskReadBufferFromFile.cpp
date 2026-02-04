@@ -79,7 +79,7 @@ CachedOnDiskReadBufferFromFile::CachedOnDiskReadBufferFromFile(
     , cache(cache_)
     , settings(settings_)
     , read_until_position(read_until_position_ ? *read_until_position_ : file_size_)
-    , implementation_buffer_creator(implementation_buffer_creator_)
+    , implementation_buffer_creator(std::move(implementation_buffer_creator_))
     , query_id(query_id_)
     , current_buffer_id(getRandomASCIIString(8))
     , origin(origin_)
