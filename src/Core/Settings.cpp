@@ -1961,7 +1961,7 @@ Possible values:
 ```
 )", 0) \
 \
-    DECLARE(DeduplicateInsertMode, deduplicate_insert, DeduplicateInsertMode::BACKWARD_COMPATIBLE_CHOICE, R"(
+    DECLARE(DeduplicateInsertMode, deduplicate_insert, DeduplicateInsertMode::ENABLE, R"(
 Enables or disables block deduplication of  `INSERT INTO` (for Replicated\* tables).
 The setting overrides `insert_deduplicate` and `async_insert_deduplicate` settings.
 That setting has three possible values:
@@ -4450,7 +4450,7 @@ Normalize function names to their canonical names
     DECLARE(Bool, enable_early_constant_folding, true, R"(
 Enable query optimization where we analyze function and subqueries results and rewrite query if there are constants there
 )", 0) \
-    DECLARE(Bool, deduplicate_blocks_in_dependent_materialized_views, false, R"(
+    DECLARE(Bool, deduplicate_blocks_in_dependent_materialized_views, true, R"(
 Enables or disables the deduplication check for materialized views that receive data from Replicated\* tables.
 
 Possible values:
