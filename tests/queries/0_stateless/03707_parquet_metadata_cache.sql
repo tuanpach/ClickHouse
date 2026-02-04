@@ -10,7 +10,7 @@ SYSTEM DROP PARQUET METADATA CACHE;
 -- should be a cache miss as we load the cache the first time
 SELECT *
 FROM s3(s3_conn, filename = '03707_cache_test.parquet', format = 'Parquet')
-SETTINGS log_comment = '03707-first-test-query';
+SETTINGS log_comment = '03707-first-test-query', use_parquet_metadata_cache = 1;
 
 SYSTEM FLUSH LOGS query_log;
 
@@ -26,7 +26,7 @@ SELECT
     upper(name),
     value + 1
 FROM s3(s3_conn, filename = '03707_cache_test.parquet', format = 'Parquet')
-SETTINGS log_comment = '03707-second-test-query';
+SETTINGS log_comment = '03707-second-test-query', use_parquet_metadata_cache = 1;
 
 SYSTEM FLUSH LOGS query_log;
 
@@ -43,7 +43,7 @@ SELECT
     name,
     value + value
 FROM s3(s3_conn, filename = '03707_cache_test.parquet', format = 'Parquet')
-SETTINGS log_comment = '03707-third-test-query';
+SETTINGS log_comment = '03707-third-test-query', use_parquet_metadata_cache = 1;
 
 SYSTEM FLUSH LOGS query_log;
 
