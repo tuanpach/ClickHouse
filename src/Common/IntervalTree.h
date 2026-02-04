@@ -157,7 +157,14 @@ public:
     }
 
     /// Build tree, after that intervals cannot be inserted, and only search or iteration can be performed.
-    void build();
+    void build()
+    {
+        assert(!tree_is_built);
+        nodes.clear();
+        nodes.reserve(sorted_intervals.size());
+        buildTree();
+        tree_is_built = true;
+    }
 
     /** Find all intervals intersecting point.
       *

@@ -9,16 +9,6 @@ namespace DB
 {
 
 template <typename Interval, typename Value>
-void IntervalTree<Interval, Value>::build()
-{
-    assert(!tree_is_built);
-    nodes.clear();
-    nodes.reserve(sorted_intervals.size());
-    buildTree();
-    tree_is_built = true;
-}
-
-template <typename Interval, typename Value>
 void IntervalTree<Interval, Value>::buildTree()
 {
     std::vector<IntervalStorageType> temporary_points_storage;
