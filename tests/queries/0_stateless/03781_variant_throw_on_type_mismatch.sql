@@ -26,6 +26,10 @@ SELECT 'Incompatible types throw exceptions';
 
 SELECT number % 2 ? number : 'even' AS x, x + 1 FROM numbers(2); -- {serverError ILLEGAL_TYPE_OF_ARGUMENT}
 
+SELECT arrayRemove([[1, 2], [3, 4]], [['hello']]); -- {serverError ILLEGAL_TYPE_OF_ARGUMENT}
+
+SELECT arrayRemove([[[isNotDistinctFrom(16, isNotDistinctFrom(16, assumeNotNull(isNotNull(materialize(8)))))]], [[materialize(toUInt128(8)), equals(2, isNull(isZeroOrNull(*)))], *], [isNotDistinctFrom(isNull(assumeNotNull(16)), isNotDistinctFrom(isZeroOrNull(NULL), 16)), [], [arrayMap(x -> materialize(0), [NULL])]], [isZeroOrNull(8), [isZeroOrNull(8)]]], [[arrayRemove(['hello', 'world'], concat('a', 1, equals(16, isNullable(8)))), isNotDistinctFrom(16, isNotDistinctFrom(isZeroOrNull(8), 16))]]); -- {serverError ILLEGAL_TYPE_OF_ARGUMENT}
+
 CREATE TABLE test_variant_incompatible (v Variant(UInt64, String)) ENGINE = Memory;
 INSERT INTO test_variant_incompatible VALUES (10), ('hello'), (20);
 
@@ -39,8 +43,6 @@ CREATE TABLE test_variant_array (v Variant(UInt64, Array(String))) ENGINE = Memo
 INSERT INTO test_variant_array VALUES (42), (['a', 'b']);
 
 SELECT arrayRemove([42, v], 100) FROM test_variant_array; -- {serverError ILLEGAL_TYPE_OF_ARGUMENT}
-
-SELECT arrayRemove([[[isNotDistinctFrom(16, isNotDistinctFrom(16, assumeNotNull(isNotNull(materialize(8)))))]], [[materialize(toUInt128(8)), equals(2, isNull(isZeroOrNull(*)))], *], [isNotDistinctFrom(isNull(assumeNotNull(16)), isNotDistinctFrom(isZeroOrNull(NULL), 16)), [], [arrayMap(x -> materialize(0), [NULL])]], [isZeroOrNull(8), [isZeroOrNull(8)]]], [[arrayRemove(['hello', 'world'], concat('a', 1, equals(16, isNullable(8)))), isNotDistinctFrom(16, isNotDistinctFrom(isZeroOrNull(8), 16))]]); -- {serverError ILLEGAL_TYPE_OF_ARGUMENT}
 
 DROP TABLE IF EXISTS test_variant_compatible;
 DROP TABLE IF EXISTS test_variant_incompatible;
