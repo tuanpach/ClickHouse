@@ -19,7 +19,7 @@ $CLICKHOUSE_CLIENT --query_id "$query_id" --query "INSERT INTO test SELECT rando
 
 min_expected_size=2000
 
-$CLICKHOUSE_CLIENT --query "SYSTEM FLUSH LOGS"
+$CLICKHOUSE_CLIENT --query "SYSTEM FLUSH LOGS query_log;"
 
 written_cache=$($CLICKHOUSE_CLIENT --query "SELECT ProfileEvents['CachedWriteBufferCacheWriteBytes'] FROM system.query_log WHERE current_database = currentDatabase() AND query_id = '$query_id' AND type = 'QueryFinish'")
 
