@@ -951,7 +951,7 @@ RangesInDataParts findPKRangesForFinalAfterSkipIndexImpl(RangesInDataParts & ran
         /// The final mark may not be written under some situations e.g index_granularity_bytes = 0.
         if (!index_granularity->hasFinalMark())
         {
-            LOG_TRACE(logger, "use_skip_indexes_if_final_exact_mode processing could not find final mark in {}",
+            LOG_TRACE(logger, "use_skip_indexes_if_final_exact_mode processing is not applied, because {} does not have the final mark",
                         ranges_in_data_parts[part_index].data_part->name);
             return skip_and_return_all_part_ranges();
         }
@@ -989,10 +989,12 @@ RangesInDataParts findPKRangesForFinalAfterSkipIndexImpl(RangesInDataParts & ran
     for (size_t part_index = 0; part_index < ranges_in_data_parts.size(); ++part_index)
     {
         if (!ranges_in_data_parts[part_index].ranges_snapshot_after_pk_analysis)
-            continue;
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Expected ranges selected by primary key for part {}",
+                    ranges_in_data_parts[part_index].data_part->name);
 
-        auto part_ranges_after_pk_analysis_begin = ranges_in_data_parts[part_index].ranges_snapshot_after_pk_analysis->begin()->begin;
-        auto part_ranges_after_pk_analysis_end = ranges_in_data_parts[part_index].ranges_snapshot_after_pk_analysis->back().end;
+        const auto & ranges = *ranges_in_data_parts[part_index].ranges_snapshot_after_pk_analysis;
+        const auto part_ranges_after_pk_analysis_begin = ranges.front().begin;
+        const auto part_ranges_after_pk_analysis_end = ranges.back().end;
         const auto & part_lower_bound = index_access.getValue(part_index, part_ranges_after_pk_analysis_begin);
         const auto & part_upper_bound = index_access.getValue(part_index, part_ranges_after_pk_analysis_end);
 
@@ -1015,14 +1017,13 @@ RangesInDataParts findPKRangesForFinalAfterSkipIndexImpl(RangesInDataParts & ran
         if (candidates_end != 0) /// Come back by 1 because we are now 1 past the upper bound or at the final mark
             candidates_end = candidates_end.value() - 1;
 
-        for (const auto & part_candidate_range : ranges_in_data_parts[part_index].ranges_snapshot_after_pk_analysis.value())
+        for (const auto & part_candidate_range : ranges)
         {
-            for (auto range_begin = part_candidate_range.begin; range_begin < part_candidate_range.end; range_begin++)
+            for (auto range_begin = max(part_candidate_range.begin, candidates_start); range_begin < min(part_candidate_range.end, candidates_end+1); range_begin++)
             {
-                if (range_begin < candidates_start || range_begin > candidates_end)
-                    continue;
                 if (std::binary_search(part_selected_ranges[part_index].begin(), part_selected_ranges[part_index].end(), range_begin))
                     continue;
+
                 MarkRange rejected_range(range_begin, range_begin + 1);
                 rejected_ranges.push_back(
                     {index_access.getValue(part_index, rejected_range.begin), false, rejected_range, part_index,
