@@ -1986,7 +1986,7 @@ void ZooKeeper::observeOperation(const ZooKeeperRequest * request, const Respons
         return;
     }
 
-    current_aggregated_zookeeper_log->observe(session_id, static_cast<int32_t>(request->getOpNum()), request->getPath(), elapsed_microseconds, response->error, component);
+    current_aggregated_zookeeper_log->observe(session_id, request->tryGetOpNum(), request->getPath(), elapsed_microseconds, response->error, component);
 
     const auto * multi_response = dynamic_cast<const ZooKeeperMultiResponse *>(response);
 

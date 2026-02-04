@@ -66,6 +66,7 @@ struct ZooKeeperRequest : virtual Request
     ZooKeeperRequest(const ZooKeeperRequest &) = default;
 
     virtual OpNum getOpNum() const = 0;
+    virtual int32_t tryGetOpNum() const { return static_cast<int32_t>(getOpNum()); }
 
     /// Writes length, xid, op_num, then the rest.
     void write(WriteBuffer & out, bool use_xid_64) const;
