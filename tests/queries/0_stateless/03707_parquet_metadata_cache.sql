@@ -1,4 +1,4 @@
--- Tags: no-fasttest, no-parallel
+-- Tags: no-fasttest, no-parallel, no-random-settings
 /*
 Because the parquet metadata cache is system-wide, parallel runs of 
 SYSTEM DROP PARQUET METADATA CACHE will lead to non-deterministic results
