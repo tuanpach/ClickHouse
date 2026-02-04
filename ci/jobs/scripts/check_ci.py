@@ -533,7 +533,7 @@ def main():
         def is_pr_number(s):
             try:
                 num = int(s.lstrip("#"))
-                return 10000 < num < 99999
+                return 10000 < num < 150_000
             except ValueError:
                 return False
 
@@ -542,7 +542,7 @@ def main():
 
         selected_pr = UserPrompt.select_from_menu(
             pr_menu,
-            "Select a from list, or enter commit sha or PR number",
+            "Select a PR from the list, or manually enter a commit sha or PR number",
             validator=lambda x: is_pr_number(x) or is_commit_sha(x),
         )
         if isinstance(selected_pr, str):
