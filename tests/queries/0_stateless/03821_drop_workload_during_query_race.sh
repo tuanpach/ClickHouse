@@ -55,7 +55,7 @@ $CLICKHOUSE_CLIENT -nm -q "
     CREATE OR REPLACE WORKLOAD $WORKLOAD_NAME;
 "
 
-TIMEOUT=5
+TIMEOUT=1
 
 # Start query threads
 thread_query &
