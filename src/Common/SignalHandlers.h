@@ -24,8 +24,11 @@ const size_t signal_pipe_buf_size =
     + sizeof(UInt64)
     + sizeof(UInt32)
     + sizeof(void*)
+#if defined(OS_LINUX)
     + sizeof(UInt8)
-    + sizeof(FramePointers);
+    + sizeof(FramePointers)
+#endif
+    ;
 
 using signal_function = void(int, siginfo_t*, void*);
 

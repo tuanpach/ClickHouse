@@ -124,9 +124,11 @@ static void signalHandler(int sig, siginfo_t * info, void * context)
     writeVectorBinary(Exception::enable_job_stack_trace ? Exception::getThreadFramePointers() : empty_stack, out);
     writeBinary(static_cast<UInt32>(getThreadId()), out);
     writePODBinary(current_thread, out);
+#if defined(OS_LINUX)
     writeBinary(static_cast<UInt8>(terminate_current_exception_trace_size), out);
     for (size_t i = 0; i < terminate_current_exception_trace_size; ++i)
         writePODBinary(terminate_current_exception_trace[i], out);
+#endif
     out.finalize();
 
     if (sig != SIGTSTP) /// This signal is used for debugging.
@@ -375,9 +377,11 @@ void SignalListener::run()
             readVectorBinary(thread_frame_pointers, in);
             readBinary(thread_num, in);
             readPODBinary(thread_ptr, in);
+#if defined(OS_LINUX)
             readBinary(exception_trace_size, in);
             for (size_t i = 0; i < exception_trace_size; ++i)
                 readPODBinary(exception_trace[i], in);
+#endif
 
             onFault(sig, info, context, stack_trace, thread_frame_pointers, thread_num, thread_ptr, exception_trace, exception_trace_size);
         }
