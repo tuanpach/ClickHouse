@@ -1216,7 +1216,8 @@ static QueryPlanNode buildPhysicalJoinImpl(
     table_join->setInputColumns(
         left_dag.getNamesAndTypesList(),
         right_dag.getNamesAndTypesList());
-    table_join->setUsedColumns(residual_dag.getRequiredColumnsNames());
+    // table_join->setUsedColumns(residual_dag.getRequiredColumnsNames());
+    table_join->setUsedColumns(residual_dag.getRequiredColumns());
     table_join->setJoinOperator(join_operator);
 
     SharedHeader left_sample_block = blockWithActionsDAGOutput(left_dag);

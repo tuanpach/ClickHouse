@@ -304,12 +304,34 @@ void TableJoin::setInputColumns(NamesAndTypesList left_output_columns, NamesAndT
 {
     columns_from_left_table = std::move(left_output_columns);
     columns_from_joined_table = std::move(right_output_columns);
+
+    for (auto & column : columns_from_left_table)
+    {
+        LOG_TRACE(getLogger("TableJoin"), "setInputColumns columns_from_left_table:  col name {} type {}", column.name, column.type);
+    }
+    for (auto & column : columns_from_joined_table)
+    {
+        LOG_TRACE(getLogger("TableJoin"), "setInputColumns columns_from_right_table:  col name {} type {}", column.name, column.type);
+    }
+
+
 }
 
 const NamesAndTypesList & TableJoin::getOutputColumns(JoinTableSide side) const
 {
     if (side == JoinTableSide::Left)
+    {
+        for (const auto & col : result_columns_from_left_table)
+        {
+            LOG_TRACE(getLogger("TableJoin"), "addJoinedColumnsAndCorrectTypesImpl (left):  col name {} type {}", col.name, col.type);
+        }
         return result_columns_from_left_table;
+    }
+
+    for (const auto & col : columns_added_by_join)
+    {
+        LOG_TRACE(getLogger("TableJoin"), "addJoinedColumnsAndCorrectTypesImpl (right):  col name {} type {}", col.name, col.type);
+    }
     return columns_added_by_join;
 }
 
@@ -320,6 +342,8 @@ void TableJoin::deduplicateAndQualifyColumnNames(const NameSet & left_table_colu
 
     for (auto & column : columns_from_joined_table)
     {
+        LOG_TRACE(getLogger("TableJoin"), "deduplicateAndQualifyColumnNames:  col name {} type {}", column.name, column.type);
+
         if (joined_columns.contains(column.name))
             continue;
 
@@ -485,12 +509,112 @@ void TableJoin::setUsedColumns(const Names & column_names)
     }
 }
 
+void TableJoin::setUsedColumns(const NamesAndTypesList & column_names_and_types)
+{
+    // std::unordered_map<NameAndTypePair, NamesAndTypesList::const_iterator> left_columns_idx;
+    // for (auto it = columns_from_left_table.begin(); it != columns_from_left_table.end(); ++it)
+    //     left_columns_idx[*it] = it;
+
+    // std::unordered_map<NameAndTypePair, NamesAndTypesList::const_iterator> right_columns_idx;
+    // for (auto it = columns_from_joined_table.begin(); it != columns_from_joined_table.end(); ++it)
+    //     right_columns_idx[*it] = it;
+
+    // for (const auto & name_and_type_pair : column_names_and_types)
+    // {
+    //     if (auto lit = left_columns_idx.find(name_and_type_pair); lit != left_columns_idx.end())
+    //         setUsedColumn(*lit->second, JoinTableSide::Left);
+    //     else if (auto rit = right_columns_idx.find(name_and_type_pair); rit != right_columns_idx.end())
+    //         setUsedColumn(*rit->second, JoinTableSide::Right);
+    //     else
+    //         throw Exception(ErrorCodes::NOT_FOUND_COLUMN_IN_BLOCK,
+    //             "Column {} not found in JOIN, left columns: [{}], right columns: [{}]", name_and_type_pair.name,
+    //             fmt::join(columns_from_left_table | std::views::transform([](const auto & col) { return col.name; }), ", "),
+    //             fmt::join(columns_from_joined_table | std::views::transform([](const auto & col) { return col.name; }), ", "));
+    // }
+    LOG_TRACE(getLogger("TableJoin"), "Top of setUsedColumns with explicit types");
+
+    using Iterator = NamesAndTypesList::const_iterator;
+
+    std::unordered_map<std::string_view, std::vector<Iterator>> left_columns_idx;
+    for (auto it = columns_from_left_table.begin(); it != columns_from_left_table.end(); ++it)
+        left_columns_idx[it->name].push_back(it);
+
+    std::unordered_map<std::string_view, std::vector<Iterator>> right_columns_idx;
+    for (auto it = columns_from_joined_table.begin(); it != columns_from_joined_table.end(); ++it)
+        right_columns_idx[it->name].push_back(it);
+
+    auto find_exact_match = [](const std::vector<Iterator> & candidates, const DataTypePtr & type) -> std::optional<Iterator>
+    {
+        for (auto it : candidates)
+            if (it->type->equals(*type))
+                return it;
+        return std::nullopt;
+    };
+
+    static const std::vector<Iterator> empty_candidates;
+
+    for (const auto & column : column_names_and_types)
+    {
+        const auto left_it = left_columns_idx.find(column.name);
+        const auto right_it = right_columns_idx.find(column.name);
+
+        const auto * left_candidates = left_it != left_columns_idx.end() ? &left_it->second : &empty_candidates;
+        const auto * right_candidates = right_it != right_columns_idx.end() ? &right_it->second : &empty_candidates;
+
+        const bool has_duplicates = left_candidates->size() > 1 || right_candidates->size() > 1;
+
+        if (!has_duplicates)
+        {
+            LOG_TRACE(getLogger("TableJoin"), "setUsedColumns with explicit types has NO duplicates for {}", column.name);
+            if (!left_candidates->empty())
+                setUsedColumn(*left_candidates->front(), JoinTableSide::Left);
+            else if (!right_candidates->empty())
+                setUsedColumn(*right_candidates->front(), JoinTableSide::Right);
+            else
+                throw Exception(ErrorCodes::NOT_FOUND_COLUMN_IN_BLOCK,
+                    "Column {} not found in JOIN, left columns: [{}], right columns: [{}]", column.name,
+                    fmt::join(columns_from_left_table | std::views::transform([](const auto & col) { return col.name; }), ", "),
+                    fmt::join(columns_from_joined_table | std::views::transform([](const auto & col) { return col.name; }), ", "));
+            continue;
+        }
+
+        LOG_TRACE(getLogger("TableJoin"), "setUsedColumns with explicit types has duplicates for {}", column.name);
+        if (auto left_match = find_exact_match(*left_candidates, column.type))
+        {
+            setUsedColumn(**left_match, JoinTableSide::Left);
+            LOG_TRACE(getLogger("TableJoin"), "setUsedColumns exact match");
+        }
+
+        else if (auto right_match = find_exact_match(*right_candidates, column.type))
+        {
+            setUsedColumn(**right_match, JoinTableSide::Right);
+            LOG_TRACE(getLogger("TableJoin"), "setUsedColumns exact match");
+        }
+        else if (!left_candidates->empty())
+        {
+            setUsedColumn(*left_candidates->front(), JoinTableSide::Left);
+            LOG_TRACE(getLogger("TableJoin"), "setUsedColumns NO exact match, get front");
+        }
+        else if (!right_candidates->empty())
+        {
+            setUsedColumn(*right_candidates->front(), JoinTableSide::Right);
+            LOG_TRACE(getLogger("TableJoin"), "setUsedColumns NO exact match, get front");
+        }
+        else
+            throw Exception(ErrorCodes::NOT_FOUND_COLUMN_IN_BLOCK,
+                "Column {} not found in JOIN, left columns: [{}], right columns: [{}]", column.name,
+                fmt::join(columns_from_left_table | std::views::transform([](const auto & col) { return col.name; }), ", "),
+                fmt::join(columns_from_joined_table | std::views::transform([](const auto & col) { return col.name; }), ", "));
+    }
+}
+
 void TableJoin::setUsedColumn(const NameAndTypePair & joined_column, JoinTableSide side)
 {
+    LOG_TRACE(getLogger("TableJoin"), "setUsedColumn name {}, type {}", joined_column.name, joined_column.type);
     if (side == JoinTableSide::Left)
-        result_columns_from_left_table.push_back(joined_column);
+        result_columns_from_left_table.push_front(joined_column);
     else
-        columns_added_by_join.push_back(joined_column);
+        columns_added_by_join.push_front(joined_column);
 }
 
 void TableJoin::addJoinedColumn(const NameAndTypePair & joined_column)
@@ -513,6 +637,12 @@ NamesAndTypesList TableJoin::correctedColumnsAddedByJoin() const
         if (rightBecomeNullable(type))
             type = JoinCommon::convertTypeToNullable(type);
         result.emplace_back(col.name, type);
+        LOG_TRACE(getLogger("TableJoin"), "correctedColumnsAddedByJoin  col name {} type {}", col.name, type->getName());
+    }
+
+    for (const auto & col : result)
+    {
+        LOG_TRACE(getLogger("TableJoin"), "correctedColumnsAddedByJoin result:  col name {} type {}", col.name, col.type);
     }
 
     return result;
@@ -535,6 +665,11 @@ void TableJoin::addJoinedColumnsAndCorrectTypesImpl(TColumns & left_columns, boo
                   std::is_same_v<typename TColumns::value_type, NameAndTypePair>);
 
     constexpr bool has_column = std::is_same_v<typename TColumns::value_type, ColumnWithTypeAndName>;
+    LOG_TRACE(getLogger("TableJoin"), "addJoinedColumnsAndCorrectTypesImpl - top, correct_nullability {}", correct_nullability);
+    for (const auto & col : left_columns)
+    {
+        LOG_TRACE(getLogger("TableJoin"), "addJoinedColumnsAndCorrectTypesImpl:  col name {} type {}", col.name, col.type);
+    }
     for (auto & col : left_columns)
     {
         if (hasUsing())
@@ -560,6 +695,7 @@ void TableJoin::addJoinedColumnsAndCorrectTypesImpl(TColumns & left_columns, boo
         if (correct_nullability && leftBecomeNullable(col.type))
         {
             col.type = JoinCommon::convertTypeToNullable(col.type);
+            LOG_TRACE(getLogger("TableJoin"), "addJoinedColumnsAndCorrectTypesImpl - convertTypeToNullable");
             if constexpr (has_column)
                 col.column = nullptr;
         }
@@ -570,6 +706,16 @@ void TableJoin::addJoinedColumnsAndCorrectTypesImpl(TColumns & left_columns, boo
             left_columns.emplace_back(nullptr, col.type, col.name);
         else
             left_columns.emplace_back(col.name, col.type);
+
+    LOG_TRACE(getLogger("TableJoin"), "addJoinedColumnsAndCorrectTypesImpl - bottom");
+
+    for (const auto & col : left_columns)
+    {
+        LOG_TRACE(
+            getLogger("TableJoin"),
+            "addJoinedColumnsAndCorrectTypesImpl:  col name {} type {}",
+            col.name, col.type);
+    }
 }
 
 bool TableJoin::sameStrictnessAndKind(JoinStrictness strictness_, JoinKind kind_) const
@@ -1135,6 +1281,9 @@ bool TableJoin::allowParallelHashJoin() const
 ActionsDAG TableJoin::createJoinedBlockActions(ContextPtr context, PreparedSetsPtr prepared_sets) const
 {
     ASTPtr expression_list = rightKeysList();
+
+    LOG_TRACE(getLogger("TableJoin"), "expression_list {}", expression_list->dumpTree());
+
     auto syntax_result = TreeRewriter(context).analyze(expression_list, columnsFromJoinedTable());
     ExpressionAnalyzer analyzer(expression_list, syntax_result, context);
     analyzer.getPreparedSets() = std::move(prepared_sets);

@@ -359,17 +359,26 @@ void renameDuplicatedColumns(const ASTSelectQuery * select_query)
     std::set<String> all_column_names;
     std::set<String> assigned_column_names;
 
-    for (auto & expr : elements)
-        all_column_names.insert(expr->getAliasOrColumnName());
-
-    for (auto & expr : elements)
+    for (auto & expr : /* std::views::reverse( */ elements)
     {
+        all_column_names.insert(expr->getAliasOrColumnName());
+        LOG_DEBUG(getLogger("TreeRewriter"), "renameDuplicatedColumns: insert element {} to all_column_names, which is ASTWithAlias {}, name {}, alias {}", expr->dumpTree(), (dynamic_cast<ASTWithAlias *>(expr.get()) != nullptr), expr->getColumnName(), expr->getAliasOrColumnName());
+    }
+
+
+    for (auto & expr :  /* std::views::reverse( */ elements)
+    {
+
         auto name = expr->getAliasOrColumnName();
         if (!assigned_column_names.insert(name).second)
         {
+            LOG_DEBUG(getLogger("TreeRewriter"), "renameDuplicatedColumns: cannot insert element {}, name {}", expr->dumpTree(), name);
             /// We can't rename with aliases if it doesn't support alias (e.g. asterisk)
             if (!dynamic_cast<ASTWithAlias *>(expr.get()))
+            {
+                LOG_DEBUG(getLogger("TreeRewriter"), "renameDuplicatedColumns: cannot rename");
                 continue;
+            }
 
             size_t i = 1;
             while (all_column_names.contains(name + "_" + toString(i)))
@@ -378,6 +387,7 @@ void renameDuplicatedColumns(const ASTSelectQuery * select_query)
             name = name + "_" + toString(i);
             expr = expr->clone();   /// Cancels fuse of the same expressions in the tree.
             expr->setAlias(name);
+            LOG_DEBUG(getLogger("TreeRewriter"), "renameDuplicatedColumns: modified name {}", name);
 
             all_column_names.insert(name);
             assigned_column_names.insert(name);
@@ -389,7 +399,7 @@ void renameDuplicatedColumns(const ASTSelectQuery * select_query)
 /// This is the case when we have DISTINCT or arrayJoin: we require more columns in SELECT even if we need less columns in result.
 /// Also we have to remove duplicates in case of GLOBAL subqueries. Their results are placed into tables so duplicates are impossible.
 /// Also remove all INTERPOLATE columns which are not in SELECT anymore.
-void removeUnneededColumnsFromSelectClause(ASTSelectQuery * select_query, const Names & required_result_columns, bool remove_dups)
+[[maybe_unused]] void removeUnneededColumnsFromSelectClause(ASTSelectQuery * select_query, const Names & required_result_columns, bool remove_dups)
 {
     ASTs & elements = select_query->select()->children;
 
@@ -1310,7 +1320,7 @@ TreeRewriterResultPtr TreeRewriter::analyzeSelect(
     TreeRewriterResult && result,
     const SelectQueryOptions & select_options,
     const TablesWithColumns & tables_with_columns,
-    const Names & required_result_columns,
+    [[maybe_unused]] const Names & required_result_columns,
     std::shared_ptr<TableJoin> table_join) const
 {
     auto * select_query = query->as<ASTSelectQuery>();
@@ -1333,7 +1343,19 @@ TreeRewriterResultPtr TreeRewriter::analyzeSelect(
         result.analyzed_join = std::make_shared<TableJoin>();
 
     if (remove_duplicates)
+    {
+        Aliases aliases;
+        NameSet name_set;
+
+        normalize(query, aliases, name_set, select_options.ignore_alias, settings, /* allow_self_aliases = */ true, getContext(), select_options.is_create_parameterized_view);
+
+
+
+        LOG_TRACE(getLogger("TreeRewriter"), "analyzeSelect: select_query before renameDuplicatedColumns {}", select_query->dumpTree());
         renameDuplicatedColumns(select_query);
+        LOG_TRACE(getLogger("TreeRewriter"), "analyzeSelect: select_query after renameDuplicatedColumns {}", select_query->dumpTree());
+    }
+
 
     /// Perform it before analyzing JOINs, because it may change number of columns with names unique and break some logic inside JOINs
     if (settings[Setting::optimize_normalize_count_variants])
@@ -1344,19 +1366,33 @@ TreeRewriterResultPtr TreeRewriter::analyzeSelect(
         auto columns_from_left_table = tables_with_columns[0].columns;
         const auto & right_table = tables_with_columns[1];
         auto columns_from_joined_table = right_table.columns;
+        for (const auto & col : columns_from_joined_table)
+        {
+            LOG_TRACE(getLogger("TreeRewriter"), "columns_from_joined_table before insert {} {}", col.name, col.type);
+        }
         /// query can use materialized or aliased columns from right joined table,
         /// we want to request it for right table
         columns_from_joined_table.insert(columns_from_joined_table.end(), right_table.hidden_columns.begin(), right_table.hidden_columns.end());
         columns_from_left_table.insert(columns_from_left_table.end(), tables_with_columns[0].hidden_columns.begin(), tables_with_columns[0].hidden_columns.end());
+
+
+        for (const auto & col : columns_from_joined_table)
+        {
+            LOG_TRACE(getLogger("TreeRewriter"), "columns_from_joined_table after insert {} {}", col.name, col.type);
+        }
+
         result.analyzed_join->setColumnsFromJoinedTable(
             std::move(columns_from_joined_table), source_columns_set, right_table.table.getQualifiedNamePrefix(), columns_from_left_table);
     }
 
     translateQualifiedNames(query, *select_query, source_columns_set, tables_with_columns);
+    LOG_TRACE(getLogger("TreeRewriter"), "analyzeSelect: select_query after translateQualifiedNames {}", select_query->dumpTree());
+
 
     /// Optimizes logical expressions.
-    LogicalExpressionsOptimizer(select_query, tables_with_columns, settings[Setting::optimize_min_equality_disjunction_chain_length].value)
-        .perform();
+    LogicalExpressionsOptimizer(select_query, tables_with_columns, settings[Setting::optimize_min_equality_disjunction_chain_length].value).perform();
+
+    LOG_TRACE(getLogger("TreeRewriter"), "analyzeSelect: select_query after LogicalExpressionsOptimizer::perform {}", select_query->dumpTree());
 
     NameSet all_source_columns_set = source_columns_set;
     if (table_join)
@@ -1365,7 +1401,11 @@ TreeRewriterResultPtr TreeRewriter::analyzeSelect(
             all_source_columns_set.insert(name);
     }
 
+    LOG_TRACE(getLogger("TreeRewriter"), "analyzeSelect: select_query before normalize {}", select_query->dumpTree());
+
     normalize(query, result.aliases, all_source_columns_set, select_options.ignore_alias, settings, /* allow_self_aliases = */ true, getContext(), select_options.is_create_parameterized_view);
+
+    LOG_TRACE(getLogger("TreeRewriter"), "analyzeSelect: select_query after normalize {}", select_query->dumpTree());
 
     // expand GROUP BY ALL
     if (select_query->group_by_all)
@@ -1384,7 +1424,13 @@ TreeRewriterResultPtr TreeRewriter::analyzeSelect(
     /// Leave all selected columns in case of DISTINCT; columns that contain arrayJoin function inside.
     /// Must be after 'normalizeTree' (after expanding aliases, for aliases not get lost)
     ///  and before 'executeScalarSubqueries', 'analyzeAggregation', etc. to avoid excessive calculations.
+
+    LOG_TRACE(getLogger("TreeRewriter"), "analyzeSelect: select_query before removeUnneededColumnsFromSelectClause {}", select_query->dumpTree());
+
     removeUnneededColumnsFromSelectClause(select_query, required_result_columns, remove_duplicates);
+
+    LOG_TRACE(getLogger("TreeRewriter"), "analyzeSelect: select_query after removeUnneededColumnsFromSelectClause {}", select_query->dumpTree());
+
 
     /// Executing scalar subqueries - replacing them with constant values.
     Scalars scalars;
@@ -1640,9 +1686,15 @@ void TreeRewriter::normalize(
         ComparisonTupleEliminationVisitor(data_comparison_tuple_elimination).visit(query);
     }
 
+    auto * select_query = query->as<ASTSelectQuery>();
+    if (select_query)
+        LOG_TRACE(getLogger("TreeRewriter"), "normalize: query before QueryNormalizer {}", select_query->dumpTree());
+
     /// Common subexpression elimination. Rewrite rules.
     QueryNormalizer::Data normalizer_data(aliases, source_columns_set, ignore_alias, QueryNormalizer::ExtractedSettings(settings), allow_self_aliases, is_create_parameterized_view);
     QueryNormalizer(normalizer_data).visit(query);
+    if (select_query)
+        LOG_TRACE(getLogger("TreeRewriter"), "normalize: query after QueryNormalizer {}", select_query->dumpTree());
 
     optimizeGroupingSets(query);
 }

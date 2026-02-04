@@ -1194,12 +1194,25 @@ ExpressionActionsChainSteps::JoinStep::JoinStep(
 
 void ExpressionActionsChainSteps::JoinStep::finalize(const NameSet & required_output_)
 {
+    LOG_TRACE(getLogger("ExpressionActions"), "Top of JoinStep::finalize");
+    for (const auto & col : result_columns)
+    {
+        LOG_TRACE(getLogger("ExpressionActions"), "JoinStep::finalize result_columns:  col name {} type {}", col.name, col.type);
+    }
+    for (const auto & col : required_columns)
+    {
+        LOG_TRACE(getLogger("ExpressionActions"), "JoinStep::finalize required_columns:  col name {} type {}", col.name, col.type);
+    }
+
+
+
     /// We need to update required and result columns by removing unused ones.
     NamesAndTypesList new_required_columns;
     ColumnsWithTypeAndName new_result_columns;
 
     /// That's an input columns we need.
     NameSet required_names = required_output_;
+
     for (const auto & name : analyzed_join->getAllNames(JoinTableSide::Left))
         required_names.emplace(name);
 
@@ -1225,6 +1238,16 @@ void ExpressionActionsChainSteps::JoinStep::finalize(const NameSet & required_ou
 
     std::swap(required_columns, new_required_columns);
     std::swap(result_columns, new_result_columns);
+
+    LOG_TRACE(getLogger("ExpressionActions"), "Bottom of ExpressionActionsChainSteps::JoinStep::finalize");
+    for (const auto & col : result_columns)
+    {
+        LOG_TRACE(getLogger("ExpressionActions"), "ExpressionActionsChainSteps::JoinStep::finalize result_columns:  col name {} type {}", col.name, col.type);
+    }
+    for (const auto & col : required_columns)
+    {
+        LOG_TRACE(getLogger("ExpressionActions"), "ExpressionActionsChainSteps::JoinStep::finalize required_columns:  col name {} type {}", col.name, col.type);
+    }
 }
 
 ActionsAndProjectInputsFlagPtr & ExpressionActionsChainSteps::Step::actions()

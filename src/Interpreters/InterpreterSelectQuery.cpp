@@ -574,7 +574,21 @@ InterpreterSelectQuery::InterpreterSelectQuery(
         RewriteUniqToCountVisitor(data_rewrite_uniq_count).visit(query_ptr);
     }
 
+    LOG_TRACE(log, "InterpreterSelectQuery ctor. Before creating joined_tables");
     JoinedTables joined_tables(getSubqueryContext(context), getSelectQuery(), options.with_all_cols, options_.is_create_parameterized_view);
+    if (joined_tables.tablesCount() > 1)
+    {
+        LOG_TRACE(log, "InterpreterSelectQuery ctor created joined_tables, tablesCount {}", joined_tables.tablesCount());
+        for (size_t table_num = 0; const auto & jt : joined_tables.tablesWithColumns())
+        {
+            LOG_TRACE(log, "Table num {}", table_num++);
+            for (const auto & col : jt.columns)
+            {
+                LOG_TRACE(log, "name {}, type {}", col.name, col.type->getName());
+            }
+        }
+    }
+
 
     bool got_storage_from_query = false;
     if (!has_input && !storage)
@@ -600,8 +614,36 @@ InterpreterSelectQuery::InterpreterSelectQuery(
             storage_snapshot = storage->getStorageSnapshot(metadata_snapshot, context);
     }
 
+    if (joined_tables.tablesCount() > 1)
+    {
+        LOG_TRACE(log, "InterpreterSelectQuery ctor before joined_tables.resolveTables()");
+        for (size_t table_num = 0; const auto & jt : joined_tables.tablesWithColumns())
+        {
+            LOG_TRACE(log, "Table num {}", table_num++);
+            for (const auto & col : jt.columns)
+            {
+                LOG_TRACE(log, "name {}, type {}", col.name, col.type->getName());
+            }
+        }
+    }
+
     if (has_input || !joined_tables.resolveTables())
         joined_tables.makeFakeTable(storage, metadata_snapshot, *source_header);
+
+
+    if (joined_tables.tablesCount() > 1)
+    {
+        LOG_TRACE(log, "InterpreterSelectQuery ctor after joined_tables.resolveTables()");
+        for (size_t table_num = 0; const auto & jt : joined_tables.tablesWithColumns())
+        {
+            LOG_TRACE(log, "Table num {}", table_num++);
+            for (const auto & col : jt.columns)
+            {
+                LOG_TRACE(log, "name {}, type {}", col.name, col.type->getName());
+            }
+        }
+    }
+
 
     if (context->getCurrentTransaction() && context->getSettingsRef()[Setting::throw_on_unsupported_query_inside_transaction])
     {
@@ -660,9 +702,45 @@ InterpreterSelectQuery::InterpreterSelectQuery(
     if (!has_input && joined_tables.tablesCount() > 1)
     {
         rewriteMultipleJoins(query_ptr, joined_tables.tablesWithColumns(), context->getCurrentDatabase(), context->getSettingsRef());
+        if (joined_tables.tablesCount() > 1)
+        {
+            LOG_TRACE(log, "InterpreterSelectQuery ctor in Rewrite JOINs before joined_tables.reset(getSelectQuery())");
+            for (size_t table_num = 0; const auto & jt : joined_tables.tablesWithColumns())
+            {
+                LOG_TRACE(log, "Table num {}", table_num++);
+                for (const auto & col : jt.columns)
+                {
+                    LOG_TRACE(log, "name {}, type {}", col.name, col.type->getName());
+                }
+            }
+        }
 
         joined_tables.reset(getSelectQuery());
+        if (joined_tables.tablesCount() > 1)
+        {
+            LOG_TRACE(log, "InterpreterSelectQuery ctor in Rewrite JOINs after reset/before joined_tables.resolveTables()");
+            for (size_t table_num = 0; const auto & jt : joined_tables.tablesWithColumns())
+            {
+                LOG_TRACE(log, "Table num {}", table_num++);
+                for (const auto & col : jt.columns)
+                {
+                    LOG_TRACE(log, "name {}, type {}", col.name, col.type->getName());
+                }
+            }
+        }
         joined_tables.resolveTables();
+        if (joined_tables.tablesCount() > 1)
+        {
+            LOG_TRACE(log, "InterpreterSelectQuery ctor in Rewrite JOINs after joined_tables.resolveTables()");
+            for (size_t table_num = 0; const auto & jt : joined_tables.tablesWithColumns())
+            {
+                LOG_TRACE(log, "Table num {}", table_num++);
+                for (const auto & col : jt.columns)
+                {
+                    LOG_TRACE(log, "name {}, type {}", col.name, col.type->getName());
+                }
+            }
+        }
         if (auto view_source = context->getViewSource())
         {
             // If we are using a virtual block view to replace a table and that table is used
@@ -694,7 +772,34 @@ InterpreterSelectQuery::InterpreterSelectQuery(
         }
     }
 
+    if (joined_tables.tablesCount() > 1)
+    {
+        LOG_TRACE(log, "InterpreterSelectQuery ctor before joined_tables.rewriteDistributedInAndJoins");
+        for (size_t table_num = 0; const auto & jt : joined_tables.tablesWithColumns())
+        {
+            LOG_TRACE(log, "Table num {}", table_num++);
+            for (const auto & col : jt.columns)
+            {
+                LOG_TRACE(log, "name {}, type {}", col.name, col.type->getName());
+            }
+        }
+    }
+
     joined_tables.rewriteDistributedInAndJoins(query_ptr);
+
+    if (joined_tables.tablesCount() > 1)
+    {
+        LOG_TRACE(log, "InterpreterSelectQuery ctor after joined_tables.rewriteDistributedInAndJoins");
+        for (size_t table_num = 0; const auto & jt : joined_tables.tablesWithColumns())
+        {
+            LOG_TRACE(log, "Table num {}", table_num++);
+            for (const auto & col : jt.columns)
+            {
+                LOG_TRACE(log, "name {}, type {}", col.name, col.type->getName());
+            }
+        }
+    }
+
 
     max_streams = settings[Setting::max_threads];
     ASTSelectQuery & query = getSelectQuery();
@@ -763,8 +868,25 @@ InterpreterSelectQuery::InterpreterSelectQuery(
         query.setFinal();
     }
 
+    if (table_join)
+    {
+        if (joined_tables.tablesCount() > 1)
+        {
+            LOG_TRACE(log, "InterpreterSelectQuery ctor before analyze body");
+            for (size_t table_num = 0; const auto & jt : joined_tables.tablesWithColumns())
+            {
+                LOG_TRACE(log, "Table num {}", table_num++);
+                for (const auto & col : jt.columns)
+                {
+                    LOG_TRACE(log, "name {}, type {}", col.name, col.type->getName());
+                }
+            }
+        }
+    }
+
     auto analyze = [&] (bool try_move_to_prewhere)
     {
+        LOG_TRACE(log, "InterpreterSelectQuery top of analyze");
         /// Allow push down and other optimizations for VIEW: replace with subquery and rewrite it.
         ASTPtr view_table;
         if (view)
@@ -773,9 +895,28 @@ InterpreterSelectQuery::InterpreterSelectQuery(
             StorageView::replaceWithSubquery(getSelectQuery(), view_table, metadata_snapshot, view->isParameterizedView());
         }
 
+        if (table_join)
+        {
+            if (joined_tables.tablesCount() > 1)
+            {
+                LOG_TRACE(log, "InterpreterSelectQuery ctor calling analyzeSelect with table join");
+                for (size_t table_num = 0; const auto & jt : joined_tables.tablesWithColumns())
+                {
+                    LOG_TRACE(log, "Table num {}", table_num++);
+                    for (const auto & col : jt.columns)
+                    {
+                        LOG_TRACE(log, "name {}, type {}", col.name, col.type->getName());
+                    }
+                }
+            }
+        }
+
+        LOG_TRACE(log, "analyze: dump tree {}, joined tables count {}", query_ptr->dumpTree(), joined_tables.tablesCount());
+
         syntax_analyzer_result = TreeRewriter(context).analyzeSelect(
             query_ptr,
             TreeRewriterResult(source_header->getNamesAndTypesList(), storage, storage_snapshot),
+            // (table_join /*joined_tables.tablesCount()*/ ? options.copy().removeDuplicates() : options),
             options,
             joined_tables.tablesWithColumns(),
             required_result_column_names,
@@ -933,10 +1074,12 @@ InterpreterSelectQuery::InterpreterSelectQuery(
             }
 
             source_header = std::make_shared<const Block>(storage_snapshot->getSampleBlockForColumns(required_columns));
+            LOG_TRACE(log, "InterpreterSelectQuery analyze for storage source_header {}", source_header->dumpStructure());
         }
 
         /// Calculate structure of the result.
         result_header = std::make_shared<const Block>(getSampleBlockImpl());
+        LOG_TRACE(log, "InterpreterSelectQuery analyze result_header {}", result_header->dumpStructure());
     };
 
 
@@ -1124,9 +1267,21 @@ void InterpreterSelectQuery::buildQueryPlan(QueryPlan & query_plan)
 {
     executeImpl(query_plan, std::move(input_pipe));
 
+
+    LOG_TRACE(log, "buildQueryPlan {} versus {}", query_plan.getCurrentHeader()->dumpStructure(), result_header->dumpStructure());
     /// We must guarantee that result structure is the same as in getSampleBlock()
     if (!blocksHaveEqualStructure(*query_plan.getCurrentHeader(), *result_header))
     {
+        LOG_TRACE(log, "buildQueryPlan, not equal");
+        for (const auto & s : query_plan.getCurrentHeader()->getColumnsWithTypeAndName())
+        {
+            LOG_TRACE(log, "buildQueryPlan source {} {}", s.name, s.type->getName());
+        }
+        for (const auto & s : result_header->getColumnsWithTypeAndName())
+        {
+            LOG_TRACE(log, "buildQueryPlan dest {} {}", s.name, s.type->getName());
+        }
+
         auto convert_actions_dag = ActionsDAG::makeConvertingActions(
             query_plan.getCurrentHeader()->getColumnsWithTypeAndName(),
             result_header->getColumnsWithTypeAndName(),
@@ -1964,6 +2119,9 @@ void InterpreterSelectQuery::executeImpl(QueryPlan & query_plan, std::optional<P
                         add_sorting(*joined_plan, join_clause.key_names_right, JoinTableSide::Right);
                     }
 
+
+                    LOG_DEBUG(log, "Before creating JoinStep query_plan.getCurrentHeader() {}, joined_plan->getCurrentHeader() {}",
+                        query_plan.getCurrentHeader()->dumpStructure(), joined_plan->getCurrentHeader()->dumpStructure());
                     QueryPlanStepPtr join_step = std::make_unique<JoinStep>(
                         query_plan.getCurrentHeader(),
                         joined_plan->getCurrentHeader(),
@@ -3189,7 +3347,7 @@ void InterpreterSelectQuery::executeMergeSorted(QueryPlan & query_plan, const st
 
 void InterpreterSelectQuery::executeProjection(QueryPlan & query_plan, const ActionsAndProjectInputsFlagPtr & expression)
 {
-    executeExpression(query_plan, expression, "Projection");
+    executeExpression(query_plan, expression, "ProjectionHaHa");
 }
 
 

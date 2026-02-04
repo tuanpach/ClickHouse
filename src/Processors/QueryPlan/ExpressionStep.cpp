@@ -9,6 +9,7 @@
 #include <Interpreters/JoinSwitcher.h>
 #include <Common/JSONBuilder.h>
 #include <Interpreters/ActionsDAG.h>
+#include <Common/logger_useful.h>
 
 namespace DB
 {
@@ -41,6 +42,7 @@ ExpressionStep::ExpressionStep(SharedHeader input_header_, ActionsDAG actions_da
         getTraits(actions_dag_))
     , actions_dag(std::move(actions_dag_))
 {
+    LOG_DEBUG(&Poco::Logger::get("ExpressionStep"), "output_header {}", output_header->dumpStructure());
 }
 
 void ExpressionStep::transformPipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings & settings)

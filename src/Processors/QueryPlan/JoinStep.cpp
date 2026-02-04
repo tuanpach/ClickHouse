@@ -6,10 +6,12 @@
 #include <Processors/Transforms/JoiningTransform.h>
 #include <Processors/Transforms/SquashingTransform.h>
 #include <QueryPipeline/QueryPipelineBuilder.h>
+#include "Common/logger_useful.h"
 #include <Common/JSONBuilder.h>
 #include <Common/typeid_cast.h>
 #include <Core/BlockNameMap.h>
 #include <Processors/Transforms/ColumnPermuteTransform.h>
+#include <Common/logger_useful.h>
 
 namespace DB
 {
@@ -99,6 +101,9 @@ JoinStep::JoinStep(
     , use_join_disjunctions_push_down(use_join_disjunctions_push_down_)
     , disjunctions_optimization_applied(false)
 {
+    LOG_DEBUG(&Poco::Logger::get("JoinSTEP"), "ctor: left_header {}. right_header {}",
+        left_header_->dumpStructure(), right_header_->dumpStructure());
+
     updateInputHeaders({left_header_, right_header_});
 }
 

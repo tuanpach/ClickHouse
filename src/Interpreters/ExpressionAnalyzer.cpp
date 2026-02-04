@@ -267,6 +267,7 @@ NamesAndTypesList ExpressionAnalyzer::getColumnsAfterArrayJoin(ActionsDAG & acti
 
 NamesAndTypesList ExpressionAnalyzer::analyzeJoin(ActionsDAG & actions, const NamesAndTypesList & src_columns)
 {
+    LOG_TRACE(getLogger(), "Top of analyzeJoin");
     const auto * select_query = query->as<ASTSelectQuery>();
     if (!select_query)
         return {};
@@ -274,6 +275,7 @@ NamesAndTypesList ExpressionAnalyzer::analyzeJoin(ActionsDAG & actions, const Na
     const ASTTablesInSelectQueryElement * join = select_query->join();
     if (join)
     {
+        LOG_TRACE(getLogger(), "analyzeJoin - join");
         getRootActionsNoMakeSet(analyzedJoin().leftKeysList(), actions, false);
         auto sample_columns = actions.getNamesAndTypesList();
         syntax->analyzed_join->addJoinedColumnsAndCorrectTypes(sample_columns, true);
@@ -475,7 +477,7 @@ void ExpressionAnalyzer::initGlobalSubqueriesAndExternalTables(bool do_global, b
     if (do_global)
     {
         GlobalSubqueriesVisitor::Data subqueries_data(
-            getContext(), subquery_depth, isRemoteStorage(), is_explain, external_tables, prepared_sets, has_global_subqueries, syntax->analyzed_join.get());
+            getContext(), subquery_depth, isRemoteStorage(), is_explain, external_tables, prepared_sets, has_global_subqueries , syntax->analyzed_join.get());
         GlobalSubqueriesVisitor(subqueries_data).visit(query);
     }
 }
@@ -979,6 +981,7 @@ JoinPtr SelectQueryExpressionAnalyzer::appendJoin(
 
     if (converting_actions)
     {
+        LOG_TRACE(getLogger(), "appendJoin: adding converting actions");
         converting_join_columns = std::make_shared<ActionsAndProjectInputsFlag>();
         converting_join_columns->dag = std::move(*converting_actions);
         chain.steps.push_back(std::make_unique<ExpressionActionsChainSteps::ExpressionActionsStep>(converting_join_columns));
@@ -986,8 +989,20 @@ JoinPtr SelectQueryExpressionAnalyzer::appendJoin(
     }
 
     ExpressionActionsChainSteps::Step & step = chain.lastStep(columns_after_array_join);
-    chain.steps.push_back(std::make_unique<ExpressionActionsChainSteps::JoinStep>(
-        syntax->analyzed_join, join, step.getResultColumns()));
+    auto js = std::make_unique<ExpressionActionsChainSteps::JoinStep>(
+        syntax->analyzed_join, join, step.getResultColumns());
+
+    for (const auto & col : js->result_columns)
+    {
+        LOG_TRACE(getLogger(), "appendJoin result_columns name {}, type  {}", col.name, col.type->getName());
+    }
+    for (const auto & col : js->required_columns)
+    {
+        LOG_TRACE(getLogger(), "appendJoin required_columns name {}, type  {}", col.name, col.type->getName());
+    }
+
+
+    chain.steps.push_back(std::move(js));
     chain.addStep();
     return join;
 }
@@ -1068,6 +1083,7 @@ static std::shared_ptr<IJoin> chooseJoinAlgorithm(
     std::shared_ptr<TableJoin> analyzed_join, const ColumnsWithTypeAndName & left_sample_columns, std::unique_ptr<QueryPlan> & joined_plan, ContextPtr context)
 {
     auto right_sample_block = joined_plan->getCurrentHeader();
+    LOG_TRACE(getLogger(), "right_sample_block {}", right_sample_block->dumpStructure());
     const auto & join_algorithms = analyzed_join->getEnabledJoinAlgorithms();
     for (const auto alg : join_algorithms)
     {
@@ -1089,6 +1105,18 @@ static std::unique_ptr<QueryPlan> buildJoinedPlan(
 {
     /// Actions which need to be calculated on joined block.
     auto joined_block_actions = analyzed_join.createJoinedBlockActions(context, std::move(prepared_sets));
+
+
+    for (const auto & s : joined_block_actions.getRequiredColumns())
+    {
+        LOG_DEBUG(getLogger(), "joined_block_actions source {} {}", s.name, s.type->getName());
+    }
+    for (const auto & r : joined_block_actions.getResultColumns())
+    {
+        LOG_DEBUG(getLogger(), "joined_block_actions result {} {}", r.name, r.type->getName());
+    }
+
+
     NamesWithAliases required_columns_with_aliases = analyzed_join.getRequiredColumns(
         Block(joined_block_actions.getResultColumns()), joined_block_actions.getRequiredColumns().getNames());
 
@@ -1111,6 +1139,8 @@ static std::unique_ptr<QueryPlan> buildJoinedPlan(
     interpreter->buildQueryPlan(*joined_plan);
     {
         auto original_right_columns = interpreter->getSampleBlock();
+        LOG_DEBUG(getLogger(), "original_right_columns {}", original_right_columns->dumpStructure());
+
         ActionsDAG rename_dag(original_right_columns->getColumnsWithTypeAndName());
         for (const auto & name_with_alias : required_columns_with_aliases)
         {

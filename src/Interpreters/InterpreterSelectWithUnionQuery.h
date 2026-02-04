@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Core/Block_fwd.h>
+#include <Core/Names.h>
 #include <Interpreters/IInterpreterUnionOrSelectQuery.h>
 
 namespace DB
