@@ -335,7 +335,8 @@ add_object_library(clickhouse_processors_queryplan Processors/QueryPlan)
 add_object_library(clickhouse_processors_queryplan_optimizations Processors/QueryPlan/Optimizations)
 add_object_library(clickhouse_user_defined_functions Functions/UserDefined)
 
-# Disable libcxx hardening
+# Libcxx hardening means out-of-bounds checks which causes noticeable degradations for some workflows.
+# TUs where libcxx hardening needs to be disabled are specified here.
 set_source_files_properties(Columns/IColumn.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
 set_source_files_properties(Processors/Transforms/WindowTransform.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
 set_source_files_properties(Interpreters/Aggregator.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
