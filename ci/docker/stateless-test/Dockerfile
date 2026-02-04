@@ -101,9 +101,9 @@ ENV HOME="/home"
 
 # Download azurite-rs (Azure Blob Storage emulator in Rust)
 # https://github.com/ClickHouse/azurite-rs
-ARG AZURITE_RS_VERSION=v0.2.1
+ARG AZURITE_RS_VERSION=v0.1.0-28a2afc
 RUN arch=${TARGETARCH:-amd64} \
-    && curl -L "https://github.com/ClickHouse/azurite-rs/releases/download/${AZURITE_RS_VERSION}/azurite-rs-linux-${arch}.tar.gz" | tar -xz -C /usr/local/bin/ \
+    && curl -fsSL "https://github.com/ClickHouse/azurite-rs/releases/download/${AZURITE_RS_VERSION}/azurite-rs-linux-${arch}.tar.gz" | tar -xz -C /usr/local/bin/ \
     && mv /usr/local/bin/azurite-rs-linux-${arch} /usr/local/bin/azurite-rs \
     && chmod +x /usr/local/bin/azurite-rs
 
