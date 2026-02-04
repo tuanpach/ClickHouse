@@ -243,21 +243,17 @@ void fillDataWithMergeTreeSettings(MutableColumns & res_columns, const ContextPt
 void fillDataWithSettings(MutableColumns & res_columns, const ContextPtr & context)
 {
     const auto & settings = context->getSettingsRef();
-    const auto & setting_names = settings.getAllRegisteredNames();
-    for (const auto & setting_name : setting_names)
-    {
-        res_columns[0]->insert(setting_name);
-        res_columns[1]->insert(SETTING_CONTEXT);
-        res_columns[2]->insertDefault();
-    }
-
-    const auto & setting_aliases = settings.getAllAliasNames();
-    for(const auto & alias_name : setting_aliases)
-    {
-        res_columns[0]->insert(alias_name);
-        res_columns[1]->insert(SETTING_CONTEXT);
-        res_columns[2]->insertDefault();
-    }
+    const auto & setting_registered_names = settings.getAllRegisteredNames();
+    const auto & setting_alias_names = settings.getAllAliasNames();
+    auto insertNames = [&](const auto& names) {
+        for(const auto& name : names) {
+            res_columns[0]->insert(name);
+            res_columns[1]->insert(SETTING_CONTEXT);
+            res_columns[2]->insertDefault();
+        }
+    };
+    insertNames(setting_registered_names);
+    insertNames(setting_alias_names);
 }
 
 void fillDataWithKeywords(MutableColumns & res_columns)

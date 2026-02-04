@@ -8015,10 +8015,7 @@ std::vector<std::string_view> Settings::getAllAliasNames() const
     const auto & settings_to_aliases = SettingsImpl::Traits::settingsToAliases();
     for (const auto & [_, aliases] : settings_to_aliases)
     {
-        for (const auto & alias : aliases)
-        {
-            alias_names.emplace_back(alias);
-        }
+        alias_names.insert(alias_names.end(), aliases.begin(), aliases.end());
     }
     return alias_names;
 }
