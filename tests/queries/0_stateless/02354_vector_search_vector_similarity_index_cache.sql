@@ -2,10 +2,10 @@
 -- no-parallel: looks at server-wide metrics
 
 -- Tests the vector index cache.
-SET parallel_replicas_local_plan=1;
-SET allow_experimental_vector_similarity_index=1;
 
-SYSTEM DROP VECTOR SIMILARITY INDEX CACHE;
+SET parallel_replicas_local_plan = 1;
+
+SYSTEM CLEAR VECTOR SIMILARITY INDEX CACHE;
 SELECT metric, value FROM system.metrics WHERE metric = 'VectorSimilarityIndexCacheBytes';
 
 DROP TABLE IF EXISTS tab;

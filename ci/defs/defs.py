@@ -15,10 +15,20 @@ S3_REPORT_BUCKET_HTTP_ENDPOINT = "s3.amazonaws.com/clickhouse-test-reports"
 class RunnerLabels:
     CI_SERVICES = "ci_services"
     CI_SERVICES_EBS = "ci_services_ebs"
-    BUILDER_AMD = ["self-hosted", "builder"]
-    BUILDER_ARM = ["self-hosted", "builder-aarch64"]
-    FUNC_TESTER_AMD = ["self-hosted", "func-tester"]
-    FUNC_TESTER_ARM = ["self-hosted", "func-tester-aarch64"]
+    FUNC_TESTER_AMD = ["self-hosted", "amd-medium"]
+    FUNC_TESTER_ARM = ["self-hosted", "arm-medium"]
+    AMD_LARGE = ["self-hosted", "amd-large"]
+    ARM_LARGE = ["self-hosted", "arm-large"]
+    AMD_MEDIUM = ["self-hosted", "amd-medium"]
+    ARM_MEDIUM = ["self-hosted", "arm-medium"]
+    AMD_MEDIUM_CPU = ["self-hosted", "amd-medium-cpu"]
+    ARM_MEDIUM_CPU = ["self-hosted", "arm-medium-cpu"]
+    AMD_MEDIUM_MEM = ["self-hosted", "amd-medium-mem"]
+    ARM_MEDIUM_MEM = ["self-hosted", "arm-medium-mem"]
+    AMD_SMALL = ["self-hosted", "amd-small"]
+    ARM_SMALL = ["self-hosted", "arm-small"]
+    AMD_SMALL_MEM = ["self-hosted", "amd-small-mem"]
+    ARM_SMALL_MEM = ["self-hosted", "arm-small-mem"]
     STYLE_CHECK_AMD = ["self-hosted", "style-checker"]
     STYLE_CHECK_ARM = ["self-hosted", "style-checker-aarch64"]
 
@@ -32,27 +42,37 @@ BASE_BRANCH = "master"
 
 azure_secret = Secret.Config(
     name="azure_connection_string",
-    type=Secret.Type.AWS_SSM_VAR,
+    type=Secret.Type.AWS_SSM_PARAMETER,
+)
+
+chcache_secret = Secret.Config(
+    name="chcache_password",
+    type=Secret.Type.AWS_SSM_PARAMETER,
+    region="us-east-1",
 )
 
 SECRETS = [
     Secret.Config(
         name="dockerhub_robot_password",
-        type=Secret.Type.AWS_SSM_VAR,
+        type=Secret.Type.AWS_SSM_PARAMETER,
     ),
     Secret.Config(
         name="clickhouse-test-stat-url",
-        type=Secret.Type.AWS_SSM_VAR,
+        type=Secret.Type.AWS_SSM_PARAMETER,
+        region="us-east-1",
     ),
     Secret.Config(
         name="clickhouse-test-stat-login",
-        type=Secret.Type.AWS_SSM_VAR,
+        type=Secret.Type.AWS_SSM_PARAMETER,
+        region="us-east-1",
     ),
     Secret.Config(
         name="clickhouse-test-stat-password",
-        type=Secret.Type.AWS_SSM_VAR,
+        type=Secret.Type.AWS_SSM_PARAMETER,
+        region="us-east-1",
     ),
     azure_secret,
+    chcache_secret,
     Secret.Config(
         name="woolenwolf_gh_app.clickhouse-app-id",
         type=Secret.Type.AWS_SSM_SECRET,
@@ -83,22 +103,10 @@ DOCKERS = [
         depends_on=["clickhouse/fasttest"],
     ),
     Docker.Config(
-        name="clickhouse/test-old-centos",
-        path="./ci/docker/compatibility/centos",
-        platforms=Docker.Platforms.arm_amd,
-        depends_on=[],
-    ),
-    Docker.Config(
-        name="clickhouse/test-old-ubuntu",
-        path="./ci/docker/compatibility/ubuntu",
-        platforms=Docker.Platforms.arm_amd,
-        depends_on=[],
-    ),
-    Docker.Config(
         name="clickhouse/stateless-test",
         path="./ci/docker/stateless-test",
         platforms=Docker.Platforms.arm_amd,
-        depends_on=[],
+        depends_on=["clickhouse/test-base"],
     ),
     Docker.Config(
         name="clickhouse/cctools",
@@ -107,16 +115,10 @@ DOCKERS = [
         depends_on=["clickhouse/fasttest"],
     ),
     Docker.Config(
-        name="clickhouse/test-util",
-        path="./ci/docker/test-util",
-        platforms=Docker.Platforms.arm_amd,
-        depends_on=[],
-    ),
-    Docker.Config(
         name="clickhouse/test-base",
         path="./ci/docker/test-base",
         platforms=Docker.Platforms.arm_amd,
-        depends_on=["clickhouse/test-util"],
+        depends_on=[],
     ),
     Docker.Config(
         name="clickhouse/stress-test",
@@ -138,13 +140,13 @@ DOCKERS = [
     ),
     Docker.Config(
         name="clickhouse/keeper-jepsen-test",
-        path="./ci/docker/keeper-jepsen",
+        path="./ci/docker/keeper-jepsen-test",
         platforms=Docker.Platforms.arm_amd,
         depends_on=["clickhouse/test-base"],
     ),
     Docker.Config(
         name="clickhouse/server-jepsen-test",
-        path="./ci/docker/server-jepsen",
+        path="./ci/docker/server-jepsen-test",
         platforms=Docker.Platforms.arm_amd,
         depends_on=["clickhouse/test-base"],
     ),
@@ -154,21 +156,21 @@ DOCKERS = [
         platforms=Docker.Platforms.arm_amd,
         depends_on=["clickhouse/test-base"],
     ),
-    # Docker.Config(
-    #     name="clickhouse/integration-test",
-    #     path="./ci/docker/integration/integration-test",
-    #     platforms=Docker.Platforms.arm_amd,
-    #     depends_on=[],
-    # ),
     Docker.Config(
         name="clickhouse/integration-tests-runner",
         path="./ci/docker/integration/runner",
         platforms=Docker.Platforms.arm_amd,
-        depends_on=[],
+        depends_on=["clickhouse/test-base"],
     ),
     Docker.Config(
         name="clickhouse/integration-test-with-unity-catalog",
         path="./ci/docker/integration/clickhouse_with_unity_catalog",
+        platforms=Docker.Platforms.arm_amd,
+        depends_on=[],
+    ),
+    Docker.Config(
+        name="clickhouse/integration-test-with-hms",
+        path="./ci/docker/integration/clickhouse_with_hms_catalog",
         platforms=Docker.Platforms.arm_amd,
         depends_on=[],
     ),
@@ -182,6 +184,18 @@ DOCKERS = [
         name="clickhouse/kerberos-kdc",
         path="./ci/docker/integration/kerberos_kdc",
         platforms=[Docker.Platforms.AMD],
+        depends_on=[],
+    ),
+    Docker.Config(
+        name="clickhouse/test-mysql80",
+        path="./ci/docker/integration/mysql80",
+        platforms=Docker.Platforms.arm_amd,
+        depends_on=[],
+    ),
+    Docker.Config(
+        name="clickhouse/test-mysql57",
+        path="./ci/docker/integration/mysql57",
+        platforms=Docker.Platforms.AMD,
         depends_on=[],
     ),
     Docker.Config(
@@ -199,6 +213,12 @@ DOCKERS = [
     Docker.Config(
         name="clickhouse/mysql-js-client",
         path="./ci/docker/integration/mysql_js_client",
+        platforms=Docker.Platforms.arm_amd,
+        depends_on=[],
+    ),
+    Docker.Config(
+        name="clickhouse/arrowflight-server-test",
+        path="./ci/docker/integration/arrowflight",
         platforms=Docker.Platforms.arm_amd,
         depends_on=[],
     ),
@@ -262,6 +282,12 @@ DOCKERS = [
         platforms=Docker.Platforms.arm_amd,
         depends_on=[],
     ),
+    Docker.Config(
+        name="clickhouse/mysql_dotnet_client",
+        path="./ci/docker/integration/mysql_dotnet_client",
+        platforms=Docker.Platforms.arm_amd,
+        depends_on=[],
+    ),
 ]
 
 
@@ -275,8 +301,9 @@ class BuildTypes(metaclass=MetaClasses.WithIter):
     AMD_UBSAN = "amd_ubsan"
     ARM_RELEASE = "arm_release"
     ARM_ASAN = "arm_asan"
-
-    ARM_COVERAGE = "arm_coverage"
+    ARM_TSAN = "arm_tsan"
+    LLVM_COVERAGE_BUILD = "llvm_coverage_build"
+    AMD_COVERAGE = "amd_coverage"
     ARM_BINARY = "arm_binary"
     AMD_TIDY = "amd_tidy"
     ARM_TIDY = "arm_tidy"
@@ -290,13 +317,14 @@ class BuildTypes(metaclass=MetaClasses.WithIter):
     RISCV64 = "riscv64"
     S390X = "s390x"
     LOONGARCH64 = "loongarch64"
-    FUZZERS = "fuzzers"
+    ARM_FUZZERS = "arm_fuzzers"
 
 
 class JobNames:
     DOCKER_BUILDS_ARM = "Dockers build (arm)"
     DOCKER_BUILDS_AMD = "Dockers build (amd)"
     STYLE_CHECK = "Style check"
+    PR_BODY = "PR formatter"
     FAST_TEST = "Fast test"
     BUILD = "Build"
     UNITTEST = "Unit tests"
@@ -307,12 +335,13 @@ class JobNames:
     UPGRADE = "Upgrade check"
     PERFORMANCE = "Performance Comparison"
     COMPATIBILITY = "Compatibility check"
-    Docs = "Docs check"
+    DOCS = "Docs check"
     CLICKBENCH = "ClickBench"
     DOCKER_SERVER = "Docker server image"
     DOCKER_KEEPER = "Docker keeper image"
     SQL_TEST = "SQLTest"
     SQLANCER = "SQLancer"
+    LLVM_COVERAGE_MERGE = "LLVM Coverage Merge"
     INSTALL_TEST = "Install packages"
     ASTFUZZER = "AST fuzzer"
     BUZZHOUSE = "BuzzHouse"
@@ -326,12 +355,22 @@ class JobNames:
 
 
 class ToolSet:
-    COMPILER_C = "clang-19"
-    COMPILER_CPP = "clang++-19"
+    COMPILER_C = "clang-21"
+    COMPILER_CPP = "clang++-21"
+
+    COMPILER_CACHE = "sccache"
+    COMPILER_CACHE_LEGACY = "sccache"
 
 
 class ArtifactNames:
     CH_AMD_DEBUG = "CH_AMD_DEBUG"
+    CH_AMD_LLVM_COVERAGE_BUILD = (
+        "CH_AMD_LLVM_COVERAGE_BUILD"  # build with LLVM coverage enabled
+    )
+    LLVM_COVERAGE_FILE = "LLVM_COVERAGE_FILE"  # .profdata file
+    LLVM_COVERAGE_HTML_REPORT = (
+        "LLVM_COVERAGE_HTML_REPORT"  # .tar.gz file with html report
+    )
     CH_AMD_RELEASE = "CH_AMD_RELEASE"
     CH_AMD_ASAN = "CH_AMD_ASAN"
     CH_AMD_TSAN = "CH_AMD_TSAN"
@@ -340,9 +379,10 @@ class ArtifactNames:
     CH_AMD_BINARY = "CH_AMD_BINARY"
     CH_ARM_RELEASE = "CH_ARM_RELEASE"
     CH_ARM_ASAN = "CH_ARM_ASAN"
+    CH_ARM_TSAN = "CH_ARM_TSAN"
 
     CH_COV_BIN = "CH_COV_BIN"
-    CH_ARM_BIN = "CH_ARM_BIN"
+    CH_ARM_BINARY = "CH_ARM_BIN"
     CH_TIDY_BIN = "CH_TIDY_BIN"
     CH_AMD_DARWIN_BIN = "CH_AMD_DARWIN_BIN"
     CH_ARM_DARWIN_BIN = "CH_ARM_DARWIN_BIN"
@@ -360,13 +400,13 @@ class ArtifactNames:
     UNITTEST_AMD_TSAN = "UNITTEST_AMD_TSAN"
     UNITTEST_AMD_MSAN = "UNITTEST_AMD_MSAN"
     UNITTEST_AMD_UBSAN = "UNITTEST_AMD_UBSAN"
+    UNITTEST_LLVM_COVERAGE = "UNITTEST_LLVM_COVERAGE"
 
     DEB_AMD_DEBUG = "DEB_AMD_DEBUG"
     DEB_AMD_RELEASE = "DEB_AMD_RELEASE"
-    DEB_COV = "DEB_COV"
     DEB_AMD_ASAN = "DEB_AMD_ASAN"
     DEB_AMD_TSAN = "DEB_AMD_TSAN"
-    DEB_AMD_MSAM = "DEB_AMD_MSAM"
+    DEB_AMD_MSAN = "DEB_AMD_MSAM"
     DEB_AMD_UBSAN = "DEB_AMD_UBSAN"
     DEB_ARM_RELEASE = "DEB_ARM_RELEASE"
     DEB_ARM_ASAN = "DEB_ARM_ASAN"
@@ -377,20 +417,28 @@ class ArtifactNames:
     TGZ_AMD_RELEASE = "TGZ_AMD_RELEASE"
     TGZ_ARM_RELEASE = "TGZ_ARM_RELEASE"
 
-    FUZZERS = "FUZZERS"
+    ARM_FUZZERS = "ARM_FUZZERS"
     FUZZERS_CORPUS = "FUZZERS_CORPUS"
 
-    PERF_REPORTS_AMD_1 = "PERF_REPORTS_AMD_1"
-    PERF_REPORTS_AMD_2 = "PERF_REPORTS_AMD_2"
-    PERF_REPORTS_AMD_3 = "PERF_REPORTS_AMD_3"
-    PERF_REPORTS_ARM_1 = "PERF_REPORTS_ARM_1"
-    PERF_REPORTS_ARM_2 = "PERF_REPORTS_ARM_2"
-    PERF_REPORTS_ARM_3 = "PERF_REPORTS_ARM_3"
-    PERF_REPORTS_AMD_1_WITH_RELEASE = "PERF_REPORTS_AMD_1_WITH_RELEASE"
-    PERF_REPORTS_AMD_2_WITH_RELEASE = "PERF_REPORTS_AMD_2_WITH_RELEASE"
-    PERF_REPORTS_AMD_3_WITH_RELEASE = "PERF_REPORTS_AMD_3_WITH_RELEASE"
 
-    PERF_REPORTS_ARM = "PERF_REPORTS_ARM"
+LLVM_FT_NUM_BATCHES = 3
+LLVM_IT_NUM_BATCHES = 5
+LLVM_FT_ARTIFACTS_LIST = [
+    # default.profraw files for 3 batches from Stateless(Functional) tests
+    ArtifactNames.LLVM_COVERAGE_FILE + f"_ft_{batch}"
+    for total_batches in (LLVM_FT_NUM_BATCHES,)
+    for batch in range(1, total_batches + 1)
+]
+
+LLVM_IT_ARTIFACTS_LIST = [
+    # default.profraw files for 5 batches from Integration tests
+    ArtifactNames.LLVM_COVERAGE_FILE + f"_it_{batch}"
+    for total_batches in (LLVM_IT_NUM_BATCHES,)
+    for batch in range(1, total_batches + 1)
+]
+LLVM_ARTIFACTS_LIST = (
+    LLVM_FT_ARTIFACTS_LIST + LLVM_IT_ARTIFACTS_LIST + [ArtifactNames.LLVM_COVERAGE_FILE]
+)
 
 
 class ArtifactConfigs:
@@ -401,6 +449,7 @@ class ArtifactConfigs:
     ).parametrize(
         names=[
             ArtifactNames.CH_AMD_DEBUG,
+            ArtifactNames.CH_AMD_LLVM_COVERAGE_BUILD,
             ArtifactNames.CH_AMD_RELEASE,
             ArtifactNames.CH_AMD_ASAN,
             ArtifactNames.CH_AMD_TSAN,
@@ -409,8 +458,9 @@ class ArtifactConfigs:
             ArtifactNames.CH_AMD_BINARY,
             ArtifactNames.CH_ARM_RELEASE,
             ArtifactNames.CH_ARM_ASAN,
+            ArtifactNames.CH_ARM_TSAN,
             ArtifactNames.CH_COV_BIN,
-            ArtifactNames.CH_ARM_BIN,
+            ArtifactNames.CH_ARM_BINARY,
             ArtifactNames.CH_TIDY_BIN,
             ArtifactNames.CH_AMD_DARWIN_BIN,
             ArtifactNames.CH_ARM_DARWIN_BIN,
@@ -424,6 +474,19 @@ class ArtifactConfigs:
             ArtifactNames.CH_LOONGARCH64,
         ]
     )
+    llvm_profdata_file = Artifact.Config(
+        name="...",
+        type=Artifact.Type.S3,
+        path=[
+            f"./*.profdata",
+        ],
+    ).parametrize(names=LLVM_ARTIFACTS_LIST)
+
+    llvm_coverage_html_report = Artifact.Config(
+        name=ArtifactNames.LLVM_COVERAGE_HTML_REPORT,
+        type=Artifact.Type.S3,
+        path=f"{TEMP_DIR}/llvm_coverage_html_report.tar.gz",
+    )
     clickhouse_debians = Artifact.Config(
         name="*",
         type=Artifact.Type.S3,
@@ -434,9 +497,8 @@ class ArtifactConfigs:
             ArtifactNames.DEB_AMD_DEBUG,
             ArtifactNames.DEB_AMD_ASAN,
             ArtifactNames.DEB_AMD_TSAN,
-            ArtifactNames.DEB_AMD_MSAM,
+            ArtifactNames.DEB_AMD_MSAN,
             ArtifactNames.DEB_AMD_UBSAN,
-            ArtifactNames.DEB_COV,
             ArtifactNames.DEB_ARM_RELEASE,
             ArtifactNames.DEB_ARM_ASAN,
         ]
@@ -472,10 +534,11 @@ class ArtifactConfigs:
             ArtifactNames.UNITTEST_AMD_TSAN,
             ArtifactNames.UNITTEST_AMD_MSAN,
             ArtifactNames.UNITTEST_AMD_UBSAN,
+            ArtifactNames.UNITTEST_LLVM_COVERAGE,
         ]
     )
     fuzzers = Artifact.Config(
-        name=ArtifactNames.FUZZERS,
+        name=ArtifactNames.ARM_FUZZERS,
         type=Artifact.Type.S3,
         path=[
             f"{TEMP_DIR}/build/programs/*_fuzzer",
@@ -487,21 +550,4 @@ class ArtifactConfigs:
         name=ArtifactNames.FUZZERS_CORPUS,
         type=Artifact.Type.S3,
         path=f"{TEMP_DIR}/build/programs/*_seed_corpus.zip",
-    )
-    performance_reports = Artifact.Config(
-        name="*",
-        type=Artifact.Type.S3,
-        path=f"{TEMP_DIR}/perf_wd/*.html",
-    ).parametrize(
-        names=[
-            ArtifactNames.PERF_REPORTS_AMD_1,
-            ArtifactNames.PERF_REPORTS_AMD_2,
-            ArtifactNames.PERF_REPORTS_AMD_3,
-            ArtifactNames.PERF_REPORTS_ARM_1,
-            ArtifactNames.PERF_REPORTS_ARM_2,
-            ArtifactNames.PERF_REPORTS_ARM_3,
-            ArtifactNames.PERF_REPORTS_AMD_1_WITH_RELEASE,
-            ArtifactNames.PERF_REPORTS_AMD_2_WITH_RELEASE,
-            ArtifactNames.PERF_REPORTS_AMD_3_WITH_RELEASE,
-        ]
     )
