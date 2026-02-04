@@ -879,7 +879,7 @@ std::unique_ptr<ReadBufferFromFileBase> createReadBuffer(
                 object_info.getPath(),
                 cache_key,
                 cache,
-                FileCache::getCommonUser(),
+                FileCache::getCommonOrigin(),
                 read_buffer_creator,
                 use_async_buffer ? modified_read_settings.withNestedBuffer(/* seekable */true) : modified_read_settings,
                 std::string(CurrentThread::getQueryId()),
@@ -889,7 +889,7 @@ std::unique_ptr<ReadBufferFromFileBase> createReadBuffer(
                 /* read_until_position */std::nullopt,
                 context_->getFilesystemCacheLog());
 
-            LOG_TEST(
+            LOG_TRACE(
                 log,
                 "Using filesystem cache `{}` (path: {}, etag: {}, hash: {})",
                 filesystem_cache_name,
@@ -907,10 +907,12 @@ std::unique_ptr<ReadBufferFromFileBase> createReadBuffer(
     }
 
     if (!use_async_buffer)
+    {
+        LOG_TRACE(log, "Downloading object {} of size {} without initial prefetch", object_info.getPath(), object_size);
         return impl;
+    }
 
-    LOG_TRACE(log, "Downloading object of size {} with initial prefetch", object_size);
-
+    LOG_TRACE(log, "Downloading object {} of size {} with initial prefetch", object_info.getPath(), object_size);
     bool prefer_bigger_buffer_size = effective_read_settings.filesystem_cache_prefer_bigger_buffer_size
         && impl->isCached();
 
