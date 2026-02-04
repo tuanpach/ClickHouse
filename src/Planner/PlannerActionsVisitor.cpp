@@ -1166,8 +1166,7 @@ PlannerActionsVisitorImpl::NodeNameAndNodeMinLevel PlannerActionsVisitorImpl::vi
     }
     else
     {
-        const auto * function_dag_node = actions_stack[level].addFunctionIfNecessary(function_node_name, children, function_node);
-        function_node.applyConfigurator(function_dag_node);
+        actions_stack[level].addFunctionIfNecessary(function_node_name, children, function_node);
     }
 
     size_t actions_stack_size = actions_stack.size();

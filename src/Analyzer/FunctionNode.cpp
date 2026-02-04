@@ -230,7 +230,6 @@ QueryTreeNodePtr FunctionNode::cloneImpl() const
     result_function->nulls_action = nulls_action;
     result_function->wrap_with_nullable = wrap_with_nullable;
     result_function->is_operator = is_operator;
-    result_function->configurators = configurators;
 
     return result_function;
 }
@@ -292,9 +291,6 @@ ASTPtr FunctionNode::toASTImpl(const ConvertToASTOptions & options) const
         else
             function_ast->window_definition = window_node->toAST(new_options);
     }
-
-    for (const auto & configurator : configurators)
-        function_ast->addConfigurator(configurator);
 
     return function_ast;
 }

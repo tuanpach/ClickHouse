@@ -710,9 +710,6 @@ QueryTreeNodePtr QueryTreeBuilder::buildExpression(const ASTPtr & expression, co
                         function_node->getWindowNode() = std::make_shared<IdentifierNode>(Identifier(function->window_name));
                 }
 
-                for (const auto & configurator : function->configurators)
-                    function_node->getConfigurators().emplace_back(configurator);
-
                 result = std::move(function_node);
             }
         }
@@ -1202,9 +1199,6 @@ QueryTreeNodePtr QueryTreeBuilder::setSecondArgumentAsParameter(const ASTFunctio
         else
             function_node->getWindowNode() = std::make_shared<IdentifierNode>(Identifier(function->window_name));
     }
-
-    for (const auto & configurator : function->configurators)
-        function_node->getConfigurators().emplace_back(configurator);
 
     return std::move(function_node);
 }

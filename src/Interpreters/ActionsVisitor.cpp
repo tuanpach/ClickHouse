@@ -31,7 +31,6 @@
 #include <Columns/ColumnConst.h>
 #include <Columns/ColumnSet.h>
 
-#include <Interpreters/ActionsDAG.h>
 #include <Storages/StorageSet.h>
 
 #include <Parsers/ASTFunction.h>
@@ -462,7 +461,7 @@ void ScopeStack::addArrayJoin(const std::string & source_name, std::string resul
     }
 }
 
-const ActionsDAG::Node & ScopeStack::addFunction(
+void ScopeStack::addFunction(
     const FunctionOverloadResolverPtr & function,
     const Names & argument_names,
     std::string result_name)
@@ -484,8 +483,6 @@ const ActionsDAG::Node & ScopeStack::addFunction(
         const auto & input = stack[j].actions_dag.addInput({node.column, node.result_type, node.result_name});
         stack[j].index->addNode(&input);
     }
-
-    return node;
 }
 
 ActionsDAG ScopeStack::popLevel()
@@ -1153,8 +1150,7 @@ void ActionsMatcher::visit(const ASTFunction & node, const ASTPtr & ast, Data & 
     if (arguments_present)
     {
         /// Calculate column name here again, because AST may be changed here (in case of untuple).
-        const auto function_dag_node = data.addFunction(function_builder, argument_names, ast->getColumnName());
-        node.applyConfigurator(&function_dag_node);
+        data.addFunction(function_builder, argument_names, ast->getColumnName());
     }
 }
 
