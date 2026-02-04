@@ -129,24 +129,33 @@ TextSearchMode MergeTreeIndexConditionText::getTextSearchMode(const RPNElement &
     return TextSearchMode::Any;
 }
 
-bool MergeTreeIndexConditionText::isSupportedFunction(const String & function_name)
+bool MergeTreeIndexConditionText::isSupportedColumnFunction(const String & function_name)
 {
     return function_name == "hasToken"
         || function_name == "hasAnyTokens"
         || function_name == "hasAllTokens"
         || function_name == "equals"
         || function_name == "notEquals"
-        || function_name == "mapContainsKey"
-        || function_name == "mapContainsKeyLike"
-        || function_name == "mapContainsValue"
-        || function_name == "mapContainsValueLike"
-        || function_name == "has"
         || function_name == "like"
         || function_name == "notLike"
         || function_name == "hasTokenOrNull"
         || function_name == "startsWith"
         || function_name == "endsWith"
         || function_name == "match";
+}
+
+bool MergeTreeIndexConditionText::isSupportedArrayOrMapFunction(const String & function_name)
+{
+    return function_name == "mapContainsKey"
+        || function_name == "mapContainsKeyLike"
+        || function_name == "mapContainsValue"
+        || function_name == "mapContainsValueLike"
+        || function_name == "has";
+}
+
+bool MergeTreeIndexConditionText::isSupportedFunction(const String & function_name)
+{
+    return isSupportedColumnFunction(function_name) || isSupportedArrayOrMapFunction(function_name);
 }
 
 TextIndexDirectReadMode MergeTreeIndexConditionText::getHintOrNoneMode() const

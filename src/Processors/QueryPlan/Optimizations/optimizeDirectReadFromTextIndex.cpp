@@ -13,6 +13,7 @@
 #include <Storages/MergeTree/MergeTreeIndexConditionText.h>
 #include <Common/logger_useful.h>
 #include <Functions/FunctionFactory.h>
+#include <Storages/MergeTree/MergeTreeIndexTextPreprocessor.h>
 #include <Storages/MergeTree/RangesInDataPart.h>
 #include <base/defines.h>
 
@@ -252,6 +253,54 @@ void applyTokenizer(ASTFunction * function, TokenExtractorPtr tokenizer)
             function->arguments->children.emplace_back(std::move(argument));
     }
 }
+
+void applyPreprocessor(ASTFunction * function, MergeTreeIndexTextPreprocessorPtr preprocessor, TextSearchQueryPtr search_query)
+{
+    if (!function)
+        return;
+
+    /// For array or map columns, we cannot directly use AST.
+    /// TODO(ahmadov): implement a proper way to handle them.
+    if (!MergeTreeIndexConditionText::isSupportedColumnFunction(function->name))
+        return;
+
+    const auto & ast = preprocessor->getAST();
+    const auto & source_columns = preprocessor->getSourceColumns();
+    if (!ast || source_columns.empty())
+        return;
+
+    const auto & [source_column_name, source_column_type] = source_columns.front();
+    if (function->children[0]->children[0]->getColumnName() != source_column_name)
+        return;
+
+    /// At this point, we will rebuild the function with a column and search token(s) from the preprocessor.
+    /// FunctionNode -> ExpressionList[0] -> Identifier
+    /// FunctionNode -> ExpressionList[1] -> search token(s)
+
+    /// Replace the column input argument with preprocessor AST
+    function->children[0]->children[0] = ast;
+
+    if (function->name == "hasAnyTokens" || function->name == "hasAllTokens")
+    {
+        /// Search tokens parameter is only supported by hasAnyTokens and hasAllTokens functions
+        auto search_tokens = make_intrusive<ASTLiteral>(Field{Array{}});
+        for (const auto & token : search_query->tokens)
+            search_tokens->value.safeGet<Array>().push_back(token);
+        function->children[0]->children[1] = std::move(search_tokens);
+    }
+    else if (function->name == "hasToken")
+    {
+        /// hasToken function supports only a single string input
+        if (const auto * input = function->children[0]->children[1]->as<ASTLiteral>())
+        {
+            if (input->value.getType() == Field::Types::String)
+            {
+                String value = preprocessor->process(input->value.safeGet<String>());
+                function->children[0]->children[1] = make_intrusive<ASTLiteral>(std::move(value));
+            }
+        }
+    }
+}
 }
 
 /// This class substitutes filters with text-search functions by virtual columns which skip IO and read less data.
@@ -405,7 +454,10 @@ private:
             {
                 default_expression = convertNodeToAST(function_node);
                 if (auto * function = default_expression->as<ASTFunction>())
+                {
                     applyTokenizer(function, text_index_condition.tokenExtractor());
+                    applyPreprocessor(function, text_index_condition.preProcessor(), search_query);
+                }
             }
 
             selected_conditions.push_back({search_query, index_name, *virtual_column_name, std::move(default_expression)});
