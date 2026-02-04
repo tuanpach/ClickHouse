@@ -1,6 +1,7 @@
 #include <Functions/IFunction.h>
 #include <Interpreters/ActionsDAG.h>
 #include <Interpreters/Context.h>
+#include <Interpreters/ITokenExtractor.h>
 #include <Parsers/ASTExpressionList.h>
 #include <Parsers/ASTFunction.h>
 #include <Parsers/ASTIdentifier.h>
@@ -189,6 +190,68 @@ ASTPtr convertNodeToAST(const ActionsDAG::Node & node)
             return nullptr;
     }
 }
+
+std::vector<ASTPtr> extractTokenizerArguments(const ITokenExtractor & extractor)
+{
+    std::vector<ASTPtr> arguments;
+
+    switch (extractor.getType())
+    {
+        case ITokenExtractor::Type::SplitByNonAlpha: {
+            arguments.emplace_back(make_intrusive<ASTLiteral>(SplitByNonAlphaTokenExtractor::getExternalName()));
+            break;
+        }
+        case ITokenExtractor::Type::Ngrams: {
+            const auto & ngrams_tokenizer = assert_cast<const NgramsTokenExtractor &>(extractor);
+            arguments.emplace_back(make_intrusive<ASTLiteral>(NgramsTokenExtractor::getExternalName()));
+            arguments.emplace_back(make_intrusive<ASTLiteral>(ngrams_tokenizer.getN()));
+            break;
+        }
+        case ITokenExtractor::Type::SplitByString: {
+            const auto & split_by_string_extractor = assert_cast<const SplitByStringTokenExtractor &>(extractor);
+            auto separators = make_intrusive<ASTLiteral>(Field{Array{}});
+            for (const auto & separator : split_by_string_extractor.getSeparators())
+                separators->value.safeGet<Array>().push_back(separator);
+            arguments.emplace_back(make_intrusive<ASTLiteral>(SplitByStringTokenExtractor::getExternalName()));
+            arguments.emplace_back(std::move(separators));
+            break;
+        }
+        case ITokenExtractor::Type::Array: {
+            arguments.emplace_back(make_intrusive<ASTLiteral>(ArrayTokenExtractor::getExternalName()));
+            break;
+        }
+        case ITokenExtractor::Type::SparseGrams: {
+            const auto & sparse_grams_extractor = assert_cast<const SparseGramsTokenExtractor &>(extractor);
+            auto [min_ngram_length, max_ngram_length, min_cutoff_length] = sparse_grams_extractor.getParams();
+            arguments.emplace_back(make_intrusive<ASTLiteral>(SparseGramsTokenExtractor::getExternalName()));
+            arguments.emplace_back(make_intrusive<ASTLiteral>(min_ngram_length));
+            arguments.emplace_back(make_intrusive<ASTLiteral>(max_ngram_length));
+            if (min_cutoff_length.has_value())
+                arguments.emplace_back(make_intrusive<ASTLiteral>(min_cutoff_length.value()));
+            break;
+        }
+    }
+
+    return arguments;
+}
+
+void applyTokenizer(ASTFunction * function, TokenExtractorPtr tokenizer)
+{
+    if (!function)
+        return;
+
+    /// Tokenizer parameter is only supported by hasAnyTokens and hasAllTokens functions
+    if (function->name != "hasAnyTokens" && function->name != "hasAllTokens")
+        return;
+
+    /// If no tokenizer is explicitly specified.
+    if (function->arguments->children.size() == 2)
+    {
+        /// FunctionNode -> ExpressionList.
+        for (auto argument : extractTokenizerArguments(*tokenizer))
+            function->arguments->children.emplace_back(std::move(argument));
+    }
+}
 }
 
 /// This class substitutes filters with text-search functions by virtual columns which skip IO and read less data.
@@ -339,7 +402,11 @@ private:
 
             ASTPtr default_expression = nullptr;
             if (!info.is_fully_materialied)
+            {
                 default_expression = convertNodeToAST(function_node);
+                if (auto * function = default_expression->as<ASTFunction>())
+                    applyTokenizer(function, text_index_condition.tokenExtractor());
+            }
 
             selected_conditions.push_back({search_query, index_name, *virtual_column_name, std::move(default_expression)});
             used_index_columns.insert(index_header.begin()->name);

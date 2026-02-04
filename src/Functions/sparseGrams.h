@@ -306,6 +306,8 @@ public:
             return true;
         }
     }
+
+    std::tuple<UInt64, UInt64, std::optional<UInt64>> getParams() const { return {min_ngram_length, max_ngram_length, min_cutoff_length}; }
 };
 
 template <bool is_utf8>
