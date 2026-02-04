@@ -162,13 +162,11 @@ namespace DB
 
 namespace Setting
 {
-    extern const SettingsBool async_insert_deduplicate;
     extern const SettingsBool allow_experimental_analyzer;
     extern const SettingsBool allow_suspicious_primary_key;
     extern const SettingsUInt64 alter_sync;
     extern const SettingsBool async_query_sending_for_remote;
     extern const SettingsBool async_socket_for_remote;
-    extern const SettingsBool insert_deduplicate;
     extern const SettingsUInt64Auto insert_quorum;
     extern const SettingsBool insert_quorum_parallel;
     extern const SettingsMilliseconds insert_quorum_timeout;
@@ -5583,6 +5581,7 @@ void StorageReplicatedMergeTree::startup()
 {
     LOG_TRACE(log, "Starting up table");
     startOutdatedAndUnexpectedDataPartsLoadingTask();
+    startStatisticsCache();
     if (attach_thread)
     {
         attach_thread->start();
