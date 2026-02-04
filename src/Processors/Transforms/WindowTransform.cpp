@@ -2454,7 +2454,7 @@ struct WindowFunctionLagLeadImpl final : public StatelessWindowFunction
 
     }
 
-    ColumnPtr castColumn(const Columns & columns, const VectorWithMemoryTracking & idx) override
+    ColumnPtr castColumn(const Columns & columns, const VectorWithMemoryTracking<size_t> & idx) override
     {
         if (!func_cast)
             return nullptr;
