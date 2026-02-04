@@ -676,12 +676,28 @@ DatabaseTablesIteratorPtr DatabaseDataLake::getTablesIterator(
                     try
                     {
                         auto storage = tryGetTableImpl(table_name, context_, false, skip_not_loaded);
-                        promise->set_value(storage);
                     }
                     catch (...)
                     {
-                        promise->set_exception(std::current_exception());
+ 						if (context_->getSettingsRef()[Setting::database_datalake_require_metadata_access])
+                        {
+                            auto error_code = getCurrentExceptionCode();
+                            auto error_message = getCurrentExceptionMessage(true, false, true, true);
+                            auto enhanced_message = fmt::format(
+                                "Received error {} while fetching table metadata for existing table '{}'. "
+                                "If you want this error to be ignored, use database_datalake_require_metadata_access=0. Error: {}",
+                                error_code,
+                                table_name,
+                                error_message);
+                            promise->set_exception(std::make_exception_ptr(Exception::createRuntime(
+                                error_code,
+                                enhanced_message)));
+                            return;
+                        }
+						else
+                            tryLogCurrentException(log, fmt::format("Ignoring table {}", table_name));
                     }
+					promise->set_value(storage);
                 });
         }
         catch (...)
