@@ -293,6 +293,6 @@ Below are the possible values for both `deduplicate_merge_projection_mode` and `
 - `rebuild`: The affected projection part is rebuilt to stay consistent with data in the original table part.
 
 ## See also {#see-also}
-- ["Control Of Projections During Merges" (Blogpost)](https://clickhouse.com/blog/clickhouse-release-24-08#control-of-projections-during-merges)
+- ["Control Of Projections During Merges" (blog post)](https://clickhouse.com/blog/clickhouse-release-24-08#control-of-projections-during-merges)
 - ["Projections" (guide)](/data-modeling/projections#using-projections-to-speed-up-UK-price-paid)
 - ["Materialized Views versus Projections"](https://clickhouse.com/docs/managing-data/materialized-views-versus-projections)
