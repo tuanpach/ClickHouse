@@ -1,6 +1,7 @@
 #include <Common/FunctionDocumentation.h>
 
 #include <Common/Exception.h>
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <unordered_map>
 
@@ -18,11 +19,11 @@ VersionNumber VERSION_UNKNOWN = {0};
 
 /// Example input 'types' vector: {"(U)Int*", "Float*"}
 /// Example output string: [`(U)Int*`](/sql-reference/data-types/int-uint) or [`Float*`](/sql-reference/data-types/float)
-String mapTypesToTypesWithLinks(const std::vector<std::string> & types)
+String mapTypesToTypesWithLinks(const std::vector<std::string> & types, const FunctionDocumentation::Syntax & syntax)
 {
     String result;
     bool is_first = true;
-    for (const auto & type : types)
+    for (auto type : types)
     {
         if (is_first)
             is_first = false;
@@ -31,15 +32,20 @@ String mapTypesToTypesWithLinks(const std::vector<std::string> & types)
 
         result += "[`" + type;
 
-        if (type == "String")
+        if (type.starts_with("const "))
+            type = type.substr(6); // Remove "const " prefix
+
+        if (type == "NULL")
+            result += "`](/sql-reference/syntax#null)";
+        else if (type == "Any")
+            result += "`](/sql-reference/data-types)";
+        else if (type == "String" || type == "String literal")
             result += "`](/sql-reference/data-types/string)";
         else if (type.starts_with("FixedString"))
             result += "`](/sql-reference/data-types/fixedstring)";
-        else if (type == "String literal")
-            result += "`](/sql-reference/syntax#string)";
         else if (type.starts_with("Int") || type.starts_with("UInt") || type.starts_with("(U)Int")) /// "Int8", "Int16", ... || "UInt8", "UInt16", ... || "(U)Int*", "(U)Int8", "(U)Int16", ...
             result += "`](/sql-reference/data-types/int-uint)";
-        else if (type.starts_with("Float") || type.starts_with("BFloat16")) /// "Float32", "Float64", "BFloat16"
+        else if (type.starts_with("Float") || type == "BFloat16") /// "Float32", "Float64", "BFloat16"
             result += "`](/sql-reference/data-types/float)";
         else if (type.starts_with("Decimal")) /// "Decimal(P, S)", "Decimal32", "Decimal64", ...
             result += "`](/sql-reference/data-types/decimal)";
@@ -51,6 +57,10 @@ String mapTypesToTypesWithLinks(const std::vector<std::string> & types)
             result += "`](/sql-reference/data-types/datetime)";
         else if (type.starts_with("DateTime64")) /// "DateTime64(P)", "DateTime64(3)", "DateTime64(6)", ...
             result += "`](/sql-reference/data-types/datetime64)";
+        else if (type == "Time")
+            result += "`](/sql-reference/data-types/time)";
+        else if (type.starts_with("Time64")) //// "Time64(P)", "Time64(3)", ...
+            result += "`](/sql-reference/data-types/time64)";
         else if (type == "Enum")
             result += "`](/sql-reference/data-types/enum)";
         else if (type == "UUID")
@@ -71,6 +81,8 @@ String mapTypesToTypesWithLinks(const std::vector<std::string> & types)
             result += "`](/sql-reference/data-types/map)";
         else if (type.starts_with("Variant")) /// "Variant(T1, T2, ...)", "Variant(UInt8, String)", ...
             result += "`](/sql-reference/data-types/variant)";
+        else if (type.starts_with("Geometry"))
+            result += "`](/sql-reference/data-types/geo)";
         else if (type.starts_with("LowCardinality")) /// "LowCardinality(T)", "LowCardinality(UInt8)", "LowCardinality(String)", ...
             result += "`](/sql-reference/data-types/lowcardinality)";
         else if (type.starts_with("Nullable")) /// "Nullable(T)", "Nullable(UInt8)", "Nullable(String)", ...
@@ -79,6 +91,8 @@ String mapTypesToTypesWithLinks(const std::vector<std::string> & types)
             result += "`](/sql-reference/data-types/aggregatefunction)";
         else if (type.starts_with("SimpleAggregateFunction")) /// "SimpleAggregateFunction(agg_func, T)", "SimpleAggregateFunction(any, UInt8)", ...
             result += "`](/sql-reference/data-types/simpleaggregatefunction)";
+        else if (type == "Geo")
+            result += "`](/sql-reference/data-types/geo)";
         else if (type == "Point")
             result += "`](/sql-reference/data-types/geo#point)";
         else if (type == "Ring")
@@ -91,6 +105,8 @@ String mapTypesToTypesWithLinks(const std::vector<std::string> & types)
             result += "`](/sql-reference/data-types/geo#polygon)";
         else if (type == "MultiPolygon")
             result += "`](/sql-reference/data-types/geo#multipolygon)";
+        else if (type == "numericIndexedVector")
+            result += "`](/sql-reference/functions/numeric-indexed-vector-functions#create-numeric-indexed-vector-object)";
         else if (type == "Expression")
             result += "`](/sql-reference/data-types/special-data-types/expression)";
         else if (type == "Set")
@@ -105,31 +121,44 @@ String mapTypesToTypesWithLinks(const std::vector<std::string> & types)
             result += "`](/sql-reference/data-types/dynamic)";
         else if (type == "JSON")
             result += "`](/sql-reference/data-types/newjson)";
-        else if (type == "Lambda")
+        else if (type == "Lambda function")
             result += "`](/sql-reference/functions/overview#arrow-operator-and-lambda)";
         else if (type == "NULL")
             result += "`](/sql-reference/syntax#null)";
+        else if (type.starts_with("QBit")) /// "QBit(T, UInt64)", "QBit(Float64, UInt64)", ...
+            result += "`](/sql-reference/data-types/qbit)";
         else
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Unexpected data type: {}", type);
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Unexpected data type in function {}: {}", syntax, type);
     }
     result += "\n";
     return result;
 }
 }
 
-String FunctionDocumentation::argumentsAsString() const
+template <typename Type>
+String argumentsOrParametersAsString(const Type & arguments_or_parameters, const FunctionDocumentation::Syntax & syntax)
 {
     String result;
-    for (const auto & [name, description_, types] : arguments)
+    for (const auto & [name, description_, types] : arguments_or_parameters)
     {
-        result += "- `" + name + "` — " + description_;
+        result += "- `" + name + "` — " + description_ + " ";
 
         /// We assume that if 'type' is empty(), 'description' already ends with a type definition. This is a reasonable assumption to be
         /// able to handle special cases which cannot be represented by the type mapping in mapTypesToTypesWithLinks.
         if (!types.empty())
-            result += mapTypesToTypesWithLinks(types);
+            result += mapTypesToTypesWithLinks(types, syntax);
     }
     return result;
+}
+
+String FunctionDocumentation::argumentsAsString() const
+{
+    return argumentsOrParametersAsString(arguments, syntax);
+}
+
+String FunctionDocumentation::parametersAsString() const
+{
+    return argumentsOrParametersAsString(parameters, syntax);
 }
 
 /// Documentation is often defined with raw strings, therefore we need to trim leading and trailing whitespace + newlines.
@@ -142,17 +171,27 @@ String FunctionDocumentation::argumentsAsString() const
 
 String FunctionDocumentation::syntaxAsString() const
 {
-    return boost::algorithm::trim_copy(syntax);
+    String trimmed_syntax = boost::algorithm::trim_copy(syntax);
+
+    /// It is tempting to write 'SELECT someFunction(arg1, arg2)' in the syntax field but we
+    /// really want 'someFunction(arg1, arg2)'.
+    if (boost::algorithm::istarts_with(trimmed_syntax, "SELECT "))
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Syntax field must not start with 'SELECT': {}", syntax);
+
+    if (syntax.ends_with(";"))
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Syntax field must not end with ';': {}", syntax);
+
+    return trimmed_syntax;
 }
 
 String FunctionDocumentation::returnedValueAsString() const
 {
-    String result = returned_value.description;
+    String result = returned_value.description + " ";
 
     /// We assume that if 'type' is empty(), 'description' already ends with a type definition. This is a reasonable assumption to be
     /// able to handle special cases which cannot be represented by the type mapping in mapTypesToTypesWithLinks.
     if (!returned_value.types.empty())
-        result += mapTypesToTypesWithLinks(returned_value.types);
+        result += mapTypesToTypesWithLinks(returned_value.types, syntax);
     return boost::algorithm::trim_copy(result);
 }
 
@@ -186,6 +225,7 @@ String FunctionDocumentation::categoryAsString() const
     static const std::unordered_map<Category, std::string> category_to_string =
     {
         {Category::Unknown, ""}, /// Default enum value for default-constructed FunctionDocumentation objects. Be consistent with other default fields (empty).
+
         {Category::Arithmetic, "Arithmetic"},
         {Category::Array, "Arrays"},
         {Category::Bit, "Bit"},
@@ -193,13 +233,15 @@ String FunctionDocumentation::categoryAsString() const
         {Category::Comparison, "Comparison"},
         {Category::Conditional, "Conditional"},
         {Category::DateAndTime, "Dates and Times"},
+        {Category::Decimal, "Decimal"},
         {Category::Dictionary, "Dictionary"},
         {Category::Distance, "Distance"},
         {Category::EmbeddedDictionary, "Embedded Dictionary"},
         {Category::Geo, "Geo"},
+        {Category::GeoPolygon, "Geo Polygon"},
         {Category::Encoding, "Encoding"},
         {Category::Encryption, "Encryption"},
-        {Category::File, "File"},
+        {Category::Financial, "Financial"},
         {Category::Hash, "Hash"},
         {Category::IPAddress, "IP Address"},
         {Category::Introspection, "Introspection"},
@@ -209,9 +251,10 @@ String FunctionDocumentation::categoryAsString() const
         {Category::Map, "Map"},
         {Category::Mathematical, "Mathematical"},
         {Category::NLP, "Natural Language Processing"},
-        {Category::Nullable, "Nullable"},
+        {Category::Null, "Null"},
         {Category::NumericIndexedVector, "NumericIndexedVector"},
         {Category::Other, "Other"},
+        {Category::QBit, "QBit"},
         {Category::RandomNumber, "Random Number"},
         {Category::Rounding, "Rounding"},
         {Category::StringReplacement, "String Replacement"},
@@ -226,6 +269,8 @@ String FunctionDocumentation::categoryAsString() const
         {Category::URL, "URL"},
         {Category::UUID, "UUID"},
         {Category::UniqTheta, "UniqTheta"},
+
+        {Category::AggregateFunction, "Aggregate Functions"},
         {Category::TableFunction, "Table Functions"}
     };
 
@@ -234,5 +279,4 @@ String FunctionDocumentation::categoryAsString() const
     else
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Category has no mapping to string");
 }
-
 }

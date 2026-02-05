@@ -10,7 +10,7 @@ namespace DB
 
 ASTPtr ASTSelectWithUnionQuery::clone() const
 {
-    auto res = std::make_shared<ASTSelectWithUnionQuery>(*this);
+    auto res = make_intrusive<ASTSelectWithUnionQuery>(*this);
     res->children.clear();
 
     res->list_of_selects = list_of_selects->clone();
@@ -71,9 +71,9 @@ void ASTSelectWithUnionQuery::formatQueryImpl(WriteBuffer & ostr, const FormatSe
     {
         if (it != list_of_selects->children.begin())
         {
-            ostr << settings.nl_or_ws << indent_str << (settings.hilite ? hilite_keyword : "")
+            ostr << settings.nl_or_ws << indent_str
                 << mode_to_str(get_mode(it))
-                << (settings.hilite ? hilite_none : "")
+
                 << settings.nl_or_ws;
         }
 
@@ -97,7 +97,7 @@ void ASTSelectWithUnionQuery::formatQueryImpl(WriteBuffer & ostr, const FormatSe
         if (need_parens)
         {
             ostr << indent_str;
-            auto subquery = std::make_shared<ASTSubquery>(*it);
+            auto subquery = make_intrusive<ASTSubquery>(*it);
             subquery->format(ostr, settings, state, frame);
         }
         else

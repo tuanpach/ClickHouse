@@ -3,7 +3,7 @@
 #include <DataTypes/DataTypesNumber.h>
 #include <Functions/FunctionFactory.h>
 
-#include "FunctionArrayMapped.h"
+#include <Functions/array/FunctionArrayMapped.h>
 
 
 namespace DB
@@ -219,7 +219,7 @@ Returns the first element in the source array for which `func(x[, y1, y2, ... yN
     };
     FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::Array;
-    FunctionDocumentation documentation = {description, syntax, arguments, returned_value, examples, introduced_in, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionArrayFirst>(documentation);
 
@@ -230,7 +230,7 @@ Returns the first element in the source array for which `func(x[, y1, y2, ... yN
     )";
     FunctionDocumentation::Syntax syntax_orNull = "arrayFirstOrNull(func(x[, y1, ..., yN]), source_arr[, cond1_arr, ... , condN_arr])";
     FunctionDocumentation::Arguments arguments_orNull = {
-        {"func(x[, y1, ..., yN])", "A lambda function which operates on elements of the source array (`x`) and condition arrays (`y`).", {"Lambda"}},
+        {"func(x[, y1, ..., yN])", "A lambda function which operates on elements of the source array (`x`) and condition arrays (`y`).", {"Lambda function"}},
         {"source_arr", "The source array to process.", {"Array(T)"}},
         {"[, cond1_arr, ... , condN_arr]", "Optional. N condition arrays providing additional arguments to the lambda function.", {"Array(T)"}}
     };
@@ -241,7 +241,7 @@ Returns the first element in the source array for which `func(x[, y1, y2, ... yN
     };
     FunctionDocumentation::IntroducedIn introduced_in_orNull = {1, 1};
     FunctionDocumentation::Category category_orNull = FunctionDocumentation::Category::Array;
-    FunctionDocumentation documentation_orNull = {description_orNull, syntax_orNull, arguments_orNull, returned_value_orNull, examples_orNull, introduced_in_orNull, category_orNull};
+    FunctionDocumentation documentation_orNull = {description_orNull, syntax_orNull, arguments_orNull, {}, returned_value_orNull, examples_orNull, introduced_in_orNull, category_orNull};
 
     factory.registerFunction<FunctionArrayFirstOrNull>(documentation_orNull);
 
@@ -267,7 +267,7 @@ Returns the last element in the source array for which a lambda `func(x [, y1, y
     };
     FunctionDocumentation::IntroducedIn introduced_in_last = {1, 1};
     FunctionDocumentation::Category category_last = FunctionDocumentation::Category::Array;
-    FunctionDocumentation documentation_last = {description_last, syntax_last, arguments_last, returned_value_last, examples_last, introduced_in_last, category_last};
+    FunctionDocumentation documentation_last = {description_last, syntax_last, arguments_last, {}, returned_value_last, examples_last, introduced_in_last, category_last};
     factory.registerFunction<FunctionArrayLast>(documentation_last);
 
     /// arrayLastOrNull
@@ -292,7 +292,7 @@ Returns the last element in the source array for which a lambda `func(x [, y1, y
     };
     FunctionDocumentation::IntroducedIn introduced_in_last_null = {1, 1};
     FunctionDocumentation::Category category_last_null = FunctionDocumentation::Category::Array;
-    FunctionDocumentation documentation_last_null = {description_last_null, syntax_last_null, arguments_last_null, returned_value_last_null, examples_last_null, introduced_in_last_null, category_last_null};
+    FunctionDocumentation documentation_last_null = {description_last_null, syntax_last_null, arguments_last_null, {}, returned_value_last_null, examples_last_null, introduced_in_last_null, category_last_null};
 
     factory.registerFunction<FunctionArrayLastOrNull>(documentation_last_null);
 }

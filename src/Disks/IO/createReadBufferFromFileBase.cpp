@@ -77,6 +77,11 @@ std::unique_ptr<ReadBufferFromFileBase> createReadBufferFromFileBase(
 
     bool use_page_cache = allow_userspace_page_cache && !existing_memory && settings.page_cache != nullptr;
 
+    auto get_prefetches_log = [&]()
+    {
+        return settings.enable_filesystem_read_prefetches_log ? Context::getGlobalContextInstance()->getFilesystemReadPrefetchesLog() : nullptr;
+    };
+
     auto create = [&](size_t buffer_size, size_t buffer_alignment, int actual_flags)
     {
         std::unique_ptr<ReadBufferFromFileBase> res;
@@ -117,7 +122,8 @@ std::unique_ptr<ReadBufferFromFileBase> createReadBufferFromFileBase(
                 existing_memory,
                 buffer_alignment,
                 file_size,
-                settings.local_throttler);
+                settings.local_throttler,
+                get_prefetches_log());
 #else
             throw Exception(ErrorCodes::UNSUPPORTED_METHOD, "Read method io_uring is only supported in Linux");
 #endif
@@ -135,7 +141,8 @@ std::unique_ptr<ReadBufferFromFileBase> createReadBufferFromFileBase(
                 existing_memory,
                 buffer_alignment,
                 file_size,
-                settings.local_throttler);
+                settings.local_throttler,
+                get_prefetches_log());
         }
         else if (settings.local_fs_method == LocalFSReadMethod::pread_threadpool)
         {
@@ -150,7 +157,8 @@ std::unique_ptr<ReadBufferFromFileBase> createReadBufferFromFileBase(
                 existing_memory,
                 buffer_alignment,
                 file_size,
-                settings.local_throttler);
+                settings.local_throttler,
+                get_prefetches_log());
         }
         else
             throw Exception(ErrorCodes::LOGICAL_ERROR, "Unknown read method");

@@ -72,7 +72,7 @@ In case you don't really need controlled precision and/or need fast computation,
     FunctionDocumentation::Arguments arguments = {
         {"a", "First value.", {"Decimal"}},
         {"b", "Second value.", {"Decimal"}},
-        {"result_scale", "Scale of result.", {"Int*", "UInt*"}}
+        {"result_scale", "Scale of result.", {"(U)Int*"}}
     };
     FunctionDocumentation::ReturnedValue returned_value = {"The result of multiplication with the given scale. Type:", {"Decimal256"}};
     FunctionDocumentation::Examples examples = {
@@ -105,7 +105,7 @@ While processing toDecimal64(-12.647987876, 9) AS a, toDecimal64(123.967645643, 
     };
     FunctionDocumentation::IntroducedIn introduced_in = {22, 12};
     FunctionDocumentation::Category categories = FunctionDocumentation::Category::Arithmetic;
-    FunctionDocumentation documentation = {description, syntax, arguments, returned_value, examples, introduced_in, categories};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, categories};
 
     factory.registerFunction<FunctionsDecimalArithmetics<MultiplyDecimalsImpl>>(documentation);
 }

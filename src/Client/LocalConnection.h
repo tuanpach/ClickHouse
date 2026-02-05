@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Connection.h"
+#include <Client/Connection.h>
 #include <Interpreters/Context_fwd.h>
 #include <QueryPipeline/BlockIO.h>
 #include <Interpreters/Session.h>
@@ -62,7 +62,7 @@ struct LocalQueryState
     Stopwatch after_send_progress;
     Stopwatch after_send_profile_events;
 
-    std::unique_ptr<CurrentThread::QueryScope> query_scope_holder;
+    CurrentThread::QueryScope query_scope_holder;
 };
 
 

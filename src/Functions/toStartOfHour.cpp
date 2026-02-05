@@ -21,7 +21,7 @@ The return type can be configured by setting [`enable_extended_results_for_datet
 toStartOfHour(datetime)
     )";
     FunctionDocumentation::Arguments arguments = {
-        {"datetime", "A date with time to convert.", {"DateTime", "DateTime64"}}
+        {"datetime", "A date with time to round.", {"DateTime", "DateTime64"}}
     };
     FunctionDocumentation::ReturnedValue returned_value =
         {"Returns the date with time rounded down to the start of the hour.", {"DateTime", "DateTime64"}};
@@ -37,7 +37,7 @@ SELECT
     };
     FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
     FunctionDocumentation::Category category = FunctionDocumentation::Category::DateAndTime;
-    FunctionDocumentation documentation = {description, syntax, arguments, returned_value, examples, introduced_in, category};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, category};
 
     factory.registerFunction<FunctionToStartOfHour>(documentation);
 }

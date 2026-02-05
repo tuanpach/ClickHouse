@@ -27,13 +27,13 @@ REGISTER_FUNCTION(IsNaN)
     FunctionDocumentation::Syntax syntax = "isNaN(x)";
     FunctionDocumentation::Arguments arguments =
     {
-        {"x", "Argument to evaluate for if it is `NaN`.", {"Float32", "Float64"}}
+        {"x", "Argument to evaluate for if it is `NaN`.", {"Float*"}}
     };
     FunctionDocumentation::ReturnedValue returned_value = {"`1` if `NaN`, otherwise `0`"};
     FunctionDocumentation::Examples examples = {{"Usage example", "SELECT isNaN(NaN)", "1"}};
     FunctionDocumentation::IntroducedIn introduced_in = {1, 1};
     FunctionDocumentation::Category categories = FunctionDocumentation::Category::Arithmetic;
-    FunctionDocumentation documentation = {description, syntax, arguments, returned_value, examples, introduced_in, categories};
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, examples, introduced_in, categories};
 
     factory.registerFunction<FunctionIsNaN>(documentation);
 }
