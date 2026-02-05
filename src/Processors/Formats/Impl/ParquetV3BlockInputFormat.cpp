@@ -98,24 +98,29 @@ void ParquetV3BlockInputFormat::initializeIfNeeded()
             std::lock_guard lock(reader_mutex);
             reader.emplace();
             reader->reader.prefetcher.init(in, read_options, parser_shared_resources);
-            if (metadata_cache && metadata.has_value())
-            {
-                String file_name = metadata->getPath();
-                String etag = metadata->metadata->etag;
-                ParquetMetadataCacheKey cache_key = ParquetMetadataCache::createKey(file_name, etag);
-                reader->reader.file_metadata = metadata_cache->getOrSetMetadata(
-                    cache_key, [&]() { return Parquet::Reader::readFileMetaData(reader->reader.prefetcher); });
-            }
-            else
-            {
-                reader->reader.file_metadata = Parquet::Reader::readFileMetaData(reader->reader.prefetcher);
-            }
+            reader->reader.file_metadata = getFileMetadata(reader->reader.prefetcher);
             reader->reader.init(read_options, getPort().getHeader(), format_filter_info);
             reader->init(parser_shared_resources, buckets_to_read ? std::optional(buckets_to_read->row_group_ids) : std::nullopt);
         }
     }
 }
 
+parquet::format::FileMetaData ParquetV3BlockInputFormat::getFileMetadata(Parquet::Prefetcher & prefetcher) const {
+
+    if (metadata_cache && metadata.has_value())
+    {
+        String file_name = metadata->getPath();
+        String etag = metadata->metadata->etag;
+        ParquetMetadataCacheKey cache_key = ParquetMetadataCache::createKey(file_name, etag);
+        return metadata_cache->getOrSetMetadata(
+            cache_key, [&]() { return Parquet::Reader::readFileMetaData(prefetcher); });
+    }
+    else
+    {
+        return Parquet::Reader::readFileMetaData(prefetcher);
+    }
+
+}
 
 Chunk ParquetV3BlockInputFormat::read()
 {
@@ -126,20 +131,8 @@ Chunk ParquetV3BlockInputFormat::read()
 
         /// Don't init Reader and ReadManager if we only need file metadata.
         Parquet::Prefetcher temp_prefetcher;
-        parquet::format::FileMetaData file_metadata;
         temp_prefetcher.init(in, read_options, parser_shared_resources);
-        if (metadata_cache && metadata.has_value())
-        {
-            String file_name = metadata->getPath();
-            String etag = metadata->metadata->etag;
-            ParquetMetadataCacheKey cache_key = ParquetMetadataCache::createKey(file_name, etag);
-            file_metadata
-                = metadata_cache->getOrSetMetadata(cache_key, [&]() { return Parquet::Reader::readFileMetaData(temp_prefetcher); });
-        }
-        else
-        {
-            file_metadata = Parquet::Reader::readFileMetaData(temp_prefetcher);
-        }
+        parquet::format::FileMetaData file_metadata = getFileMetadata(temp_prefetcher);
 
 
         auto chunk = getChunkForCount(size_t(file_metadata.num_rows));

@@ -63,6 +63,8 @@ private:
 
     void initializeIfNeeded();
     std::shared_ptr<ParquetFileBucketInfo> buckets_to_read;
+
+    parquet::format::FileMetaData getFileMetadata(Parquet::Prefetcher & prefetcher) const;
 };
 
 class NativeParquetSchemaReader : public ISchemaReader

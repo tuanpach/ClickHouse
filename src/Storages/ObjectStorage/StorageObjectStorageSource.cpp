@@ -636,6 +636,8 @@ StorageObjectStorageSource::ReaderHolder StorageObjectStorageSource::createReade
             return std::make_shared<FormatFilterInfo>(format_filter_info->filter_actions_dag, format_filter_info->context.lock(), mapper, format_filter_info->row_level_filter, format_filter_info->prewhere_info);
         }();
 
+        chassert(object_info->getObjectMetadata().has_value());
+
         LOG_DEBUG(
             log,
             "Reading object '{}', size: {} bytes, with format: {}",
@@ -652,9 +654,9 @@ StorageObjectStorageSource::ReaderHolder StorageObjectStorageSource::createReade
             auto cache_log = getLogger("ParquetMetadataCache");
             LOG_DEBUG(cache_log, "setting mapping for {} -> {}", object_info->getPath(), object_info->getObjectMetadata()->etag);
             const std::optional<RelativePathWithMetadata> metadata = object_info->relative_path_with_metadata;
-            input_format = FormatFactory::instance().getInput(
-            object_info->getFileFormat().value_or(configuration->format),
-            *read_buf,
+            input_format = FormatFactory::instance().getInputWithMetadata(
+                object_info->getFileFormat().value_or(configuration->format),
+                *read_buf,
                 initial_header,
                 context_,
                 max_block_size,

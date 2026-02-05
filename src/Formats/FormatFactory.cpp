@@ -578,7 +578,7 @@ InputFormatPtr FormatFactory::getInput(
 }
 
 // Overload with metadata
-InputFormatPtr FormatFactory::getInput(
+InputFormatPtr FormatFactory::getInputWithMetadata(
     const String & name,
     ReadBuffer & buf,
     const Block & sample,
@@ -595,6 +595,7 @@ InputFormatPtr FormatFactory::getInput(
     const std::optional<UInt64> & min_block_size_rows,
     const std::optional<UInt64> & min_block_size_bytes) const
 {
+    chassert(metadata.has_value());
     return getInputImpl(name, buf, sample, context, max_block_size, metadata,
                        format_settings, parser_shared_resources, format_filter_info,
                        is_remote_fs, compression, need_only_count,

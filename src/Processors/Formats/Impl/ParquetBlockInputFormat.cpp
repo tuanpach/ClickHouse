@@ -1442,18 +1442,9 @@ void registerInputFormatParquet(FormatFactory & factory)
                     metadata
                 );
             }
-            else
-            {
-                LOG_DEBUG(lambda_logger, "using arrow reader in ParquetBlockInputFormat without metadata cache");
-                return std::make_shared<ParquetBlockInputFormat>(
-                    buf,
-                     std::make_shared<const Block>(sample),
-                    settings,
-                    std::move(parser_shared_resources),
-                    std::move(format_filter_info),
-                    min_bytes_for_seek
-                );
-            }
+            throw Exception(
+                ErrorCodes::LOGICAL_ERROR,
+                "Previous implementation of ParquetBlockInputFormat didn't require blob metadata for initialization");
         });
     LOG_DEBUG(log, "beginning registerRandomAccessInputFormat");
     factory.registerRandomAccessInputFormat(
