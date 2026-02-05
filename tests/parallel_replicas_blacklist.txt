@@ -147,24 +147,6 @@
     https://github.com/ClickHouse/ClickHouse/issues/74411
 02884_create_view_with_sql_security_option
 
-    https://github.com/ClickHouse/ClickHouse/issues/80426
-    Duplicates with all right join and join engine
-01051_all_join_engine
-02497_storage_join_right_assert
-02495_analyzer_storage_join
-
-    https://github.com/ClickHouse/clickhouse-private/issues/27882
-    duplicates cross_to_inner_join_rewrite=1
-02564_analyzer_cross_to_inner
-
-    https://github.com/ClickHouse/ClickHouse/issues/80439
-    Predicate pushdown CTE incorrect result
-02901_predicate_pushdown_cte_stateful
-
-    https://github.com/ClickHouse/ClickHouse/issues/80440
-    MULTIPLE_EXPRESSIONS_FOR_ALIAS
-03121_analyzer_filed_redefenition_in_subquery
-
     Transactions
 02421_truncate_isolation_no_merges
 02421_truncate_isolation_with_mutations
