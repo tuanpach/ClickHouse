@@ -13,6 +13,7 @@ CHANGEABLE_IN_READONLY: OK
 system: OK
 aggregate_function_combinators: OK
 primary_key_bytes_in_memory_allocated: OK
+enable_parallel_replicas: OK
 # clickhouse-local
 concatAssumeInjective: OK
 ReplacingMergeTree: OK
