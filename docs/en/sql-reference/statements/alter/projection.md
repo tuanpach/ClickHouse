@@ -187,7 +187,7 @@ WHERE _part_starting_offset + _part_offset IN (
 SETTINGS enable_shared_storage_snapshot_in_query = 1
 ```
 
-## Manipulating projections
+## Manipulating projections {#manipulating-projections}
 
 The following operations with [projections](/engines/table-engines/mergetree-family/mergetree.md/#projections) are available:
 
