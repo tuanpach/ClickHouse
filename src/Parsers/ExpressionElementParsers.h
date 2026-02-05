@@ -9,13 +9,19 @@ namespace DB
 {
 
 
-/** The SELECT subquery, in parentheses.
+/** The SELECT or EXPLAIN subquery, in parentheses.
   */
 class ParserSubquery : public IParserBase
 {
+public:
+    bool startsWithValidSelectOrExplain() const { return starts_with_valid_select_or_explain; }
+
 protected:
     const char * getName() const override { return "SELECT subquery"; }
     bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override;
+
+private:
+    bool starts_with_valid_select_or_explain = false;
 };
 
 
