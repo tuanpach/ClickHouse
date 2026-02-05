@@ -148,7 +148,6 @@ private:
     bool allow_seeks_after_first_read;
     bool use_external_buffer;
     CurrentMetrics::Increment metric_increment{CurrentMetrics::FilesystemCacheReadBuffers};
-    ProfileEvents::Counters current_file_segment_counters;
 
     FileCacheQueryLimit::QueryContextHolderPtr query_context_holder;
 
