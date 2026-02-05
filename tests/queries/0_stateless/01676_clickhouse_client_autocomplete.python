@@ -117,6 +117,7 @@ client_compwords_positive = [
     "SimpleAggregateFunction",
     # system.settings
     "max_concurrent_queries_for_all_users",
+    "enable_parallel_replicas",
     # system.clusters
     "test_shard_localhost",
     # system.macros
@@ -134,8 +135,6 @@ client_compwords_positive = [
     "aggregate_function_combinators",
     # system.columns
     "primary_key_bytes_in_memory_allocated",
-    # system.query_log
-    "enable_parallel_replicas",
     # system.dictionaries
     # FIXME: none
 ]
