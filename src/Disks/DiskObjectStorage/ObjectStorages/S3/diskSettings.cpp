@@ -206,14 +206,17 @@ getClient(const S3::URI & url, const S3Settings & settings, ContextPtr context, 
     String secret_access_key = auth_settings[S3AuthSetting::secret_access_key];
     String session_token = auth_settings[S3AuthSetting::session_token];
 
-    auto updated_credentials = refresh_credentials_callback();
-    if (updated_credentials)
+    if (refresh_credentials_callback)
     {
-        auto s3_updated_credentials = std::static_pointer_cast<DataLake::S3Credentials>(updated_credentials);
-        access_key_id = s3_updated_credentials->getAccessKeyId();
-        secret_access_key = s3_updated_credentials->getSecretAccessKey();
-        session_token = s3_updated_credentials->getSessionToken();
-        LOG_DEBUG(getLogger("getClient"), "Got new access tokens {} {} {}", access_key_id, secret_access_key, session_token);
+        auto updated_credentials = refresh_credentials_callback();
+        if (updated_credentials)
+        {
+            auto s3_updated_credentials = std::static_pointer_cast<DataLake::S3Credentials>(updated_credentials);
+            access_key_id = s3_updated_credentials->getAccessKeyId();
+            secret_access_key = s3_updated_credentials->getSecretAccessKey();
+            session_token = s3_updated_credentials->getSessionToken();
+            LOG_DEBUG(getLogger("getClient"), "Got new access tokens {} {} {}", access_key_id, secret_access_key, session_token);
+        }
     }
     return S3::ClientFactory::instance().create(
         client_configuration,
