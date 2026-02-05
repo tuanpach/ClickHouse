@@ -2,7 +2,9 @@ set(LIBLLVMLIBC_SOURCE_DIR "${ClickHouse_SOURCE_DIR}/contrib/llvm-project/libc")
 
 set(SRCS
     "${LIBLLVMLIBC_SOURCE_DIR}/src/errno/libc_errno.cpp"
+)
 
+set(SRCS_MATH
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/acos.cpp"
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/acosf.cpp"
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/acoshf.cpp"
@@ -328,6 +330,10 @@ set(SRCS
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/ufromfpf128.cpp"
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/ufromfpxf128.cpp"
 )
+
+if (ARCH_AMD64 OR ARCH_AARCH64)
+    list(APPEND SRCS ${SRCS_MATH})
+endif()
 
 set(LIBC_NAMESPACE "__llvm_libc")
 
