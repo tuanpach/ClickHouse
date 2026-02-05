@@ -1,6 +1,13 @@
 from praktika import Workflow
 
-from ci.defs.defs import BASE_BRANCH, DOCKERS, SECRETS, ArtifactConfigs, JobNames
+from ci.defs.defs import (
+    BASE_BRANCH,
+    DOCKERS,
+    SECRETS,
+    ArtifactConfigs,
+    JobNames,
+    ArtifactNames,
+)
 from ci.defs.job_configs import JobConfigs
 from ci.jobs.scripts.workflow_hooks.filter_job import should_skip_job
 from ci.jobs.scripts.workflow_hooks.trusted import can_be_trusted
@@ -129,7 +136,7 @@ workflow = Workflow.Config(
     ],
     artifacts=[
         *ArtifactConfigs.unittests_binaries,
-        #*ArtifactConfigs.clickhouse_binaries,
+        # *ArtifactConfigs.clickhouse_binaries,
         *clickhouse_binaries_with_tags,
         *ArtifactConfigs.clickhouse_debians,
         *ArtifactConfigs.clickhouse_rpms,
