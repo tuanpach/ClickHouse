@@ -233,6 +233,7 @@ def run_func_test(
     global_time_limit: int,
     upgrade_check: bool,
     encrypted_storage: bool,
+    query_killer: Optional["RandomQueryKiller"] = None,
 ) -> List[Popen]:
     upgrade_check_option = "--upgrade-check" if upgrade_check else ""
     encrypted_storage_option = "--encrypted-storage" if encrypted_storage else ""
@@ -276,6 +277,10 @@ def run_func_test(
                 )
                 continue
             raise
+
+    # Start the query killer after smoke check completes, before actual stress test
+    if query_killer is not None:
+        query_killer.start()
 
     logging.info("Run stress tests")
     for i, path in enumerate(output_paths):
@@ -526,13 +531,13 @@ def main():
 
     call_with_retry(make_query_command("SELECT 1"), timeout=0.5, retry_count=20)
 
-    # Start random query/client killer unless disabled or in upgrade check mode
+    # Create random query/client killer unless disabled or in upgrade check mode
     # (upgrade check mode should not have random kills as it may interfere with
     # the upgrade process itself)
+    # Note: the killer is started inside run_func_test after the smoke check completes
     query_killer = None
     if not args.no_random_query_killer and not args.upgrade_check:
         query_killer = RandomQueryKiller(interval=3.0)
-        query_killer.start()
 
     try:
         func_pipes = run_func_test(
@@ -543,6 +548,7 @@ def main():
             args.global_time_limit,
             args.upgrade_check,
             args.encrypted_storage,
+            query_killer,
         )
     finally:
         # Stop the query killer when tests are done
