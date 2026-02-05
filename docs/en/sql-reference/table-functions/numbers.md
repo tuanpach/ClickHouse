@@ -3,7 +3,7 @@ slug: /sql-reference/table-functions/numbers
 sidebar_position: 145
 sidebar_label: 'numbers'
 title: 'numbers'
-description: 'Returns tables with a single `number` column that contains specifiable integers.'
+description: 'Returns a table with a single `number` column that contains a sequence of integers.'
 doc_type: 'reference'
 ---
 
@@ -17,7 +17,7 @@ doc_type: 'reference'
 
 - `numbers(N, M, S)` – Returns a table with a single `number` column (UInt64) that contains `M` integers from `N` to `N + M - 1` with step `S`. `S` must be ≥ 1.
 
-This is similar to the [`system.numbers`](/operations/system-tables/numbers) system table.
+This is similar to the [`system.numbers`](/operations/system-tables/numbers) system table. It can be used for testing and generating successive values.
 
 The following queries are equivalent:
 
