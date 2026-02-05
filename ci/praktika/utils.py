@@ -391,6 +391,10 @@ class Shell:
                             print(
                                 f"ERROR: command failed, exit code: {proc.returncode}, retry: {retry+1}/{retries}"
                             )
+                        if retry < retries - 1:
+                            delay = min(2 ** (retry + 1), 60)
+                            print(f"Retrying in {delay}s...")
+                            time.sleep(delay)
                         if retry_errors:
                             should_retry = False
                             for err in retry_errors:
