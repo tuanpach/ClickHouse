@@ -25,12 +25,25 @@ Allows to connect to [SQLite](https://www.sqlite.org/index.html) database and pe
 
 ## Data types support {#data_types-support}
 
+The table below shows the default type mapping when ClickHouse automatically infers schema from SQLite:
+
 |  SQLite   | ClickHouse                                              |
 |---------------|---------------------------------------------------------|
 | INTEGER       | [Int32](../../sql-reference/data-types/int-uint.md)     |
 | REAL          | [Float32](../../sql-reference/data-types/float.md)      |
 | TEXT          | [String](../../sql-reference/data-types/string.md)      |
 | BLOB          | [String](../../sql-reference/data-types/string.md)      |
+
+When you explicitly define a table with specific ClickHouse types using the [SQLite table engine](../../engines/table-engines/integrations/sqlite.md), the following ClickHouse types can be parsed from SQLite TEXT columns:
+
+- [Date](../../sql-reference/data-types/date.md), [Date32](../../sql-reference/data-types/date32.md)
+- [DateTime](../../sql-reference/data-types/datetime.md), [DateTime64](../../sql-reference/data-types/datetime64.md)
+- [UUID](../../sql-reference/data-types/uuid.md)
+- [Enum8, Enum16](../../sql-reference/data-types/enum.md)
+- [Decimal32, Decimal64, Decimal128, Decimal256](../../sql-reference/data-types/decimal.md)
+- [FixedString](../../sql-reference/data-types/fixedstring.md)
+- All integer types ([UInt8, UInt16, UInt32, UInt64, Int8, Int16, Int32, Int64](../../sql-reference/data-types/int-uint.md))
+- [Float32, Float64](../../sql-reference/data-types/float.md)
 
 ## Specifics and recommendations {#specifics-and-recommendations}
 
