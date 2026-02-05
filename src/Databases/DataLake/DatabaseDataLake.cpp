@@ -690,7 +690,7 @@ DatabaseTablesIteratorPtr DatabaseDataLake::getTablesIterator(
                     }
                     catch (...)
                     {
- 						if (context_->getSettingsRef()[Setting::database_datalake_require_metadata_access])
+                        if (context_->getSettingsRef()[Setting::database_datalake_require_metadata_access])
                         {
                             auto error_code = getCurrentExceptionCode();
                             auto error_message = getCurrentExceptionMessage(true, false, true, true);
@@ -705,10 +705,10 @@ DatabaseTablesIteratorPtr DatabaseDataLake::getTablesIterator(
                                 enhanced_message)));
                             return;
                         }
-						else
+                        else
                             tryLogCurrentException(log, fmt::format("Ignoring table {}", table_name));
                     }
-					promise->set_value(storage);
+                    promise->set_value(storage);
                 });
         }
         catch (...)
