@@ -323,7 +323,6 @@ namespace Setting
     extern const SettingsBool allow_experimental_analyzer;
     extern const SettingsBool parallel_replicas_only_with_analyzer;
     extern const SettingsBool enable_hdfs_pread;
-    extern const SettingsString default_dictionary_database;
     extern const SettingsUInt64 max_reverse_dictionary_lookup_cache_size_bytes;
 }
 
@@ -2563,7 +2562,7 @@ StoragePtr Context::executeTableFunction(const ASTPtr & table_expression, const 
     String database_name = getCurrentDatabase();
     String table_name = function->name;
 
-    if (function->is_compound_name)
+    if (function->isCompoundName())
     {
         std::vector<std::string> parts;
         splitInto<'.'>(parts, function->name);
@@ -2593,7 +2592,7 @@ StoragePtr Context::executeTableFunction(const ASTPtr & table_expression, const 
                                                      /* comment */ "",
                                                      /* is_parameterized_view */ true);
             res->startup();
-            function->prefer_subquery_to_function_formatting = true;
+            function->setPreferSubqueryToFunctionFormatting(true);
             return res;
         }
     }
