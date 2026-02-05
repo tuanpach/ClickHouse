@@ -53,6 +53,7 @@ class Result(MetaClasses.Serializable):
         PENDING = "pending"
         RUNNING = "running"
         ERROR = "error"
+        TIMEOUT = "timeout"
 
     class StatusExtended:
         OK = "OK"
@@ -448,6 +449,8 @@ class Result(MetaClasses.Serializable):
             )
             if "!!!!!!! xdist.dsession.Interrupted: session-timeout:" in _res:
                 test_result.info = "session-timeout occurred during test execution"
+                assert test_result.status == Result.Status.ERROR
+                test_result.status = Result.Status.TIMEOUT
 
         return Result.create_from(
             name=name,
