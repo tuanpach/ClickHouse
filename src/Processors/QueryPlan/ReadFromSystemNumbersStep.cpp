@@ -412,145 +412,147 @@ Pipe ReadFromSystemNumbersStep::makePipe()
 {
     auto & numbers_storage = storage->as<StorageSystemNumbers &>();
 
+    /// For non-multithreaded variants (`system.numbers` / `numbers(...)`), keep a single stream to preserve ordering.
     if (!numbers_storage.multithreaded)
         num_streams = 1;
 
     Pipe pipe;
-    Ranges ranges;
+    const auto header = NumbersSource::createHeader(numbers_storage.column_name);
 
+    auto add_null_source = [&] { NumbersLikeUtils::addNullSource(pipe, header); };
+
+    /// Storage-level LIMIT 0 (`numbers(..., 0, ...)`) is an empty table regardless of the WHERE clause.
     if (numbers_storage.limit.has_value() && (numbers_storage.limit.value() == 0))
     {
-        pipe.addSource(std::make_shared<NullSource>(NumbersSource::createHeader(numbers_storage.column_name)));
+        add_null_source();
         return pipe;
     }
+
     chassert(numbers_storage.step != UInt64{0});
 
-    /// Build rpn of query filters
+    /// Extract ranges/bounds implied by the WHERE clause.
     ActionsDAGWithInversionPushDown inverted_dag(filter_actions_dag ? filter_actions_dag->getOutputs().front() : nullptr, context);
     KeyCondition condition(inverted_dag, context, column_names, key_expression);
 
-    bool exact_ranges = condition.extractPlainRanges(ranges);
+    const auto extracted_ranges = NumbersLikeUtils::extractRanges(condition);
+    const bool exact_ranges = (extracted_ranges.kind == NumbersLikeUtils::ExtractedRanges::Kind::ExactRanges);
 
-    Ranges bounds;
-    const Ranges * scan_ranges = &ranges;
-
-    /// If we can't extract exact ranges, try to extract only safe bounds.
-    /// For bounded tables (numbers(limit)/numbers(offset, limit, step)) we still use NumbersRangedSource,
-    /// but we don't push down query LIMIT because the bounds are not exact.
-    if (!exact_ranges)
+    /// `extractRanges()` returns either:
+    ///  - exact disjoint ranges that fully represent the filter (safe to push down query LIMIT);
+    ///  - conservative bounds/ranges that are safe to intersect with, but may still include values filtered out later.
+    ///
+    /// An empty `Ranges` means the condition is contradictory (always false).
+    if (NumbersLikeUtils::isAlwaysFalse(extracted_ranges.ranges))
     {
-        bounds = condition.extractBounds();
-        if (bounds.empty())
-        {
-            pipe.addSource(std::make_shared<NullSource>(NumbersSource::createHeader(numbers_storage.column_name)));
-            return pipe;
-        }
-
-        /// No usable bounds for an unbounded table, keep the ordinary unbounded scan.
-        if (!numbers_storage.limit.has_value() && bounds.size() == 1 && bounds.front().isInfinite())
-        {
-            /// Fall back to NumbersSource
-            /// Range in a single block
-            const auto block_range = max_block_size * numbers_storage.step;
-            /// Step between chunks in a single source.
-            /// It is bigger than block_range in case of multiple threads, because we have to account for other sources as well.
-            const auto step_between_chunks = num_streams * block_range;
-            for (size_t i = 0; i < num_streams; ++i)
-            {
-                const auto source_offset = i * block_range;
-                const auto source_start = numbers_storage.offset + source_offset;
-
-                auto source = std::make_shared<NumbersSource>(
-                    max_block_size,
-                    source_start,
-                    numbers_storage.column_name,
-                    numbers_storage.step,
-                    step_between_chunks);
-
-                pipe.addSource(std::move(source));
-            }
-
-            return pipe;
-        }
-
-        scan_ranges = &bounds;
+        add_null_source();
+        return pipe;
     }
 
-    /// Intersect ranges with table range
-    std::optional<Range> table_range;
-    std::optional<Range> overflowed_table_range;
+    /// Fast path: for unbounded tables (`system.numbers(_mt)`, `numbers(_mt)()`) with no usable bounds in WHERE,
+    /// keep the ordinary unbounded scan (NumbersSource).
+    ///
+    /// When we can safely push down query LIMIT/OFFSET (no filter / exact plain ranges), it can be more efficient to use
+    /// `NumbersRangedSource` and shrink the universe to the requested amount. Otherwise, `NumbersSource` is the most
+    /// efficient generator and we let downstream transforms (filter/limit) stop the pipeline.
+    const bool can_pushdown_query_limit = exact_ranges && limit.has_value();
+    if (!numbers_storage.limit.has_value() && NumbersLikeUtils::isUniverse(extracted_ranges.ranges) && !can_pushdown_query_limit)
+    {
+        /// Offset between starting points of adjacent streams.
+        /// It equals `max_block_size * step`, so streams generate disjoint chunks of the same arithmetic progression.
+        const auto block_range = max_block_size * numbers_storage.step;
+
+        /// Distance between the starts of consecutive chunks in a single source.
+        /// For multiple streams, each source jumps by `num_streams * block_range` to avoid overlap.
+        const auto step_between_chunks = num_streams * block_range;
+        for (size_t i = 0; i < num_streams; ++i)
+        {
+            const auto source_offset = i * block_range;
+            const auto source_start = numbers_storage.offset + source_offset;
+
+            auto source = std::make_shared<NumbersSource>(
+                max_block_size, source_start, numbers_storage.column_name, numbers_storage.step, step_between_chunks);
+
+            pipe.addSource(std::move(source));
+        }
+
+        return pipe;
+    }
+
+    /// Otherwise use `NumbersRangedSource`:
+    /// - bounded tables (`numbers(limit)`, `numbers(offset, limit[, step])`) to respect the table domain;
+    /// - unbounded tables with some extracted bounds/ranges to reduce scanning.
+
+    const UInt64 step = numbers_storage.step;
+    const UInt64 remainder = numbers_storage.offset % step;
+
+    RangesWithStep intersected_ranges;
+
+    auto append_stepped_intersections = [&](const Range & domain_range, UInt64 domain_remainder)
+    {
+        /// Intersect extracted ranges with the table domain and convert each intersection to a stepped range
+        /// that matches the sequence `x ≡ domain_remainder (mod step)`.
+        for (const auto & r : extracted_ranges.ranges)
+        {
+            auto intersected_range = domain_range.intersectWith(r);
+            if (!intersected_range)
+                continue;
+
+            auto range_with_step = steppedRangeFromRange(*intersected_range, step, domain_remainder);
+            if (range_with_step)
+                intersected_ranges.push_back(*range_with_step);
+        }
+    };
 
     if (numbers_storage.limit.has_value())
     {
-        if (std::numeric_limits<UInt64>::max() - numbers_storage.offset >= *(numbers_storage.limit))
+        const UInt64 storage_limit = *numbers_storage.limit;
+
+        /// Domain of `numbers(offset, limit[, step])` is [offset, offset + limit), potentially wrapping at 2^64.
+        if (std::numeric_limits<UInt64>::max() - numbers_storage.offset >= storage_limit)
         {
-            table_range.emplace(
-                FieldRef(numbers_storage.offset), true, FieldRef(numbers_storage.offset + *(numbers_storage.limit)), false);
+            append_stepped_intersections(
+                Range(FieldRef(numbers_storage.offset), true, FieldRef(numbers_storage.offset + storage_limit), false), remainder);
         }
-        /// UInt64 overflow, for example: SELECT number FROM numbers(18446744073709551614, 5)
+        /// Wrap-around case, for example: numbers(18446744073709551614, 5) produces:
+        /// [18446744073709551614, 18446744073709551615] then [0, 2].
         else
         {
-            table_range.emplace(FieldRef(numbers_storage.offset), true, std::numeric_limits<UInt64>::max(), true);
-            auto overflow_end = UInt128(numbers_storage.offset) + UInt128(*numbers_storage.limit);
-            overflowed_table_range.emplace(
-                FieldRef(UInt64(0)), true, FieldRef(UInt64(overflow_end - std::numeric_limits<UInt64>::max() - 1)), false);
+            /// Tail segment: [offset, UInt64::max]
+            append_stepped_intersections(
+                Range(FieldRef(numbers_storage.offset), true, FieldRef(std::numeric_limits<UInt64>::max()), true), remainder);
+
+            auto overflow_end = UInt128(numbers_storage.offset) + UInt128(storage_limit);
+            UInt64 wrapped_end = UInt64(overflow_end - std::numeric_limits<UInt64>::max() - 1);
+
+            /// Wrapped segment starts at 0 and ends at `wrapped_end` (exclusive).
+
+            /// 2^64 % step, computed safely in 128-bit
+            UInt64 wrap_mod = static_cast<UInt64>((static_cast<UInt128>(std::numeric_limits<UInt64>::max()) + 1) % step);
+
+            /// remainder for the wrapped segment: (offset - 2^64) % step
+            UInt128 tmp = static_cast<UInt128>(remainder) + step - wrap_mod;
+            UInt64 remainder_overflow = static_cast<UInt64>(tmp % step);
+
+            append_stepped_intersections(Range(FieldRef(UInt64(0)), true, FieldRef(wrapped_end), false), remainder_overflow);
         }
     }
     else
     {
-        table_range.emplace(FieldRef(numbers_storage.offset), true, FieldRef(std::numeric_limits<UInt64>::max()), true);
+        /// Unbounded table (`system.numbers(_mt)`, `numbers(_mt)()`): clamp extracted ranges to the UInt64 domain.
+        append_stepped_intersections(Range(FieldRef(UInt64(0)), true, FieldRef(std::numeric_limits<UInt64>::max()), true), UInt64(0));
     }
 
-    RangesWithStep intersected_ranges;
-    for (const auto & r : *scan_ranges)
-    {
-        auto intersected_range = table_range->intersectWith(r);
-        if (intersected_range.has_value())
-        {
-            auto range_with_step
-                = steppedRangeFromRange(intersected_range.value(), numbers_storage.step, numbers_storage.offset % numbers_storage.step);
-            if (range_with_step.has_value())
-                intersected_ranges.push_back(*range_with_step);
-        }
-    }
-
-
-    /// intersection with overflowed_table_range goes back.
-    if (overflowed_table_range.has_value())
-    {
-        auto step = numbers_storage.step;
-
-        UInt64 offset_mod = numbers_storage.offset % step;
-
-        /// 2^64 % step, computed safely in 128-bit
-        UInt64 wrap_mod = static_cast<UInt64>((static_cast<UInt128>(std::numeric_limits<UInt64>::max()) + 1) % step);
-
-        /// remainder for the wrapped segment: (offset - 2^64) % step
-        UInt128 tmp = static_cast<UInt128>(offset_mod) + step - wrap_mod;
-        UInt64 remainder_overflow = static_cast<UInt64>(tmp % step);
-
-        for (const auto & r : *scan_ranges)
-        {
-            auto intersected_range = overflowed_table_range->intersectWith(r);
-            if (intersected_range)
-            {
-                auto range_with_step = steppedRangeFromRange(intersected_range.value(), step, remainder_overflow);
-                if (range_with_step)
-                    intersected_ranges.push_back(*range_with_step);
-            }
-        }
-    }
-
-    /// ranges is blank, return a source who has no data
+    /// No intersection between the table domain and extracted ranges.
     if (intersected_ranges.empty())
     {
-        pipe.addSource(std::make_shared<NullSource>(NumbersSource::createHeader(numbers_storage.column_name)));
+        add_null_source();
         return pipe;
     }
 
     UInt128 total_size = sizeOfRanges(intersected_ranges);
 
-    /// limit total_size by query_limit only if ranges are exact
+    /// Only push down query LIMIT/OFFSET when the extracted ranges are exact.
+    /// For conservative bounds, pushing down LIMIT could produce too few rows after applying the full WHERE filter.
     if (exact_ranges && limit && *limit < total_size)
     {
         total_size = *limit;
@@ -561,13 +563,14 @@ Pipe ReadFromSystemNumbersStep::makePipe()
 
     NumbersLikeUtils::checkLimits(context->getSettingsRef(), size_t(total_size));
 
+    /// Don't start more streams than can be meaningfully filled with at least one block.
     if (total_size / max_block_size < num_streams)
         num_streams = static_cast<size_t>(total_size / max_block_size);
 
     if (num_streams == 0)
         num_streams = 1;
 
-    /// Ranges state, all streams will share the state.
+    /// All streams share a single cursor into `intersected_ranges` to split work without overlaps.
     auto ranges_state = std::make_shared<NumbersRangedSource::RangesState>();
     for (size_t i = 0; i < num_streams; ++i)
     {
