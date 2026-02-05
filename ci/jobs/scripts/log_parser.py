@@ -444,13 +444,7 @@ class FuzzerLogParser:
         assert failure_output, "No failure found in server log"
         failure_first_line = failure_output.splitlines()[0]
         assert failure_first_line, "No failure first line found in server log"
-        try:
-            query_id = failure_first_line.split(" ] {")[1].split("}")[0]
-        except IndexError:
-            print(
-                f"ERROR: Could not extract query_id from failure line: {failure_first_line[:200]}"
-            )
-            return None
+        query_id = failure_first_line.split(" ] {")[1].split("}")[0]
         if not query_id:
             print("ERROR: Query id not found")
             return None
