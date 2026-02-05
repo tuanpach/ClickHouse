@@ -621,7 +621,7 @@ def test_system_tables(started_cluster):
     assert table_name in node.query(f"SHOW TABLES FROM {CATALOG_NAME}")
 
     node.query(f"SYSTEM ENABLE FAILPOINT lightweight_show_tables")
-    node.query(f"SHOW TABLES", timeout=30)
+    node.query(f"SHOW TABLES", timeout=5)
 
     # system.tables
     assert int(node.query(f"SELECT count() FROM system.tables WHERE database = '{CATALOG_NAME}' and table ilike '%{root_namespace}%' SETTINGS show_data_lake_catalogs_in_system_tables = true").strip()) == 4

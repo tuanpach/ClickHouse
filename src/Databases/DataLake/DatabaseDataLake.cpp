@@ -448,9 +448,10 @@ StoragePtr DatabaseDataLake::tryGetTableImpl(const String & name, ContextPtr con
     auto catalog = getCatalog();
     auto table_metadata = DataLake::TableMetadata().withSchema().withLocation().withDataLakeSpecificProperties();
 
-	fiu_do_on(FailPoints::lightweight_show_tables,
+    /// This is added to test that lightweight queries like 'SHOW TABLES' dont end up fetching the table
+    fiu_do_on(FailPoints::lightweight_show_tables,
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+        std::this_thread::sleep_for(std::chrono::seconds(10));
     });
 
     const bool with_vended_credentials = settings[DatabaseDataLakeSetting::vended_credentials].value;
