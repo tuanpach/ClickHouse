@@ -44,6 +44,8 @@ workflow = Workflow.Config(
         # *JobConfigs.sqlancer_master_jobs,
         JobConfigs.sqltest_master_job,
         JobConfigs.llvm_coverage_merge_job,
+        # macOS smoke tests on GitHub-hosted runners
+        *JobConfigs.macos_smoke_test_jobs,
     ],
     artifacts=[
         *ArtifactConfigs.unittests_binaries,
