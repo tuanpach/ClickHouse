@@ -722,8 +722,43 @@ void Client::printChangedSettings() const
 }
 
 
+String Client::getHelpHeader() const
+{
+    return fmt::format(
+        "Usage: {0} [initial table definition] [--query <query>]\n"
+        "{0} is a client application that is used to connect to ClickHouse.\n\n"
+        "It can run queries as command line tool if you pass queries as an argument or as interactive client. "
+        "Queries can run one at a time, or in a multiquery mode with --multiquery option. "
+        "To change settings you may use 'SET' statements and SETTINGS clause in queries or set them for a "
+        "session with corresponding {0} arguments.\n"
+        "'{0}' command will try to connect to clickhouse-server running on the same server. "
+        "If you have credentials set up, pass them with --user <username> --password <password> "
+        "or with --ask-password argument that will open command prompt.\n\n"
+        "This one will try to connect to tcp native port (9000) without encryption:\n"
+        "    {0} --host clickhouse.example.com --password mysecretpassword\n"
+        "To connect to secure endpoint just set --secure argument. If you have "
+        "altered port set it with --port <your port>.\n"
+        "    {0} --secure --host clickhouse.example.com --password mysecretpassword\n",
+        app_name);
+}
+
+
+String Client::getHelpFooter() const
+{
+    return fmt::format(
+        "Note: If you have clickhouse installed on your system you can use '{0}' "
+        "invocation with a dash.\n\n"
+        "Example printing current longest running query on a server:\n"
+        "    {0} --query 'SELECT * FROM system.processes ORDER BY elapsed LIMIT 1 FORMAT Vertical'\n"
+        "Example creating table and inserting data:\n"
+        "    {0} --multiquery --query 'CREATE TABLE t (a Int) ENGINE = Memory; INSERT INTO t VALUES (1), (2), (3)'\n",
+        app_name);
+}
+
+
 void Client::printHelpMessage(const OptionsDescription & options_description)
 {
+    output_stream << getHelpHeader() << "\n";
     if (options_description.main_description.has_value())
         output_stream << options_description.main_description.value() << "\n";
     if (options_description.external_description.has_value())
@@ -732,6 +767,7 @@ void Client::printHelpMessage(const OptionsDescription & options_description)
         output_stream << options_description.hosts_and_ports_description.value() << "\n";
 
     output_stream << "All settings are documented at https://clickhouse.com/docs/operations/settings/settings.\n";
+    output_stream << getHelpFooter() << "\n";
     output_stream << "In addition, --param_name=value can be specified for substitution of parameters for parameterized queries.\n";
     output_stream << "\nSee also: https://clickhouse.com/docs/en/integrations/sql-clients/cli\n";
 }

@@ -241,7 +241,7 @@ int mainEntryClickHouseInstall(int argc, char ** argv)
         if (options.contains("help"))
         {
             std::cout << "Install ClickHouse without .deb/.rpm/.tgz packages (having the binary only)\n\n";
-            std::cout << "Usage: " << formatWithSudo(std::string(argv[0]) + " install [options]", getuid() != 0) << '\n';
+            std::cout << "Usage: " << formatWithSudo("clickhouse install", getuid() != 0) << " [options]\n";
             std::cout << desc << '\n';
             return 0;
         }
@@ -1212,6 +1212,7 @@ int mainEntryClickHouseStart(int argc, char ** argv)
             ("config-path", po::value<std::string>()->default_value("etc/clickhouse-server"), "directory with configs")
             ("pid-path", po::value<std::string>()->default_value("var/run/clickhouse-server"), "directory for pid file")
             ("user", po::value<std::string>()->default_value(DEFAULT_CLICKHOUSE_SERVER_USER), "clickhouse user")
+            ("no-sudo", po::bool_switch(), "do not use sudo (useful when running in a Docker container)")
             ("max-tries", po::value<unsigned>()->default_value(60), "Max number of tries for waiting the server (with 1 second delay)")
         ;
 
@@ -1220,12 +1221,15 @@ int mainEntryClickHouseStart(int argc, char ** argv)
 
         if (options.contains("help"))
         {
-            std::cout << "Usage: " << formatWithSudo(std::string(argv[0]) + " start", getuid() != 0) << '\n';
+            std::cout << "Usage: " << formatWithSudo("clickhouse start", getuid() != 0) << " [options]\n";
             std::cout << desc << "\n";
-            return 1;
+            return 0;
         }
 
         std::string user = options["user"].as<std::string>();
+        bool no_sudo = options["no-sudo"].as<bool>();
+        if (no_sudo)
+            user.clear();
 
         fs::path prefix = options["prefix"].as<std::string>();
         fs::path executable = prefix / options["binary-path"].as<std::string>() / "clickhouse-server";
@@ -1262,9 +1266,9 @@ int mainEntryClickHouseStop(int argc, char ** argv)
 
         if (options.contains("help"))
         {
-            std::cout << "Usage: " << formatWithSudo(std::string(argv[0]) + " stop", getuid() != 0) << '\n';
+            std::cout << "Usage: " << formatWithSudo("clickhouse stop", getuid() != 0) << " [options]\n";
             std::cout << desc << "\n";
-            return 1;
+            return 0;
         }
 
         fs::path prefix = options["prefix"].as<std::string>();
@@ -1299,9 +1303,9 @@ int mainEntryClickHouseStatus(int argc, char ** argv)
 
         if (options.contains("help"))
         {
-            std::cout << "Usage: " << formatWithSudo(std::string(argv[0]) + " status", getuid() != 0) << '\n';
+            std::cout << "Usage: " << formatWithSudo("clickhouse status", getuid() != 0) << " [options]\n";
             std::cout << desc << "\n";
-            return 1;
+            return 0;
         }
 
         fs::path prefix = options["prefix"].as<std::string>();
@@ -1336,6 +1340,7 @@ int mainEntryClickHouseRestart(int argc, char ** argv)
             ("config-path", po::value<std::string>()->default_value("etc/clickhouse-server"), "directory with configs")
             ("pid-path", po::value<std::string>()->default_value("var/run/clickhouse-server"), "directory for pid file")
             ("user", po::value<std::string>()->default_value(DEFAULT_CLICKHOUSE_SERVER_USER), "clickhouse user")
+            ("no-sudo", po::bool_switch(), "do not use sudo (useful when running in a Docker container)")
             ("force", po::value<bool>()->default_value(false), "Stop with KILL signal instead of TERM")
             ("do-not-kill", po::bool_switch(), "Do not send KILL even if TERM did not help")
             ("max-tries", po::value<unsigned>()->default_value(60), "Max number of tries for waiting the server (with 1 second delay)")
@@ -1346,12 +1351,15 @@ int mainEntryClickHouseRestart(int argc, char ** argv)
 
         if (options.contains("help"))
         {
-            std::cout << "Usage: " << formatWithSudo(std::string(argv[0]) + " restart", getuid() != 0) << '\n';
+            std::cout << "Usage: " << formatWithSudo("clickhouse restart", getuid() != 0) << " [options]\n";
             std::cout << desc << "\n";
-            return 1;
+            return 0;
         }
 
         std::string user = options["user"].as<std::string>();
+        bool no_sudo = options["no-sudo"].as<bool>();
+        if (no_sudo)
+            user.clear();
 
         fs::path prefix = options["prefix"].as<std::string>();
         fs::path executable = prefix / options["binary-path"].as<std::string>() / "clickhouse-server";

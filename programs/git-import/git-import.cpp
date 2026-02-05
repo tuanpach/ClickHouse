@@ -1228,11 +1228,11 @@ try
     if (options.contains("help"))
     {
         std::cout << documentation << '\n'
-            << "Usage: " << argv[0] << '\n'
+            << "Usage: clickhouse git-import\n"
             << desc << '\n'
             << "\nExample:\n"
             << "\nclickhouse git-import --skip-paths 'generated\\.cpp|^(contrib|docs?|website|libs/(libcityhash|liblz4|libdivide|libvectorclass|libdouble-conversion|libcpuid|libzstd|libfarmhash|libmetrohash|libpoco|libwidechar_width))/' --skip-commits-with-messages '^Merge branch '\n";
-        return 1;
+        return 0;
     }
 
     processLog(Options(options));
