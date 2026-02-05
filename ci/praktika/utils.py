@@ -309,7 +309,7 @@ class Shell:
         command,
         log_file=None,
         strict=False,
-        verbose=False,
+        verbose=True,
         dry_run=False,
         stdin_str=None,
         timeout=None,

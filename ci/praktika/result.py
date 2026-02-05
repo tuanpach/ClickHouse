@@ -53,7 +53,6 @@ class Result(MetaClasses.Serializable):
         PENDING = "pending"
         RUNNING = "running"
         ERROR = "error"
-        TIMEOUT = "timeout"
 
     class StatusExtended:
         OK = "OK"
@@ -448,9 +447,15 @@ class Result(MetaClasses.Serializable):
                 pytest_report_file=pytest_report_file
             )
             if "!!!!!!! xdist.dsession.Interrupted: session-timeout:" in _res:
-                test_result.info = "session-timeout occurred during test execution"
+                test_result.info = "[ERROR] session-timeout occurred during test execution"
                 assert test_result.status == Result.Status.ERROR
-                test_result.status = Result.Status.TIMEOUT
+                test_result.results.append(
+                    Result(
+                        name="Timeout",
+                        status=Result.Status.ERROR,
+                        info=test_result.info,
+                    )
+                )
 
         return Result.create_from(
             name=name,
