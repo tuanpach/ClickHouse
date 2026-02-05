@@ -44,6 +44,7 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"deduplicate_insert", "backward_compatible_choice", "backward_compatible_choice", "New setting to control deduplication for INSERT queries."},
             {"default_dictionary_database", "", "", "New setting"},
             {"parallel_replicas_filter_pushdown", false, false, "New setting"},
+            {"enable_automatic_decision_for_merging_across_partitions_for_final", true, true, "New setting"},
         });
         addSettingsChanges(settings_changes_history, "26.1",
         {
