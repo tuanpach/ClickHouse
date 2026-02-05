@@ -1352,14 +1352,6 @@ BlockIO DatabaseReplicated::tryEnqueueReplicatedDDL(const ASTPtr & query, Contex
 {
     waitDatabaseStarted();
 
-    String host_fqdn_id;
-    {
-        std::lock_guard lock{ddl_worker_mutex};
-        if (!ddl_worker || is_probably_dropped)
-            throw Exception(ErrorCodes::DATABASE_REPLICATION_FAILED, "Database is not initialized or is being dropped");
-        host_fqdn_id = ddl_worker->getCommonHostID();
-    }
-
     if (!DatabaseCatalog::instance().canPerformReplicatedDDLQueries())
         throw Exception(ErrorCodes::QUERY_IS_PROHIBITED, "Replicated DDL queries are disabled");
 
@@ -1368,6 +1360,14 @@ BlockIO DatabaseReplicated::tryEnqueueReplicatedDDL(const ASTPtr & query, Contex
 
     if (is_readonly)
         throw Exception(ErrorCodes::NO_ZOOKEEPER, "Database is in readonly mode, because it cannot connect to ZooKeeper");
+
+    String host_fqdn_id;
+    {
+        std::lock_guard lock{ddl_worker_mutex};
+        if (!ddl_worker || is_probably_dropped)
+            throw Exception(ErrorCodes::DATABASE_REPLICATION_FAILED, "Database is not initialized or is being dropped");
+        host_fqdn_id = ddl_worker->getCommonHostID();
+    }
 
     if (!flags.internal && (query_context->getClientInfo().query_kind != ClientInfo::QueryKind::INITIAL_QUERY))
         throw Exception(ErrorCodes::INCORRECT_QUERY, "It's not initial query. ON CLUSTER is not allowed for Replicated database.");
