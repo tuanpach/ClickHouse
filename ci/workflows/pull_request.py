@@ -5,8 +5,8 @@ from ci.defs.defs import (
     DOCKERS,
     SECRETS,
     ArtifactConfigs,
-    JobNames,
     ArtifactNames,
+    JobNames,
 )
 from ci.defs.job_configs import JobConfigs
 from ci.jobs.scripts.workflow_hooks.filter_job import should_skip_job

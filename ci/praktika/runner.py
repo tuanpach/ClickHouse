@@ -565,7 +565,7 @@ class Runner:
                                 link = S3.copy_file_to_s3(
                                     s3_path=s3_path,
                                     local_path=file_path,
-                                    tags=artifact.tags if artifact.tags else None,
+                                    tags=artifact.ext.get("tags"),
                                 )
                                 result.set_link(link)
                                 artifact_links.append(link)

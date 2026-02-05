@@ -1,6 +1,6 @@
 import copy
 from dataclasses import dataclass, field
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union
 
 
 class Artifact:
@@ -22,7 +22,7 @@ class Artifact:
         path: Union[str, List[str]]
         compress_zst: bool = False
         _provided_by: str = ""
-        tags: Dict[str, str] = field(default_factory=dict)
+        ext: Dict[str, Any] = field(default_factory=dict)
 
         def is_s3_artifact(self):
             return self.type == Artifact.Type.S3
@@ -51,5 +51,7 @@ class Artifact:
                     f"Tags can only be added to S3 artifacts, but artifact type is [{self.type}]"
                 )
             obj = copy.deepcopy(self)
-            obj.tags.update(tags)
+            if "tags" not in obj.ext:
+                obj.ext["tags"] = {}
+            obj.ext["tags"].update(tags)
             return obj

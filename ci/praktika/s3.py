@@ -82,32 +82,79 @@ class S3:
         assert Path(
             local_path
         ).is_file(), f"Path [{local_path}] is not file. Only files are supported"
+
         file_name = Path(local_path).name
         s3_full_path = s3_path
         if not s3_full_path.endswith(file_name) and not with_rename:
             s3_full_path = f"{s3_path}/{Path(local_path).name}"
-        cmd = f"aws s3 cp {local_path} s3://{s3_full_path}"
-        if text and not content_type:
-            cmd += " --content-type text/plain"
-        elif content_type:
-            cmd += f" --content-type {content_type}"
-        if content_encoding:
-            cmd += f" --content-encoding {content_encoding}"
-        _ = cls.run_command_with_retries(cmd, no_strict=no_strict)
 
-        # Apply tags if provided
-        if tags:
-            bucket = s3_full_path.split("/")[0]
-            key = "/".join(s3_full_path.split("/")[1:])
-            # Format tags as Key1=Value1&Key2=Value2
-            tag_string = "&".join([f"{k}={v}" for k, v in tags.items()])
-            tag_cmd = f'aws s3api put-object-tagging --bucket {bucket} --key {key} --tagging "TagSet=[{",".join([f"{{Key={k},Value={v}}}" for k, v in tags.items()])}]"'
-            cls.run_command_with_retries(tag_cmd, no_strict=True)
+        # Use boto3 if available, otherwise fall back to AWS CLI
+        client = None
+        if BOTO3_AVAILABLE:
+            client = cls._get_boto3_client()
 
+        if client:
+            try:
+                s3_full_path_clean = str(s3_full_path).removeprefix("s3://")
+                bucket, key = s3_full_path_clean.split("/", maxsplit=1)
+
+                # Prepare ExtraArgs for upload_file
+                extra_args = {}
+                if text and not content_type:
+                    extra_args["ContentType"] = "text/plain"
+                elif content_type:
+                    extra_args["ContentType"] = content_type
+                if content_encoding:
+                    extra_args["ContentEncoding"] = content_encoding
+
+                # Upload file
+                if extra_args:
+                    client.upload_file(
+                        str(local_path), bucket, key, ExtraArgs=extra_args
+                    )
+                else:
+                    client.upload_file(str(local_path), bucket, key)
+
+                # Apply tags if provided
+                if tags:
+                    tag_set = [{"Key": k, "Value": v} for k, v in tags.items()]
+                    client.put_object_tagging(
+                        Bucket=bucket, Key=key, Tagging={"TagSet": tag_set}
+                    )
+
+            except ClientError as e:
+                error_code = e.response.get("Error", {}).get("Code", "")
+                print(f"ERROR: Failed to upload to S3 using boto3: {error_code}")
+                if not no_strict:
+                    raise
+            except Exception as e:
+                print(f"ERROR: Failed to upload to S3 using boto3: {e}")
+                if not no_strict:
+                    raise
+        else:
+            # boto3 not available, use AWS CLI
+            cmd = f"aws s3 cp {local_path} s3://{s3_full_path}"
+            if text and not content_type:
+                cmd += " --content-type text/plain"
+            elif content_type:
+                cmd += f" --content-type {content_type}"
+            if content_encoding:
+                cmd += f" --content-encoding {content_encoding}"
+            _ = cls.run_command_with_retries(cmd, no_strict=no_strict)
+
+            # Apply tags if provided
+            if tags:
+                bucket = s3_full_path.split("/")[0]
+                key = "/".join(s3_full_path.split("/")[1:])
+                tag_cmd = f'aws s3api put-object-tagging --bucket {bucket} --key {key} --tagging "TagSet=[{",".join([f"{{Key={k},Value={v}}}" for k, v in tags.items()])}]"'
+                cls.run_command_with_retries(tag_cmd, no_strict=True)
+
+        # Common cleanup and return for both paths
         try:
             StorageUsage.add_uploaded(local_path)
         except Exception as e:
-            pass
+            print(f"WARNING: Failed to record upload usage for {local_path}: {e}")
+
         bucket = s3_path.split("/")[0]
         endpoint = Settings.S3_BUCKET_TO_HTTP_ENDPOINT[bucket]
         assert endpoint
