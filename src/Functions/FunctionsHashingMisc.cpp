@@ -565,7 +565,8 @@ For the 32-bit version see [`xxHash32`](#xxHash32)
     FunctionDocumentation::Examples xxh3_128_example
         = {{"Usage example", "SELECT hex(xxh3_128('ClickHouse'))", "3A038784C52804B4DBA43A038784C528"}};
     FunctionDocumentation::Category xxh3_128_category = FunctionDocumentation::Category::Hash;
-    FunctionDocumentation xxh3_128_documentation = {xxh3_128_description, xxh3_128_syntax, xxh3_128_argument, {}, xxh3_128_returned_value, xxh3_128_example, FunctionDocumentation::IntroducedIn{}, xxh3_128_category};
+    FunctionDocumentation::IntroducedIn xxh3_128_introduced_in = {26, 2};
+    FunctionDocumentation xxh3_128_documentation = {xxh3_128_description, xxh3_128_syntax, xxh3_128_argument, {}, xxh3_128_returned_value, xxh3_128_example, xxh3_128_introduced_in, xxh3_128_category};
     factory.registerFunction<FunctionXXH3_128>(xxh3_128_documentation);
 
     FunctionDocumentation::Description wyHash64_description = "Computes a 64-bit [wyHash64](https://github.com/wangyi-fudan/wyhash) hash value.";
