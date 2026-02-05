@@ -276,6 +276,68 @@ Pipe ReadFromSystemPrimesStep::makePipe()
             pipe.addSource(std::move(source));
             return pipe;
         }
+
+        /// If we can't extract exact ranges (e.g. `prime % 2 = 1 AND prime < 100`), try extracting only conservative bounds.
+        /// This is most useful for unbounded sources (`system.primes` / `primes()`): without a bound we might generate primes
+        /// indefinitely even though the result set is finite due to a bounded conjunct.
+        ///
+        /// We intentionally do this only when `primes_storage.limit` is not set. For bounded sources like `primes(N)`,
+        /// the generator is already finite and applying non-exact bounds would not be a safe limit pushdown (LIMIT semantics
+        /// for `primes(N)` are "take N primes, then filter").
+        ///
+        /// Also, we do not push query LIMIT down in this path: bounds are conservative, so we cannot know how many generated
+        /// values will survive the full filter.
+        if (!primes_storage.limit)
+        {
+            extracted_ranges = condition.extractBounds();
+
+            /// Contradictory condition (e.g. `prime < 5 AND prime > 10`): result is empty.
+            if (extracted_ranges.empty())
+            {
+                addNullSource(pipe, primes_storage.column_name);
+                return pipe;
+            }
+
+            /// If `extractBounds()` returns the universe range, it provides no restriction, so fall back to the unbounded generator.
+            if (!(extracted_ranges.size() == 1 && extracted_ranges.front().isInfinite()))
+            {
+                std::vector<Range> intersected = intersectWithPrimesDomain(extracted_ranges);
+
+                /// Bounds may lie completely outside the primes domain [2, +Inf), e.g. `prime < 2`.
+                if (intersected.empty())
+                {
+                    addNullSource(pipe, primes_storage.column_name);
+                    return pipe;
+                }
+
+                std::vector<Interval> intervals = rangesToIntervals(intersected);
+                if (intervals.empty())
+                {
+                    addNullSource(pipe, primes_storage.column_name);
+                    return pipe;
+                }
+
+                mergeIntervals(intervals);
+
+                if (primes_storage.offset == 0 && primes_storage.step == 1)
+                {
+                    pipe.addSource(
+                        std::make_shared<PrimesSimpleRangedSource>(
+                            static_cast<UInt64>(max_block_size), std::move(intervals), std::nullopt, primes_storage.column_name));
+                    return pipe;
+                }
+
+                pipe.addSource(
+                    std::make_shared<PrimesRangedSource>(
+                        static_cast<UInt64>(max_block_size),
+                        std::move(intervals),
+                        primes_storage.offset,
+                        std::nullopt,
+                        primes_storage.step,
+                        primes_storage.column_name));
+                return pipe;
+            }
+        }
     }
 
     if (effective_limit)
