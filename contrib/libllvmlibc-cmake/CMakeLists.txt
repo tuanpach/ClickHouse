@@ -331,6 +331,7 @@ set(SRCS_MATH
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/ufromfpxf128.cpp"
 )
 
+# Builds on ppc64le and riscv64 are broken.
 if (ARCH_AMD64 OR ARCH_AARCH64)
     list(APPEND SRCS ${SRCS_MATH})
 endif()
