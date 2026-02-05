@@ -231,11 +231,11 @@ private:
 #endif
         }
 
-        if (!buf[place_value])
-        {
-            buf[place_value] = x;
-            ++m_size;
-        }
+        if (buf[place_value] == x)
+            return;
+
+        buf[place_value] = x;
+        ++m_size;
     }
 
     /** Insert a value into the new buffer that was in the old buffer.
@@ -388,11 +388,11 @@ public:
 #endif
                     }
 
-                    if (!buf[place_value])
-                    {
-                        buf[place_value] = x;
-                        ++m_size;
-                    }
+                    if (buf[place_value] == x)
+                        return;
+
+                    buf[place_value] = x;
+                    ++m_size;
                 }
             }
             else
