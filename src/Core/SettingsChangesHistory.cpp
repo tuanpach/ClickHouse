@@ -41,12 +41,9 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
         /// Note: please check if the key already exists to prevent duplicate entries.
         addSettingsChanges(settings_changes_history, "26.2",
         {
-            {"deduplicate_insert", "backward_compatible_choice", "backward_compatible_choice", "New setting to control deduplication for INSERT queries."},
             {"deduplicate_blocks_in_dependent_materialized_views", false, true, "Enable deduplication for dependent materialized views by default."},
-            {"deduplicate_insert", "backward_compatible_choice", "enable", "New setting to control deduplication for INSERT queries."},
-            {"default_dictionary_database", "", "", "New setting"},
+            {"deduplicate_insert", "backward_compatible_choice", "enable", "Enable deduplication for all sync and async inserts by default."},
             {"parallel_replicas_filter_pushdown", false, false, "New setting"},
-
         });
         addSettingsChanges(settings_changes_history, "26.1",
         {
