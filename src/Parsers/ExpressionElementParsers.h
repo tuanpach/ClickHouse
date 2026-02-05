@@ -16,7 +16,7 @@ public:
     bool startsWithValidSelectOrExplain() const { return starts_with_valid_select_or_explain; }
 
 protected:
-    const char * getName() const override { return "SELECT subquery"; }
+    const char * getName() const override { return "SELECT or EXPLAIN subquery"; }
     bool parseImpl(Pos & pos, ASTPtr & node, Expected & expected) override;
 
 private:
