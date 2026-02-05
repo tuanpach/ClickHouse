@@ -68,9 +68,9 @@ namespace Setting
 
 namespace ErrorCodes
 {
-    extern const int NOT_IMPLEMENTED;
     extern const int NUMBER_OF_ARGUMENTS_DOESNT_MATCH;
     extern const int BAD_ARGUMENTS;
+    extern const int NOT_IMPLEMENTED;
 }
 
 StoragePostgreSQL::StoragePostgreSQL(
@@ -368,7 +368,7 @@ public:
     static void parseArrayContent(const Array & array_field, const DataTypePtr & data_type, WriteBuffer & ostr)
     {
         auto nested_type = typeid_cast<const DataTypeArray *>(data_type.get())->getNestedType();
-        auto array_column = ColumnArray::create(createNested(nested_type));
+        auto array_column = ColumnArray::create(nested_type->createColumn());
         array_column->insert(array_field);
 
         const IColumn & nested_column = array_column->getData();
@@ -376,9 +376,6 @@ public:
 
         FormatSettings settings;
         settings.pretty.charset = FormatSettings::Pretty::Charset::ASCII;
-
-        if (nested_type->isNullable())
-            nested_type = static_cast<const DataTypeNullable *>(nested_type.get())->getNestedType();
 
         writeChar('{', ostr);
         for (size_t i = 0, size = array_field.size(); i < size; ++i)
@@ -447,6 +444,7 @@ public:
 
         return nested_column;
     }
+
 
 private:
     struct Inserter

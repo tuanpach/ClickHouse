@@ -914,6 +914,43 @@ def test_postgres_reading_clone(started_cluster):
     assert result.strip() == "1"
 
 
+def test_postgres_insert_boolean_array(started_cluster):
+    """Test for https://github.com/ClickHouse/ClickHouse/issues/72754
+    Inserting into PostgreSQL BOOLEAN[] was causing a logical error due to
+    incorrect column type creation for Bool arrays.
+    """
+    cursor = started_cluster.postgres_conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS test_bool_array")
+    cursor.execute("CREATE TABLE test_bool_array (id INTEGER, flags BOOLEAN[])")
+
+    table_func = f"postgresql('{started_cluster.postgres_ip}:{started_cluster.postgres_port}', 'postgres', 'test_bool_array', 'postgres', '{pg_pass}')"
+
+    # Insert boolean arrays using ClickHouse Bool type
+    node1.query(
+        f"INSERT INTO TABLE FUNCTION {table_func} VALUES (1, [true, false, true])"
+    )
+    node1.query(
+        f"INSERT INTO TABLE FUNCTION {table_func} SELECT 2, [false, false]"
+    )
+    node1.query(
+        f"INSERT INTO TABLE FUNCTION {table_func} SELECT 3, []"
+    )
+
+    # Verify data was inserted correctly
+    cursor.execute("SELECT id, flags FROM test_bool_array ORDER BY id")
+    result = cursor.fetchall()
+    assert result[0] == (1, [True, False, True])
+    assert result[1] == (2, [False, False])
+    assert result[2] == (3, [])
+
+    # Verify we can read the data back through ClickHouse
+    result = node1.query(f"SELECT * FROM {table_func} ORDER BY id")
+    expected = "1\t[1,0,1]\n2\t[0,0]\n3\t[]\n"
+    assert result == expected
+
+    cursor.execute("DROP TABLE test_bool_array")
+
+
 def test_postgres_date32(started_cluster):
     """Test that PostgreSQL DATE values outside the Date (UInt16) range are correctly read.
 
