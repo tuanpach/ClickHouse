@@ -105,8 +105,6 @@ Clears the iceberg metadata cache.
 
 Clears the parquet metadata cache.
 
-
-
 ## SYSTEM CLEAR|DROP TEXT INDEX CACHES {#drop-text-index-caches}
 
 Clears the text index's header, dictionary and postings caches.
