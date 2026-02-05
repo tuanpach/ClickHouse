@@ -31,30 +31,18 @@ inline void iotaWithStepOptimized(T * begin, size_t count, T first_value, T step
         iotaWithStep(begin, count, first_value, step);
 }
 
-/// The range is defined as [start, end)
-UInt64 itemCountInRange(UInt64 start, UInt64 end, UInt64 step)
-{
-    const auto range_count = end - start;
-    if (step == 1)
-        return range_count;
-
-    return (range_count - 1) / step + 1;
-}
-
 class NumbersSource : public ISource
 {
 public:
     NumbersSource(
         UInt64 block_size_,
-        UInt64 offset_,
-        std::optional<UInt64> end_,
+        UInt64 start_,
         const std::string & column_name,
         UInt64 step_in_chunk_,
         UInt64 step_between_chunks_)
         : ISource(createHeader(column_name))
         , block_size(block_size_)
-        , next(offset_)
-        , end(end_)
+        , next(start_)
         , step_in_chunk(step_in_chunk_)
         , step_between_chunks(step_between_chunks_)
     {
@@ -69,36 +57,25 @@ public:
 protected:
     Chunk generate() override
     {
-        UInt64 real_block_size = block_size;
-        if (end.has_value())
-        {
-            if (end.value() <= next)
-                return {};
-
-            auto max_items_to_generate = itemCountInRange(next, *end, step_in_chunk);
-
-            real_block_size = std::min(block_size, max_items_to_generate);
-        }
-        auto column = ColumnUInt64::create(real_block_size);
+        auto column = ColumnUInt64::create(block_size);
         ColumnUInt64::Container & vec = column->getData();
 
         UInt64 curr = next; /// The local variable for some reason works faster (>20%) than member of class.
         UInt64 * pos = vec.data(); /// This also accelerates the code.
 
-        UInt64 * current_end = &vec[real_block_size];
+        UInt64 * current_end = &vec[block_size];
 
         iotaWithStepOptimized(pos, static_cast<size_t>(current_end - pos), curr, step_in_chunk);
 
         next += step_between_chunks;
 
         progress(column->size(), column->byteSize());
-        return {Columns{std::move(column)}, real_block_size};
+        return {Columns{std::move(column)}, block_size};
     }
 
 private:
     UInt64 block_size;
     UInt64 next;
-    std::optional<UInt64> end; /// not included
     UInt64 step_in_chunk;
     UInt64 step_between_chunks;
 };
@@ -395,7 +372,6 @@ ReadFromSystemNumbersStep::ReadFromSystemNumbersStep(
     , key_expression{KeyDescription::parse(column_names[0], storage_snapshot->metadata->columns, context, false).expression}
     , max_block_size{max_block_size_}
     , num_streams{num_streams_}
-    , query_info_limit(query_info.trivial_limit)
     , storage_limits(query_info.storage_limits)
 {
     storage_snapshot->check(column_names);
@@ -453,151 +429,153 @@ Pipe ReadFromSystemNumbersStep::makePipe()
     ActionsDAGWithInversionPushDown inverted_dag(filter_actions_dag ? filter_actions_dag->getOutputs().front() : nullptr, context);
     KeyCondition condition(inverted_dag, context, column_names, key_expression);
 
-    if (condition.extractPlainRanges(ranges))
+    bool exact_ranges = condition.extractPlainRanges(ranges);
+
+    Ranges bounds;
+    const Ranges * scan_ranges = &ranges;
+
+    /// If we can't extract exact ranges, try to extract only safe bounds.
+    /// For bounded tables (numbers(limit)/numbers(offset, limit, step)) we still use NumbersRangedSource,
+    /// but we don't push down query LIMIT because the bounds are not exact.
+    if (!exact_ranges)
     {
-        /// Intersect ranges with table range
-        std::optional<Range> table_range;
-        std::optional<Range> overflowed_table_range;
-
-        if (numbers_storage.limit.has_value())
-        {
-            if (std::numeric_limits<UInt64>::max() - numbers_storage.offset >= *(numbers_storage.limit))
-            {
-                table_range.emplace(
-                    FieldRef(numbers_storage.offset), true, FieldRef(numbers_storage.offset + *(numbers_storage.limit)), false);
-            }
-            /// UInt64 overflow, for example: SELECT number FROM numbers(18446744073709551614, 5)
-            else
-            {
-                table_range.emplace(FieldRef(numbers_storage.offset), true, std::numeric_limits<UInt64>::max(), true);
-                auto overflow_end = UInt128(numbers_storage.offset) + UInt128(*numbers_storage.limit);
-                overflowed_table_range.emplace(
-                    FieldRef(UInt64(0)), true, FieldRef(UInt64(overflow_end - std::numeric_limits<UInt64>::max() - 1)), false);
-            }
-        }
-        else
-        {
-            table_range.emplace(FieldRef(numbers_storage.offset), true, FieldRef(std::numeric_limits<UInt64>::max()), true);
-        }
-
-        RangesWithStep intersected_ranges;
-        for (auto & r : ranges)
-        {
-            auto intersected_range = table_range->intersectWith(r);
-            if (intersected_range.has_value())
-            {
-                auto range_with_step
-                    = steppedRangeFromRange(intersected_range.value(), numbers_storage.step, numbers_storage.offset % numbers_storage.step);
-                if (range_with_step.has_value())
-                    intersected_ranges.push_back(*range_with_step);
-            }
-        }
-
-
-        /// intersection with overflowed_table_range goes back.
-        if (overflowed_table_range.has_value())
-        {
-            auto step = numbers_storage.step;
-
-            UInt64 offset_mod = numbers_storage.offset % step;
-
-            /// 2^64 % step, computed safely in 128-bit
-            UInt64 wrap_mod = static_cast<UInt64>((static_cast<UInt128>(std::numeric_limits<UInt64>::max()) + 1) % step);
-
-            /// remainder for the wrapped segment: (offset - 2^64) % step
-            UInt128 tmp = static_cast<UInt128>(offset_mod) + step - wrap_mod;
-            UInt64 remainder_overflow = static_cast<UInt64>(tmp % step);
-
-            for (auto & r : ranges)
-            {
-                auto intersected_range = overflowed_table_range->intersectWith(r);
-                if (intersected_range)
-                {
-                    auto range_with_step = steppedRangeFromRange(intersected_range.value(), step, remainder_overflow);
-                    if (range_with_step)
-                        intersected_ranges.push_back(*range_with_step);
-                }
-            }
-        }
-
-        /// ranges is blank, return a source who has no data
-        if (intersected_ranges.empty())
+        bounds = condition.extractBounds();
+        if (bounds.empty())
         {
             pipe.addSource(std::make_shared<NullSource>(NumbersSource::createHeader(numbers_storage.column_name)));
             return pipe;
         }
 
-        UInt128 total_size = sizeOfRanges(intersected_ranges);
-
-        /// limit total_size by query_limit
-        if (limit && *limit < total_size)
+        /// No usable bounds for an unbounded table, keep the ordinary unbounded scan.
+        if (!numbers_storage.limit.has_value() && bounds.size() == 1 && bounds.front().isInfinite())
         {
-            total_size = *limit;
-            /// We should shrink intersected_ranges for case:
-            ///     intersected_ranges: [1, 4], [7, 100]; query_limit: 2
-            shrinkRanges(intersected_ranges, static_cast<size_t>(total_size));
+            /// Fall back to NumbersSource
+            /// Range in a single block
+            const auto block_range = max_block_size * numbers_storage.step;
+            /// Step between chunks in a single source.
+            /// It is bigger than block_range in case of multiple threads, because we have to account for other sources as well.
+            const auto step_between_chunks = num_streams * block_range;
+            for (size_t i = 0; i < num_streams; ++i)
+            {
+                const auto source_offset = i * block_range;
+                const auto source_start = numbers_storage.offset + source_offset;
+
+                auto source = std::make_shared<NumbersSource>(
+                    max_block_size,
+                    source_start,
+                    numbers_storage.column_name,
+                    numbers_storage.step,
+                    step_between_chunks);
+
+                pipe.addSource(std::move(source));
+            }
+
+            return pipe;
         }
 
-        NumbersLikeUtils::checkLimits(context->getSettingsRef(), size_t(total_size));
+        scan_ranges = &bounds;
+    }
 
-        if (total_size / max_block_size < num_streams)
-            num_streams = static_cast<size_t>(total_size / max_block_size);
+    /// Intersect ranges with table range
+    std::optional<Range> table_range;
+    std::optional<Range> overflowed_table_range;
 
-        if (num_streams == 0)
-            num_streams = 1;
-
-        /// Ranges state, all streams will share the state.
-        auto ranges_state = std::make_shared<NumbersRangedSource::RangesState>();
-        for (size_t i = 0; i < num_streams; ++i)
+    if (numbers_storage.limit.has_value())
+    {
+        if (std::numeric_limits<UInt64>::max() - numbers_storage.offset >= *(numbers_storage.limit))
         {
-            auto source = std::make_shared<NumbersRangedSource>(
-                intersected_ranges, ranges_state, max_block_size, numbers_storage.step, numbers_storage.column_name);
-
-            if (i == 0)
-                source->addTotalRowsApprox(static_cast<size_t>(total_size));
-
-            pipe.addSource(std::move(source));
+            table_range.emplace(
+                FieldRef(numbers_storage.offset), true, FieldRef(numbers_storage.offset + *(numbers_storage.limit)), false);
         }
+        /// UInt64 overflow, for example: SELECT number FROM numbers(18446744073709551614, 5)
+        else
+        {
+            table_range.emplace(FieldRef(numbers_storage.offset), true, std::numeric_limits<UInt64>::max(), true);
+            auto overflow_end = UInt128(numbers_storage.offset) + UInt128(*numbers_storage.limit);
+            overflowed_table_range.emplace(
+                FieldRef(UInt64(0)), true, FieldRef(UInt64(overflow_end - std::numeric_limits<UInt64>::max() - 1)), false);
+        }
+    }
+    else
+    {
+        table_range.emplace(FieldRef(numbers_storage.offset), true, FieldRef(std::numeric_limits<UInt64>::max()), true);
+    }
+
+    RangesWithStep intersected_ranges;
+    for (const auto & r : *scan_ranges)
+    {
+        auto intersected_range = table_range->intersectWith(r);
+        if (intersected_range.has_value())
+        {
+            auto range_with_step
+                = steppedRangeFromRange(intersected_range.value(), numbers_storage.step, numbers_storage.offset % numbers_storage.step);
+            if (range_with_step.has_value())
+                intersected_ranges.push_back(*range_with_step);
+        }
+    }
+
+
+    /// intersection with overflowed_table_range goes back.
+    if (overflowed_table_range.has_value())
+    {
+        auto step = numbers_storage.step;
+
+        UInt64 offset_mod = numbers_storage.offset % step;
+
+        /// 2^64 % step, computed safely in 128-bit
+        UInt64 wrap_mod = static_cast<UInt64>((static_cast<UInt128>(std::numeric_limits<UInt64>::max()) + 1) % step);
+
+        /// remainder for the wrapped segment: (offset - 2^64) % step
+        UInt128 tmp = static_cast<UInt128>(offset_mod) + step - wrap_mod;
+        UInt64 remainder_overflow = static_cast<UInt64>(tmp % step);
+
+        for (const auto & r : *scan_ranges)
+        {
+            auto intersected_range = overflowed_table_range->intersectWith(r);
+            if (intersected_range)
+            {
+                auto range_with_step = steppedRangeFromRange(intersected_range.value(), step, remainder_overflow);
+                if (range_with_step)
+                    intersected_ranges.push_back(*range_with_step);
+            }
+        }
+    }
+
+    /// ranges is blank, return a source who has no data
+    if (intersected_ranges.empty())
+    {
+        pipe.addSource(std::make_shared<NullSource>(NumbersSource::createHeader(numbers_storage.column_name)));
         return pipe;
     }
 
-    const auto end = std::invoke(
-        [&]() -> std::optional<UInt64>
-        {
-            if (numbers_storage.limit.has_value())
-                return *(numbers_storage.limit) + numbers_storage.offset;
-            return {};
-        });
+    UInt128 total_size = sizeOfRanges(intersected_ranges);
 
-    /// Fall back to NumbersSource
-    /// Range in a single block
-    const auto block_range = max_block_size * numbers_storage.step;
-    /// Step between chunks in a single source.
-    /// It is bigger than block_range in case of multiple threads, because we have to account for other sources as well.
-    const auto step_between_chunks = num_streams * block_range;
+    /// limit total_size by query_limit only if ranges are exact
+    if (exact_ranges && limit && *limit < total_size)
+    {
+        total_size = *limit;
+        /// We should shrink intersected_ranges for case:
+        ///     intersected_ranges: [1, 4], [7, 100]; query_limit: 2
+        shrinkRanges(intersected_ranges, static_cast<size_t>(total_size));
+    }
+
+    NumbersLikeUtils::checkLimits(context->getSettingsRef(), size_t(total_size));
+
+    if (total_size / max_block_size < num_streams)
+        num_streams = static_cast<size_t>(total_size / max_block_size);
+
+    if (num_streams == 0)
+        num_streams = 1;
+
+    /// Ranges state, all streams will share the state.
+    auto ranges_state = std::make_shared<NumbersRangedSource::RangesState>();
     for (size_t i = 0; i < num_streams; ++i)
     {
-        const auto source_offset = i * block_range;
-        if (numbers_storage.limit.has_value() && *numbers_storage.limit < source_offset)
-            break;
+        auto source = std::make_shared<NumbersRangedSource>(
+            intersected_ranges, ranges_state, max_block_size, numbers_storage.step, numbers_storage.column_name);
 
-        const auto source_start = numbers_storage.offset + source_offset;
-
-        auto source = std::make_shared<NumbersSource>(
-            max_block_size,
-            source_start,
-            end,
-            numbers_storage.column_name,
-            numbers_storage.step,
-            step_between_chunks);
-
-        if (end && i == 0)
-        {
-            UInt64 rows_approx = itemCountInRange(numbers_storage.offset, *end, numbers_storage.step);
-            if (limit > 0 && limit < rows_approx)
-                rows_approx = query_info_limit;
-            source->addTotalRowsApprox(rows_approx);
-        }
+        if (i == 0)
+            source->addTotalRowsApprox(static_cast<size_t>(total_size));
 
         pipe.addSource(std::move(source));
     }
