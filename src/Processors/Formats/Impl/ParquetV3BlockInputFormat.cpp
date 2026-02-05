@@ -100,7 +100,7 @@ void ParquetV3BlockInputFormat::initializeIfNeeded()
             reader->reader.prefetcher.init(in, read_options, parser_shared_resources);
             if (metadata_cache && metadata.has_value())
             {
-                String file_name = metadata->getFileName();
+                String file_name = metadata->getPath();
                 String etag = metadata->metadata->etag;
                 ParquetMetadataCacheKey cache_key = ParquetMetadataCache::createKey(file_name, etag);
                 reader->reader.file_metadata = metadata_cache->getOrSetMetadata(cache_key, [&]() {
@@ -131,7 +131,7 @@ Chunk ParquetV3BlockInputFormat::read()
         temp_prefetcher.init(in, read_options, parser_shared_resources);
         if (metadata_cache && metadata.has_value())
         {
-            String file_name = metadata->getFileName();
+            String file_name = metadata->getPath();
             String etag = metadata->metadata->etag;
             ParquetMetadataCacheKey cache_key = ParquetMetadataCache::createKey(file_name, etag);
             file_metadata = metadata_cache->getOrSetMetadata(cache_key, [&]() {
@@ -142,6 +142,7 @@ Chunk ParquetV3BlockInputFormat::read()
         {
             file_metadata = Parquet::Reader::readFileMetaData(temp_prefetcher);
         }
+
 
         auto chunk = getChunkForCount(size_t(file_metadata.num_rows));
         chunk.getChunkInfos().add(std::make_shared<ChunkInfoRowNumbers>(0));
