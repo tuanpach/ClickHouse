@@ -1,9 +1,16 @@
 from praktika import Workflow
 
-from ci.defs.defs import BASE_BRANCH, DOCKERS, SECRETS, ArtifactConfigs
+from ci.defs.defs import BASE_BRANCH, DOCKERS, SECRETS, ArtifactConfigs, ArtifactNames
 from ci.defs.job_configs import JobConfigs
 from ci.jobs.scripts.workflow_hooks.filter_job import should_skip_job
 from ci.workflows.pull_request import REGULAR_BUILD_NAMES
+
+# Add long retention tags to specific artifacts
+clickhouse_binaries_with_tags = []
+for artifact in ArtifactConfigs.clickhouse_binaries:
+    if artifact.name in (ArtifactNames.CH_ARM_RELEASE, ArtifactNames.CH_AMD_DEBUG):
+        artifact = artifact.add_tags({"retention": "long"})
+    clickhouse_binaries_with_tags.append(artifact)
 
 workflow = Workflow.Config(
     name="MasterCI",
@@ -47,7 +54,7 @@ workflow = Workflow.Config(
     ],
     artifacts=[
         *ArtifactConfigs.unittests_binaries,
-        *ArtifactConfigs.clickhouse_binaries,
+        *clickhouse_binaries_with_tags,
         *ArtifactConfigs.clickhouse_debians,
         *ArtifactConfigs.clickhouse_rpms,
         *ArtifactConfigs.clickhouse_tgzs,

@@ -75,6 +75,7 @@ class S3:
         no_strict=False,
         content_type="",
         content_encoding="",
+        tags=None,
     ):
         assert Path(local_path).exists(), f"Path [{local_path}] does not exist"
         assert Path(s3_path), f"Invalid S3 Path [{s3_path}]"
@@ -93,6 +94,16 @@ class S3:
         if content_encoding:
             cmd += f" --content-encoding {content_encoding}"
         _ = cls.run_command_with_retries(cmd, no_strict=no_strict)
+
+        # Apply tags if provided
+        if tags:
+            bucket = s3_full_path.split("/")[0]
+            key = "/".join(s3_full_path.split("/")[1:])
+            # Format tags as Key1=Value1&Key2=Value2
+            tag_string = "&".join([f"{k}={v}" for k, v in tags.items()])
+            tag_cmd = f'aws s3api put-object-tagging --bucket {bucket} --key {key} --tagging "TagSet=[{",".join([f"{{Key={k},Value={v}}}" for k, v in tags.items()])}]"'
+            cls.run_command_with_retries(tag_cmd, no_strict=True)
+
         try:
             StorageUsage.add_uploaded(local_path)
         except Exception as e:

@@ -20,11 +20,20 @@ BUILD_TYPE_TO_STATIC_LOCATION = {
     BuildTypes.LOONGARCH64: "loongarch64",
 }
 
+BUILD_TYPE_TO_LONG_RETENTION_LOCATION = {
+    BuildTypes.ARM_RELEASE: "aarch64",
+    BuildTypes.AMD_DEBUG: "amd64_debug",
+}
+
 
 def check():
     info = Info()
     Shell.check("find ./ci/tmp/build/programs -type f", verbose=True)
-    if not info.pr_number and info.repo_name == "ClickHouse/ClickHouse":
+    if (
+        not info.pr_number
+        and info.repo_name == "ClickHouse/ClickHouse"
+        and info.git_branch == "master"
+    ):
         # Upload parser_memory_profiler from arm_binary build
         if BuildTypes.ARM_BINARY in info.job_name:
             parser_profiler_path = (
@@ -40,9 +49,9 @@ def check():
                 except Exception as e:
                     traceback.print_exc()
 
-        for build_type, prefix in BUILD_TYPE_TO_STATIC_LOCATION.items():
+        for build_type in BUILD_TYPE_TO_STATIC_LOCATION:
             if build_type in info.job_name:
-                print("Upload builds to static location")
+                print("Upload build to static location")
                 try:
                     S3.copy_file_to_s3(
                         local_path=f"./ci/tmp/build/programs/self-extracting/clickhouse",
@@ -59,6 +68,20 @@ def check():
                 except Exception as e:
                     traceback.print_exc()
                 return
+
+        for build_type in BUILD_TYPE_TO_LONG_RETENTION_LOCATION:
+            if build_type in info.job_name:
+                print("Upload build to long retention location")
+                try:
+                    S3.copy_file_to_s3(
+                        local_path=f"./ci/tmp/build/programs/self-extracting/clickhouse-stripped",
+                        s3_path=f"{S3_BUCKET_NAME}/long_retention/{BUILD_TYPE_TO_LONG_RETENTION_LOCATION[build_type]}/{info.sha}/clickhouse",
+                        with_rename=True,
+                    )
+                except AssertionError:
+                    raise
+                except Exception as e:
+                    traceback.print_exc()
         print(f"Not applicable for [{info.job_name}]")
     else:
         print(f"Not applicable")
