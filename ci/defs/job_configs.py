@@ -622,7 +622,7 @@ class JobConfigs:
             for batch in range(1, total_batches + 1)
         ]
     )
-    functional_tests_jobs_azure_master_only = (
+    functional_tests_jobs_azure = (
         common_ft_job_config.set_allow_merge_on_failure(True).parametrize(
             Job.ParamSet(
                 parameter="arm_asan, azure, parallel",
@@ -727,24 +727,9 @@ class JobConfigs:
         timeout=3600 * 2,
     ).parametrize(
         Job.ParamSet(
-            parameter="amd_asan",
+            parameter="amd_release",
             runs_on=RunnerLabels.FUNC_TESTER_AMD,
-            requires=[ArtifactNames.DEB_AMD_ASAN],
-        ),
-        Job.ParamSet(
-            parameter="amd_tsan",
-            runs_on=RunnerLabels.FUNC_TESTER_AMD,
-            requires=[ArtifactNames.DEB_AMD_TSAN],
-        ),
-        Job.ParamSet(
-            parameter="amd_msan",
-            runs_on=RunnerLabels.FUNC_TESTER_AMD,
-            requires=[ArtifactNames.DEB_AMD_MSAN],
-        ),
-        Job.ParamSet(
-            parameter="amd_debug",
-            runs_on=RunnerLabels.FUNC_TESTER_AMD,
-            requires=[ArtifactNames.DEB_AMD_DEBUG],
+            requires=[ArtifactNames.DEB_AMD_RELEASE],
         ),
     )
     # why it's master only?
