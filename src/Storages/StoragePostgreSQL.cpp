@@ -305,7 +305,18 @@ public:
                 }
             }
 
-            inserter->insert(row);
+            try
+            {
+                inserter->insert(row);
+            }
+            catch (const pqxx::argument_error & e)
+            {
+                /// libpqxx throws pqxx::argument_error when the string contains invalid UTF-8.
+                /// Since pqxx::argument_error is a std::invalid_argument, which is a std::logic_error,
+                /// and unhandled std::logic_error is treated as a "Logical error" with code 1001,
+                /// we need to wrap it into a DB::Exception.
+                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cannot insert data into PostgreSQL: {}", e.what());
+            }
         }
     }
 
@@ -375,6 +386,64 @@ public:
         }
         writeChar('}', ostr);
     }
+
+    static MutableColumnPtr createNested(DataTypePtr nested)
+    {
+        bool is_nullable = false;
+        if (nested->isNullable())
+        {
+            is_nullable = true;
+            nested = static_cast<const DataTypeNullable *>(nested.get())->getNestedType();
+        }
+
+        WhichDataType which(nested);
+        MutableColumnPtr nested_column;
+        if (which.isString() || which.isFixedString())   nested_column = ColumnString::create();
+        else if (which.isInt8() || which.isInt16())      nested_column = ColumnInt16::create();
+        else if (which.isUInt8() || which.isUInt16())    nested_column = ColumnUInt16::create();
+        else if (which.isInt32())                        nested_column = ColumnInt32::create();
+        else if (which.isUInt32())                       nested_column = ColumnUInt32::create();
+        else if (which.isInt64())                        nested_column = ColumnInt64::create();
+        else if (which.isUInt64())                       nested_column = ColumnUInt64::create();
+        else if (which.isFloat32())                      nested_column = ColumnFloat32::create();
+        else if (which.isFloat64())                      nested_column = ColumnFloat64::create();
+        else if (which.isDate())                         nested_column = ColumnUInt16::create();
+        else if (which.isDate32())                       nested_column = ColumnInt32::create();
+        else if (which.isDateTime())                     nested_column = ColumnUInt32::create();
+        else if (which.isUUID())                         nested_column = ColumnUUID::create();
+        else if (which.isDateTime64())
+        {
+            nested_column = ColumnDecimal<DateTime64>::create(0, 6);
+        }
+        else if (which.isDecimal32())
+        {
+            const auto & type = typeid_cast<const DataTypeDecimal<Decimal32> *>(nested.get());
+            nested_column = ColumnDecimal<Decimal32>::create(0, type->getScale());
+        }
+        else if (which.isDecimal64())
+        {
+            const auto & type = typeid_cast<const DataTypeDecimal<Decimal64> *>(nested.get());
+            nested_column = ColumnDecimal<Decimal64>::create(0, type->getScale());
+        }
+        else if (which.isDecimal128())
+        {
+            const auto & type = typeid_cast<const DataTypeDecimal<Decimal128> *>(nested.get());
+            nested_column = ColumnDecimal<Decimal128>::create(0, type->getScale());
+        }
+        else if (which.isDecimal256())
+        {
+            const auto & type = typeid_cast<const DataTypeDecimal<Decimal256> *>(nested.get());
+            nested_column = ColumnDecimal<Decimal256>::create(0, type->getScale());
+        }
+        else
+            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Type conversion not supported");
+
+        if (is_nullable)
+            return ColumnNullable::create(std::move(nested_column), ColumnUInt8::create(nested_column->size(), static_cast<UInt8>(0)));
+
+        return nested_column;
+    }
+
 
 private:
     struct Inserter
