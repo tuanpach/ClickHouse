@@ -1834,7 +1834,7 @@ protected:
     mutable std::mutex stats_mutex;
     ConditionSelectivityEstimatorPtr cached_estimator;
 
-    void startStatisticsCache(UInt64 refresh_statistics_seconds);
+    void startStatisticsCache();
     void refreshStatistics(UInt64 interval_seconds);
 
     static void incrementInsertedPartsProfileEvent(MergeTreeDataPartType type);
