@@ -135,6 +135,9 @@ bool ParserSubquery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
         return false;
     ++pos;
 
+    /// Lookahead for inner subquery
+    const bool possible_inner_subquery = pos->type == TokenType::OpeningRoundBracket;
+
     ASTPtr result_node = nullptr;
 
     if (ASTPtr select_node; select.parse(pos, select_node, expected))
@@ -191,7 +194,8 @@ bool ParserSubquery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
         return false;
     }
 
-    starts_with_valid_select_or_explain = result_node != nullptr;
+    /// Inner subquery should be handled separately
+    starts_with_valid_select_or_explain = !possible_inner_subquery && result_node != nullptr;
 
     if (pos->type != TokenType::ClosingRoundBracket)
         return false;
