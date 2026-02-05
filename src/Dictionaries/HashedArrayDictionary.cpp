@@ -792,16 +792,19 @@ void HashedArrayDictionary<dictionary_key_type, sharded>::getItemsImpl(
     ValueSetter && set_value,
     DefaultValueExtractor & default_value_extractor) const
 {
-    const auto & attribute_containers = std::get<AttributeContainerShardsType<AttributeType>>(attribute.containers);
-    const size_t keys_size = keys_extractor.getKeysSize();
+    /// Use raw pointers to avoid STL bounds checking in hot loop
+    const auto * attribute_containers = std::get<AttributeContainerShardsType<AttributeType>>(attribute.containers).data();
+    const auto * key_containers = key_attribute.containers.data();
+    const auto * is_index_null = is_nullable ? attribute.is_index_null->data() : nullptr;
 
+    const size_t keys_size = keys_extractor.getKeysSize();
     size_t keys_found = 0;
 
     for (size_t key_index = 0; key_index < keys_size; ++key_index)
     {
         auto key = keys_extractor.extractCurrentKey();
         auto shard = getShard(key);
-        const auto & key_attribute_container = key_attribute.containers[shard];
+        const auto & key_attribute_container = key_containers[shard];
         const auto & attribute_container = attribute_containers[shard];
 
         const auto it = key_attribute_container.find(key);
@@ -813,7 +816,7 @@ void HashedArrayDictionary<dictionary_key_type, sharded>::getItemsImpl(
             const auto & element = attribute_container[element_index];
 
             if constexpr (is_nullable)
-                set_value(key_index, element, (*attribute.is_index_null)[shard][element_index]);
+                set_value(key_index, element, is_index_null[shard][element_index]);
             else
                 set_value(key_index, element, false);
 
@@ -842,16 +845,22 @@ void HashedArrayDictionary<dictionary_key_type, sharded>::getItemsShortCircuitIm
     ValueSetter && set_value,
     IColumn::Filter & default_mask) const
 {
-    const auto & attribute_containers = std::get<AttributeContainerShardsType<AttributeType>>(attribute.containers);
+    /// Use raw pointers to avoid STL bounds checking in hot loop
+    const auto * attribute_containers = std::get<AttributeContainerShardsType<AttributeType>>(attribute.containers).data();
+    const auto * key_containers = key_attribute.containers.data();
+    const auto * is_index_null = is_nullable ? attribute.is_index_null->data() : nullptr;
+
     const size_t keys_size = keys_extractor.getKeysSize();
     default_mask.resize(keys_size);
+    auto * default_mask_ptr = default_mask.data();
+
     size_t keys_found = 0;
 
     for (size_t key_index = 0; key_index < keys_size; ++key_index)
     {
         auto key = keys_extractor.extractCurrentKey();
         auto shard = getShard(key);
-        const auto & key_attribute_container = key_attribute.containers[shard];
+        const auto & key_attribute_container = key_containers[shard];
         const auto & attribute_container = attribute_containers[shard];
 
         const auto it = key_attribute_container.find(key);
@@ -863,17 +872,17 @@ void HashedArrayDictionary<dictionary_key_type, sharded>::getItemsShortCircuitIm
             const auto & element = attribute_container[element_index];
 
             if constexpr (is_nullable)
-                set_value(key_index, element, (*attribute.is_index_null)[shard][element_index]);
+                set_value(key_index, element, is_index_null[shard][element_index]);
             else
                 set_value(key_index, element, false);
 
-            default_mask[key_index] = 0;
+            default_mask_ptr[key_index] = 0;
 
             ++keys_found;
         }
         else
         {
-            default_mask[key_index] = 1;
+            default_mask_ptr[key_index] = 1;
             set_value(key_index, AttributeType{}, true);
         }
 
@@ -892,8 +901,13 @@ void HashedArrayDictionary<dictionary_key_type, sharded>::getItemsImpl(
     ValueSetter && set_value,
     DefaultValueExtractor & default_value_extractor) const
 {
-    const auto & attribute_containers = std::get<AttributeContainerShardsType<AttributeType>>(attribute.containers);
+    /// Use raw pointers to avoid STL bounds checking in hot loop
+    const auto * attribute_containers = std::get<AttributeContainerShardsType<AttributeType>>(attribute.containers).data();
+    const auto * is_index_null = is_nullable ? attribute.is_index_null->data() : nullptr;
+
     const size_t keys_size = key_index_to_element_index.size();
+    const auto * key_index_ptr = key_index_to_element_index.data();
+
     size_t shard = 0;
 
     for (size_t key_index = 0; key_index < keys_size; ++key_index)
@@ -901,12 +915,12 @@ void HashedArrayDictionary<dictionary_key_type, sharded>::getItemsImpl(
         ssize_t element_index;
         if constexpr (sharded)
         {
-            element_index = key_index_to_element_index[key_index].first;
-            shard = key_index_to_element_index[key_index].second;
+            element_index = key_index_ptr[key_index].first;
+            shard = key_index_ptr[key_index].second;
         }
         else
         {
-            element_index = key_index_to_element_index[key_index];
+            element_index = key_index_ptr[key_index];
         }
 
         if (element_index != -1)
@@ -917,7 +931,7 @@ void HashedArrayDictionary<dictionary_key_type, sharded>::getItemsImpl(
             const auto & element = attribute_container[found_element_index];
 
             if constexpr (is_nullable)
-                set_value(key_index, element, (*attribute.is_index_null)[shard][found_element_index]);
+                set_value(key_index, element, is_index_null[shard][found_element_index]);
             else
                 set_value(key_index, element, false);
         }
@@ -939,8 +953,13 @@ void HashedArrayDictionary<dictionary_key_type, sharded>::getItemsShortCircuitIm
     ValueSetter && set_value,
     IColumn::Filter & default_mask [[maybe_unused]]) const
 {
-    const auto & attribute_containers = std::get<AttributeContainerShardsType<AttributeType>>(attribute.containers);
+    /// Use raw pointers to avoid STL bounds checking in hot loop
+    const auto * attribute_containers = std::get<AttributeContainerShardsType<AttributeType>>(attribute.containers).data();
+    const auto * is_index_null = is_nullable ? attribute.is_index_null->data() : nullptr;
+
     const size_t keys_size = key_index_to_element_index.size();
+    const auto * key_index_ptr = key_index_to_element_index.data();
+
     size_t shard = 0;
 
     for (size_t key_index = 0; key_index < keys_size; ++key_index)
@@ -948,12 +967,12 @@ void HashedArrayDictionary<dictionary_key_type, sharded>::getItemsShortCircuitIm
         ssize_t element_index;
         if constexpr (sharded)
         {
-            element_index = key_index_to_element_index[key_index].first;
-            shard = key_index_to_element_index[key_index].second;
+            element_index = key_index_ptr[key_index].first;
+            shard = key_index_ptr[key_index].second;
         }
         else
         {
-            element_index = key_index_to_element_index[key_index];
+            element_index = key_index_ptr[key_index];
         }
 
         if (element_index != -1)
@@ -964,7 +983,7 @@ void HashedArrayDictionary<dictionary_key_type, sharded>::getItemsShortCircuitIm
             const auto & element = attribute_container[found_element_index];
 
             if constexpr (is_nullable)
-                set_value(key_index, element, (*attribute.is_index_null)[shard][found_element_index]);
+                set_value(key_index, element, is_index_null[shard][found_element_index]);
             else
                 set_value(key_index, element, false);
         }
