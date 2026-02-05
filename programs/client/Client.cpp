@@ -727,17 +727,18 @@ String Client::getHelpHeader() const
     return fmt::format(
         "Usage: {0} [initial table definition] [--query <query>]\n"
         "{0} is a client application that is used to connect to ClickHouse.\n\n"
-        "It can run queries as command line tool if you pass queries as an argument or as interactive client. "
-        "Queries can run one at a time, or in a multiquery mode with --multiquery option. "
-        "To change settings you may use 'SET' statements and SETTINGS clause in queries or set them for a "
-        "session with corresponding {0} arguments.\n"
-        "'{0}' command will try to connect to clickhouse-server running on the same server. "
-        "If you have credentials set up, pass them with --user <username> --password <password> "
-        "or with --ask-password argument that will open command prompt.\n\n"
-        "This one will try to connect to tcp native port (9000) without encryption:\n"
+        "It can run queries as command line tool if you pass queries as an argument\n"
+        "or as interactive client.\n"
+        "Queries can run one at a time, or in a multiquery mode.\n"
+        "To change settings you may use SET statements and SETTINGS clause\n"
+        "in queries or set them for a session with corresponding arguments.\n"
+        "'{0}' command will try to connect to clickhouse-server running\n"
+        "on the same server. If you have credentials set up, pass them with\n"
+        "--user <username> --password <password> or with --ask-password argument\n"
+        "that will open command prompt.\n\n"
+        "Connect to tcp native port (9000) without encryption:\n"
         "    {0} --host clickhouse.example.com --password mysecretpassword\n"
-        "To connect to secure endpoint just set --secure argument. If you have "
-        "altered port set it with --port <your port>.\n"
+        "Connect to secure endpoint:\n"
         "    {0} --secure --host clickhouse.example.com --password mysecretpassword\n",
         app_name);
 }
@@ -746,12 +747,13 @@ String Client::getHelpHeader() const
 String Client::getHelpFooter() const
 {
     return fmt::format(
-        "Note: If you have clickhouse installed on your system you can use '{0}' "
-        "invocation with a dash.\n\n"
+        "Note: if clickhouse is installed, you can use '{0}' invocation with a dash.\n\n"
         "Example printing current longest running query on a server:\n"
-        "    {0} --query 'SELECT * FROM system.processes ORDER BY elapsed LIMIT 1 FORMAT Vertical'\n"
+        "    {0} --query \\\n"
+        "        'SELECT * FROM system.processes ORDER BY elapsed LIMIT 1 FORMAT Vertical'\n"
         "Example creating table and inserting data:\n"
-        "    {0} --multiquery --query 'CREATE TABLE t (a Int) ENGINE = Memory; INSERT INTO t VALUES (1), (2), (3)'\n",
+        "    {0} --multiquery --query \\\n"
+        "        'CREATE TABLE t (a Int) ENGINE = Memory; INSERT INTO t VALUES (1), (2), (3)'\n",
         app_name);
 }
 
