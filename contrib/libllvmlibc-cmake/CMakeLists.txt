@@ -341,11 +341,6 @@ set(LIBC_NAMESPACE "__llvm_libc")
 add_library(libllvmlibc ${SRCS})
 set_target_properties(libllvmlibc PROPERTIES FOLDER "contrib/libllvmlibc-cmake")
 
-target_compile_options(libllvmlibc PRIVATE
-    -ffp-contract=fast     # Allow FMA (fused multiply-add) optimizations
-    -fno-math-errno        # Don't set errno for math functions (we set LIBC_MATH_HAS_NO_ERRNO anyway)
-)
-
 set(LLVMLIBC_DEFS
     LIBC_NAMESPACE=${LIBC_NAMESPACE}
 
