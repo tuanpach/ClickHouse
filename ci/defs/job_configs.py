@@ -12,17 +12,19 @@ from ci.defs.defs import (
 )
 
 # macOS smoke test job - runs on GitHub-hosted macOS runners without Docker
+# no_aws=True because GitHub-hosted macOS runners have no AWS credentials;
+# the binary is downloaded via public HTTP inside the job script.
 common_macos_smoke_test_job_config = Job.Config(
     name=JobNames.MACOS_SMOKE_TEST,
     runs_on=[],  # from parametrize
     command="python3 ./ci/jobs/macos_smoke_test.py",
-    # No Docker - runs natively on macOS
+    no_aws=True,
     digest_config=Job.CacheDigestConfig(
         include_paths=[
             "./ci/jobs/macos_smoke_test.py",
         ],
     ),
-    timeout=600,  # 10 minutes should be enough for a smoke test
+    timeout=600,
 )
 
 LIMITED_MEM = Utils.physical_memory() - 2 * 1024**3
@@ -1173,15 +1175,17 @@ class JobConfigs:
         timeout=3600,
     )
     # macOS smoke tests - run on GitHub-hosted macOS runners (no Docker)
+    # No `requires` here because artifact download from S3 needs AWS credentials
+    # which are not available on GitHub-hosted macOS runners.
+    # The dependency on the build job is set via set_dependency in the workflow.
+    # The binary is downloaded via public HTTP inside the job script.
     macos_smoke_test_jobs = common_macos_smoke_test_job_config.parametrize(
         Job.ParamSet(
             parameter="arm_darwin",
             runs_on=RunnerLabels.MACOS_ARM,
-            requires=[ArtifactNames.CH_ARM_DARWIN_BIN],
         ),
         Job.ParamSet(
             parameter="amd_darwin",
             runs_on=RunnerLabels.MACOS_AMD,
-            requires=[ArtifactNames.CH_AMD_DARWIN_BIN],
         ),
     )

@@ -3,7 +3,8 @@
 macOS Smoke Test
 
 This script runs a basic smoke test for ClickHouse on native macOS.
-It starts the server and executes a simple query to verify the binary works.
+It downloads the pre-built binary via public HTTP (no AWS credentials needed),
+starts the server and executes a simple query to verify the binary works.
 """
 
 import os
@@ -11,7 +12,9 @@ import signal
 import time
 from pathlib import Path
 
+from ci.praktika._environment import _Environment
 from ci.praktika.result import Result
+from ci.praktika.runtime import RunConfig
 from ci.praktika.utils import Shell, Utils
 
 TEMP_DIR = Path(f"{Utils.cwd()}/ci/tmp")
@@ -19,6 +22,46 @@ BINARY_PATH = TEMP_DIR / "clickhouse"
 DATA_DIR = TEMP_DIR / "data"
 LOG_DIR = TEMP_DIR / "log"
 CONFIG_DIR = TEMP_DIR / "config"
+
+S3_BUCKET_HTTP_ENDPOINT = "clickhouse-builds.s3.amazonaws.com"
+
+
+def download_binary():
+    """Download the ClickHouse binary from the public S3 HTTP endpoint."""
+    env = _Environment.get()
+    job_name = env.JOB_NAME
+
+    if "arm_darwin" in job_name:
+        artifact_name = "CH_ARM_DARWIN_BIN"
+        build_job_name = "Build (arm_darwin)"
+    elif "amd_darwin" in job_name:
+        artifact_name = "CH_AMD_DARWIN_BIN"
+        build_job_name = "Build (amd_darwin)"
+    else:
+        raise RuntimeError(f"Cannot determine build type from job name: {job_name}")
+
+    # Resolve S3 prefix, taking cache into account
+    try:
+        run_config = RunConfig.from_workflow_data()
+        if artifact_name in run_config.cache_artifacts:
+            record = run_config.cache_artifacts[artifact_name]
+            prefix = _Environment.get_s3_prefix_static(
+                record.pr_number, record.branch, record.sha
+            )
+            print(f"Using cached artifact from {record}")
+        else:
+            prefix = env.get_s3_prefix()
+    except Exception as e:
+        print(f"WARNING: Failed to read cache config ({e}), using current prefix")
+        prefix = env.get_s3_prefix()
+
+    normalized_build_job = Utils.normalize_string(build_job_name)
+    url = f"https://{S3_BUCKET_HTTP_ENDPOINT}/{prefix}/{normalized_build_job}/clickhouse"
+    print(f"Downloading binary from {url}")
+    if not Shell.check(
+        f"curl --fail -L -o {BINARY_PATH} '{url}'", verbose=True
+    ):
+        raise RuntimeError(f"Failed to download binary from {url}")
 
 
 def prepare_directories():
@@ -100,17 +143,16 @@ def main():
     stopwatch = Utils.Stopwatch()
     test_results = []
 
-    # Check if binary exists
-    if not BINARY_PATH.exists():
+    # Download binary from public S3 HTTP endpoint
+    download_result = Result.from_commands_run(
+        name="Download binary",
+        command=download_binary,
+        with_info=True,
+    )
+    test_results.append(download_result)
+    if not download_result.is_ok():
         Result.create_from(
-            status=Result.Status.ERROR,
-            results=[
-                Result.create_from(
-                    name="Binary check",
-                    status=Result.Status.FAILED,
-                    info=f"Binary not found at {BINARY_PATH}",
-                )
-            ],
+            results=test_results,
             stopwatch=stopwatch,
         ).complete_job()
         return
