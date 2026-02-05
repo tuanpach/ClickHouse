@@ -482,10 +482,6 @@ ManifestFileContent::ManifestFileContent(
                             upper_reference_data_file_path = upper.safeGet<String>();
                     }
                 }
-                if (!bounds_set_by_referenced_data_file)
-                {
-                    throw Exception(ErrorCodes::ICEBERG_SPECIFICATION_VIOLATION, "Bounds are not set for position delete file entry");
-                }
                 this->position_deletes_files_without_deleted.emplace_back(
                     std::make_shared<ManifestFileEntry>(
                         file_path_key,
