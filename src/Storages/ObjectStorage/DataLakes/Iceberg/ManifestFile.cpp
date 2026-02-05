@@ -475,7 +475,6 @@ ManifestFileContent::ManifestFileContent(
                         it != value_for_bounds.end())
                     {
                         auto & [lower, upper] = it->second;
-                        bounds_set_by_referenced_data_file = true;
                         if (!lower.isNull())
                             lower_reference_data_file_path = lower.safeGet<String>();
                         if (!upper.isNull())
