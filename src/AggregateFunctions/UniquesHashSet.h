@@ -389,7 +389,7 @@ public:
                     }
 
                     if (buf[place_value] == x)
-                        return;
+                        continue;
 
                     buf[place_value] = x;
                     ++m_size;
