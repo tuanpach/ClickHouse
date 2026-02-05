@@ -183,7 +183,7 @@ public:
     /// The Glue catalog does not support such operation.
     virtual bool isTransactional() const { return false; }
 
-    virtual CredentialsRefreshCallback getCredentialsConfigurationCallback()
+    virtual CredentialsRefreshCallback getCredentialsConfigurationCallback(const DB::StorageID & /*storage_id*/)
     {
         return [] () -> std::shared_ptr<DataLake::IStorageCredentials>
         {

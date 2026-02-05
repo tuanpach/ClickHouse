@@ -441,7 +441,7 @@ UnityCatalog::UnityCatalog(
 {
 }
 
-ICatalog::CredentialsRefreshCallback UnityCatalog::getCredentialsConfigurationCallback()
+ICatalog::CredentialsRefreshCallback UnityCatalog::getCredentialsConfigurationCallback(const DB::StorageID &)
 {
     return [this] () -> std::shared_ptr<IStorageCredentials>
     {
