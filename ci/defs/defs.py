@@ -423,6 +423,7 @@ class ArtifactNames:
 
     ARM_FUZZERS = "ARM_FUZZERS"
     FUZZERS_CORPUS = "FUZZERS_CORPUS"
+    PARSER_MEMORY_PROFILER = "PARSER_MEMORY_PROFILER"
 
 
 LLVM_FT_NUM_BATCHES = 3
@@ -554,4 +555,9 @@ class ArtifactConfigs:
         name=ArtifactNames.FUZZERS_CORPUS,
         type=Artifact.Type.S3,
         path=f"{TEMP_DIR}/build/programs/*_seed_corpus.zip",
+    )
+    parser_memory_profiler = Artifact.Config(
+        name=ArtifactNames.PARSER_MEMORY_PROFILER,
+        type=Artifact.Type.S3,
+        path=f"{TEMP_DIR}/build/src/Parsers/examples/parser_memory_profiler",
     )
