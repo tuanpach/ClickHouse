@@ -77,7 +77,8 @@ SELECT query, projections FROM system.query_log WHERE query_id='<query_id>'
 
 ### Example pre-aggregation query {#example-pre-aggregation-query}
 
-Creating the table with the Projection:
+Create the table with projection `projection_visits_by_user`:
+
 ```sql
 CREATE TABLE visits
 (
@@ -96,7 +97,9 @@ CREATE TABLE visits
 ENGINE = MergeTree()
 ORDER BY user_agent
 ```
-Inserting the data:
+
+Insert the data:
+
 ```sql
 INSERT INTO visits SELECT
     number,
@@ -105,6 +108,7 @@ INSERT INTO visits SELECT
     'Android'
 FROM numbers(1, 100);
 ```
+
 ```sql
 INSERT INTO visits SELECT
     number,
@@ -113,7 +117,10 @@ INSERT INTO visits SELECT
    'IOS'
 FROM numbers(100, 500);
 ```
-We will execute a first query using `GROUP BY` using the field `user_agent`, this query will not use the projection defined as the pre-aggregation does not match.
+
+Execute a first query with `GROUP BY` using the field `user_agent`.
+This query will not use the projection defined as the pre-aggregation does not match.
+
 ```sql
 SELECT
     user_agent,
@@ -122,7 +129,8 @@ FROM visits
 GROUP BY user_agent
 ```
 
-To use the projection we could execute queries that select part of, or all of the pre-aggregation and `GROUP BY` fields.
+To make use of the projection you can execute queries that select part of, or all of the pre-aggregation and `GROUP BY` fields:
+
 ```sql
 SELECT
     user_agent
@@ -130,6 +138,7 @@ FROM visits
 WHERE user_id > 50 AND user_id < 150
 GROUP BY user_agent
 ```
+
 ```sql
 SELECT
     user_agent,
@@ -138,7 +147,10 @@ FROM visits
 GROUP BY user_agent
 ```
 
-As mentioned before, we could review the `system.query_log` table. On the `projections` field we have the name of the projection used or empty if none has been used:
+As previously mentioned, you can review the `system.query_log` table to understand if a projection was used.
+The `projections` field shows the name of the projection used.
+It will be empty if no projection has been used:
+
 ```sql
 SELECT query, projections FROM system.query_log WHERE query_id='<query_id>'
 ```
@@ -193,7 +205,11 @@ The following operations with [projections](/engines/table-engines/mergetree-fam
 
 ### ADD PROJECTION {#add-projection}
 
-`ALTER TABLE [db.]name [ON CLUSTER cluster] ADD PROJECTION [IF NOT EXISTS] name ( SELECT <COLUMN LIST EXPR> [GROUP BY] [ORDER BY] ) [WITH SETTINGS ( setting_name1 = setting_value1, setting_name2 = setting_value2, ...)]` - Adds projection description to tables metadata.
+Use the statement below to add a projection description to a tables metadata:
+
+```sql
+ALTER TABLE [db.]name [ON CLUSTER cluster] ADD PROJECTION [IF NOT EXISTS] name ( SELECT <COLUMN LIST EXPR> [GROUP BY] [ORDER BY] ) [WITH SETTINGS ( setting_name1 = setting_value1, setting_name2 = setting_value2, ...)]
+```
 
 #### `WITH SETTINGS` Clause {#with-settings}
 
@@ -216,19 +232,33 @@ Projection settings override the effective table settings for the projection, su
 
 ### DROP PROJECTION {#drop-projection}
 
-`ALTER TABLE [db.]name [ON CLUSTER cluster] DROP PROJECTION [IF EXISTS] name` - Removes projection description from tables metadata and deletes projection files from disk. Implemented as a [mutation](/sql-reference/statements/alter/index.md#mutations).
+Use the statement below to remove a projection description from a tables metadata and delete projection files from disk.
+This is implemented as a [mutation](/sql-reference/statements/alter/index.md#mutations).
+
+```sql
+ALTER TABLE [db.]name [ON CLUSTER cluster] DROP PROJECTION [IF EXISTS] name
+```
 
 ### MATERIALIZE PROJECTION {#materialize-projection}
 
-`ALTER TABLE [db.]table [ON CLUSTER cluster] MATERIALIZE PROJECTION [IF EXISTS] name [IN PARTITION partition_name]` - The query rebuilds the projection `name` in the partition `partition_name`. Implemented as a [mutation](/sql-reference/statements/alter/index.md#mutations).
+Use the statement below to rebuild the projection `name` in partition `partition_name`.
+This is implemented as a [mutation](/sql-reference/statements/alter/index.md#mutations).
+
+```sql
+ALTER TABLE [db.]table [ON CLUSTER cluster] MATERIALIZE PROJECTION [IF EXISTS] name [IN PARTITION partition_name]
+```
 
 ### CLEAR PROJECTION {#clear-projection}
 
-`ALTER TABLE [db.]table [ON CLUSTER cluster] CLEAR PROJECTION [IF EXISTS] name [IN PARTITION partition_name]` - Deletes projection files from disk without removing description. Implemented as a [mutation](/sql-reference/statements/alter/index.md#mutations).
+Use the statement below to delete projection files from disk without removing description.
+This is implemented as a [mutation](/sql-reference/statements/alter/index.md#mutations).
 
-The commands `ADD`, `DROP` and `CLEAR` are lightweight in a sense that they only change metadata or remove files.
+```sql
+ALTER TABLE [db.]table [ON CLUSTER cluster] CLEAR PROJECTION [IF EXISTS] name [IN PARTITION partition_name]
+```
 
-Also, they are replicated, syncing projections metadata via ClickHouse Keeper or ZooKeeper.
+The commands `ADD`, `DROP` and `CLEAR` are lightweight in the sense that they only change metadata or remove files.
+Additionally, they are replicated, and sync projection metadata via ClickHouse Keeper or ZooKeeper.
 
 :::note
 Projection manipulation is supported only for tables with [`*MergeTree`](/engines/table-engines/mergetree-family/mergetree.md) engine (including [replicated](/engines/table-engines/mergetree-family/replication.md) variants).
@@ -261,3 +291,8 @@ Below are the possible values for both `deduplicate_merge_projection_mode` and `
 - `throw` (default): An exception is thrown, preventing projection parts from going out of sync.
 - `drop`: Affected projection table parts are dropped. Queries will fall back to the original table part for affected projection parts.
 - `rebuild`: The affected projection part is rebuilt to stay consistent with data in the original table part.
+
+## See also {#see-also}
+- ["Control Of Projections During Merges" (Blogpost)](https://clickhouse.com/blog/clickhouse-release-24-08#control-of-projections-during-merges)
+- ["Projections" (guide)](/data-modeling/projections#using-projections-to-speed-up-UK-price-paid)
+- ["Materialized Views versus Projections"](https://clickhouse.com/docs/managing-data/materialized-views-versus-projections)
