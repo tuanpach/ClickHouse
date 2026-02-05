@@ -32,6 +32,7 @@ The table below shows the default type mapping when ClickHouse automatically inf
 | INTEGER       | [Int32](../../sql-reference/data-types/int-uint.md)     |
 | REAL          | [Float32](../../sql-reference/data-types/float.md)      |
 | TEXT          | [String](../../sql-reference/data-types/string.md)      |
+| TEXT          | [UUID](../../sql-reference/data-types/uuid.md)          |
 | BLOB          | [String](../../sql-reference/data-types/string.md)      |
 
 When you explicitly define a table with specific ClickHouse types using the [SQLite table engine](../../engines/table-engines/integrations/sqlite.md), the following ClickHouse types can be parsed from SQLite TEXT columns:
@@ -44,6 +45,8 @@ When you explicitly define a table with specific ClickHouse types using the [SQL
 - [FixedString](../../sql-reference/data-types/fixedstring.md)
 - All integer types ([UInt8, UInt16, UInt32, UInt64, Int8, Int16, Int32, Int64](../../sql-reference/data-types/int-uint.md))
 - [Float32, Float64](../../sql-reference/data-types/float.md)
+
+SQLite has dynamic typing, and its type access functions perform automatic type coercion. For example, reading a TEXT column as an integer will return 0 if the text cannot be parsed as a number. This means that if a ClickHouse table is defined with a different type than the underlying SQLite column, values may be silently coerced rather than causing an error.
 
 ## Specifics and recommendations {#specifics-and-recommendations}
 
