@@ -140,10 +140,6 @@
     https://github.com/ClickHouse/clickhouse-private/issues/17173
 03174_exact_rows_before_aggregation
 
-    https://github.com/ClickHouse/clickhouse-private/issues/14832
-02319_quantile_interpolated_weighted
-00753_quantile_format
-
     https://github.com/ClickHouse/clickhouse-private/issues/11666
 02941_any_RESPECT_NULL_sparse_column
 02662_first_last_value
