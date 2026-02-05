@@ -398,7 +398,7 @@ def test_commit_on_limit(started_cluster, processing_threads):
     def get_processed_files():
         return (
             node.query(
-                f"SELECT file_name FROM system.s3queue WHERE zookeeper_path ilike '%{table_name}%' and status = 'Processed' and rows_processed > 0 "
+                f"SELECT file_name FROM system.s3queue_metadata_cache WHERE zookeeper_path ilike '%{table_name}%' and status = 'Processed' and rows_processed > 0 "
             )
             .strip()
             .split("\n")
@@ -407,7 +407,7 @@ def test_commit_on_limit(started_cluster, processing_threads):
     def get_failed_files():
         return (
             node.query(
-                f"SELECT file_name FROM system.s3queue WHERE zookeeper_path ilike '%{table_name}%' and status = 'Failed'"
+                f"SELECT file_name FROM system.s3queue_metadata_cache WHERE zookeeper_path ilike '%{table_name}%' and status = 'Failed'"
             )
             .strip()
             .split("\n")
@@ -438,17 +438,17 @@ def test_commit_on_limit(started_cluster, processing_threads):
     finish_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     node.query("system flush logs")
     commit_id = node.query(
-        f"SELECT commit_id FROM system.s3queue_log WHERE file_name = '{files_path}/test_999999.csv'"
+        f"SELECT commit_id FROM system.s3queue_metadata_cache_log WHERE file_name = '{files_path}/test_999999.csv'"
     ).strip()
     assert len(commit_id) > 0
     commit_id_count = int(
         node.query(
-            f"SELECT count() FROM system.s3queue_log WHERE commit_id = {commit_id}"
+            f"SELECT count() FROM system.s3queue_metadata_cache_log WHERE commit_id = {commit_id}"
         ).strip()
     )
     assert files_to_generate + 5 == int(
         node.query(
-            f"SELECT count() FROM system.s3queue_log WHERE transaction_start_time >= toDateTime('{start_time}') and transaction_start_time <= toDateTime('{finish_time}')"
+            f"SELECT count() FROM system.s3queue_metadata_cache_log WHERE transaction_start_time >= toDateTime('{start_time}') and transaction_start_time <= toDateTime('{finish_time}')"
         ).strip()
     )
     # 11 and not 10, because failed file is not accounted in

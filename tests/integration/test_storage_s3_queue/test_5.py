@@ -408,7 +408,7 @@ def test_failed_commit(started_cluster):
     node.query("SYSTEM FLUSH LOGS")
     assert 0 == int(
         node.query(
-            f"SELECT count() FROM system.s3queue_log WHERE table = '{table_name}' and status = 'Processed'"
+            f"SELECT count() FROM system.s3queue_metadata_cache_log WHERE table = '{table_name}' and status = 'Processed'"
         )
     )
 
@@ -435,7 +435,7 @@ def test_failed_commit(started_cluster):
         node.query("SYSTEM FLUSH LOGS")
         processed = int(
             node.query(
-                f"SELECT count() FROM system.s3queue_log WHERE table = '{table_name}' and status = 'Processed'"
+                f"SELECT count() FROM system.s3queue_metadata_cache_log WHERE table = '{table_name}' and status = 'Processed'"
             )
         )
         if processed == 1:
@@ -445,7 +445,7 @@ def test_failed_commit(started_cluster):
     assert processed == 1
     assert 2 == int(
         node.query(
-            f"SELECT rows_processed FROM system.s3queue_log WHERE table = '{table_name}' and status = 'Processed'"
+            f"SELECT rows_processed FROM system.s3queue_metadata_cache_log WHERE table = '{table_name}' and status = 'Processed'"
         )
     )
 
@@ -508,14 +508,14 @@ def test_failure_in_the_middle(started_cluster):
         node.query("SYSTEM FLUSH LOGS")
         assert 0 == int(
             node.query(
-                f"SELECT count() FROM system.s3queue_log WHERE table = '{table_name}' and status = 'Processed'"
+                f"SELECT count() FROM system.s3queue_metadata_cache_log WHERE table = '{table_name}' and status = 'Processed'"
             )
         )
 
         for _ in range(20):
             if 0 < int(
                 node.query(
-                    f"SELECT count() FROM system.s3queue_log WHERE table = '{table_name}' and status = 'Failed' and exception ilike '%Failed to read file. Processed rows%'"
+                    f"SELECT count() FROM system.s3queue_metadata_cache_log WHERE table = '{table_name}' and status = 'Failed' and exception ilike '%Failed to read file. Processed rows%'"
                 )
             ):
                 break
@@ -523,7 +523,7 @@ def test_failure_in_the_middle(started_cluster):
 
         assert 0 < int(
             node.query(
-                f"SELECT count() FROM system.s3queue_log WHERE table = '{table_name}' and status = 'Failed' and exception ilike '%Failed to read file. Processed rows%'"
+                f"SELECT count() FROM system.s3queue_metadata_cache_log WHERE table = '{table_name}' and status = 'Failed' and exception ilike '%Failed to read file. Processed rows%'"
             )
         )
     finally:
@@ -541,7 +541,7 @@ def test_failure_in_the_middle(started_cluster):
         node.query("SYSTEM FLUSH LOGS")
         processed = int(
             node.query(
-                f"SELECT count() FROM system.s3queue_log WHERE table = '{table_name}' and status = 'Processed'"
+                f"SELECT count() FROM system.s3queue_metadata_cache_log WHERE table = '{table_name}' and status = 'Processed'"
             )
         )
         if processed == 1:
@@ -551,7 +551,7 @@ def test_failure_in_the_middle(started_cluster):
     assert processed == 1
     assert num_rows == int(
         node.query(
-            f"SELECT rows_processed FROM system.s3queue_log WHERE table = '{table_name}' and status = 'Processed'"
+            f"SELECT rows_processed FROM system.s3queue_metadata_cache_log WHERE table = '{table_name}' and status = 'Processed'"
         )
     )
     node.query(f"DROP TABLE {dst_table_name} SYNC")
@@ -839,11 +839,11 @@ def test_shutdown_order(started_cluster):
         "Failed to process data", f"StorageS3Queue(default.{table_name})"
     )
 
-    node.query(f"SYSTEM FLUSH LOGS system.s3queue_log")
+    node.query(f"SYSTEM FLUSH LOGS system.s3queue_metadata_cache_log")
 
     assert 0 == int(
         node.query(
-            f"SELECT count() FROM system.s3queue_log WHERE table = '{table_name}' and status = 'Failed'"
+            f"SELECT count() FROM system.s3queue_metadata_cache_log WHERE table = '{table_name}' and status = 'Failed'"
         )
     )
     new_table_name = f"{table_name}_new"
@@ -868,7 +868,7 @@ def test_shutdown_order(started_cluster):
     )
     assert 0 == int(
         node.query(
-            f"SELECT count() FROM system.s3queue_log WHERE table = '{table_name}' and status = 'Failed'"
+            f"SELECT count() FROM system.s3queue_metadata_cache_log WHERE table = '{table_name}' and status = 'Failed'"
         )
     )
 
