@@ -1,8 +1,9 @@
 #pragma once
 
 #include <Columns/ColumnObject.h>
-#include <DataTypes/DataTypeObject.h>
 #include <DataTypes/Serializations/SerializationObjectSharedData.h>
+#include <Common/re2.h>
+
 #include <list>
 
 namespace DB
