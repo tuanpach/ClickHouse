@@ -1019,7 +1019,7 @@ RangesInDataParts findPKRangesForFinalAfterSkipIndexImpl(RangesInDataParts & ran
 
         for (const auto & part_candidate_range : ranges)
         {
-            for (auto range_begin = std::max(part_candidate_range.begin, candidates_start); range_begin < std::min(part_candidate_range.end, candidates_end+1); range_begin++)
+            for (auto range_begin = std::max(part_candidate_range.begin, *candidates_start); range_begin < std::min(part_candidate_range.end, *candidates_end + 1); range_begin++)
             {
                 if (std::binary_search(part_selected_ranges[part_index].begin(), part_selected_ranges[part_index].end(), range_begin))
                     continue;
