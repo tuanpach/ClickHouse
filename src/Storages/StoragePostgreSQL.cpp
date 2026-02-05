@@ -401,6 +401,7 @@ public:
         else if (which.isFloat32())                      nested_column = ColumnFloat32::create();
         else if (which.isFloat64())                      nested_column = ColumnFloat64::create();
         else if (which.isDate())                         nested_column = ColumnUInt16::create();
+        else if (which.isDate32())                       nested_column = ColumnInt32::create();
         else if (which.isDateTime())                     nested_column = ColumnUInt32::create();
         else if (which.isUUID())                         nested_column = ColumnUUID::create();
         else if (which.isDateTime64())
