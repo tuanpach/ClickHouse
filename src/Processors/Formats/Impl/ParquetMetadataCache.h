@@ -23,13 +23,6 @@ namespace ProfileEvents
 {
     extern const Event ParquetMetadataCacheMisses;
     extern const Event ParquetMetadataCacheHits;
-    extern const Event ParquetMetadataCacheWeightLost;
-}
-
-namespace CurrentMetrics
-{
-    extern const Metric ParquetMetadataCacheBytes;
-    extern const Metric ParquetMetadataCacheFiles;
 }
 
 namespace DB

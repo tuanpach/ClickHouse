@@ -103,9 +103,8 @@ void ParquetV3BlockInputFormat::initializeIfNeeded()
                 String file_name = metadata->getPath();
                 String etag = metadata->metadata->etag;
                 ParquetMetadataCacheKey cache_key = ParquetMetadataCache::createKey(file_name, etag);
-                reader->reader.file_metadata = metadata_cache->getOrSetMetadata(cache_key, [&]() {
-                    return Parquet::Reader::readFileMetaData(reader->reader.prefetcher);
-                });
+                reader->reader.file_metadata = metadata_cache->getOrSetMetadata(
+                    cache_key, [&]() { return Parquet::Reader::readFileMetaData(reader->reader.prefetcher); });
             }
             else
             {
@@ -134,9 +133,8 @@ Chunk ParquetV3BlockInputFormat::read()
             String file_name = metadata->getPath();
             String etag = metadata->metadata->etag;
             ParquetMetadataCacheKey cache_key = ParquetMetadataCache::createKey(file_name, etag);
-            file_metadata = metadata_cache->getOrSetMetadata(cache_key, [&]() {
-                return Parquet::Reader::readFileMetaData(temp_prefetcher);
-            });
+            file_metadata
+                = metadata_cache->getOrSetMetadata(cache_key, [&]() { return Parquet::Reader::readFileMetaData(temp_prefetcher); });
         }
         else
         {

@@ -2,6 +2,17 @@
 
 #if USE_PARQUET
 
+namespace CurrentMetrics
+{
+extern const Metric ParquetMetadataCacheBytes;
+extern const Metric ParquetMetadataCacheFiles;
+}
+
+namespace ProfileEvents
+{
+extern const Event ParquetMetadataCacheWeightLost;
+}
+
 namespace DB
 {
 

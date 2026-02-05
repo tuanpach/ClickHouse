@@ -648,7 +648,7 @@ StorageObjectStorageSource::ReaderHolder StorageObjectStorageSource::createReade
             && context_->getSettingsRef()[Setting::input_format_parquet_use_native_reader_v3]
             && (object_info->getFileFormat().value_or(configuration->format) == "Parquet")
             && !object_info->getObjectMetadata()->etag.empty())
-        {  
+        {
             auto cache_log = getLogger("ParquetMetadataCache");
             LOG_DEBUG(cache_log, "setting mapping for {} -> {}", object_info->getPath(), object_info->getObjectMetadata()->etag);
             const std::optional<RelativePathWithMetadata> metadata = object_info->relative_path_with_metadata;
