@@ -245,8 +245,10 @@ void fillDataWithSettings(MutableColumns & res_columns, const ContextPtr & conte
     const auto & settings = context->getSettingsRef();
     const auto & setting_registered_names = settings.getAllRegisteredNames();
     const auto & setting_alias_names = settings.getAllAliasNames();
-    auto insertNames = [&](const auto & names) {
-        for(const auto & name : names) {
+    auto insertNames = [&](const auto & names) 
+    {
+        for(const auto & name : names) 
+        {
             res_columns[0]->insert(name);
             res_columns[1]->insert(SETTING_CONTEXT);
             res_columns[2]->insertDefault();
