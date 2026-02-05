@@ -144,47 +144,7 @@
 03040_recursive_cte_postgres_6
 03154_recursive_cte_distributed
 
-    WINDOW VIEW
-01047_window_view_parser_inner_table
-01048_window_view_parser
-01052_window_view_proc_tumble_to_now
-01053_window_view_proc_hop_to_now
-01054_window_view_proc_tumble_to
-01055_window_view_proc_hop_to
-01056_window_view_proc_hop_watch
-01057_window_view_event_tumble_to_strict_asc
-01058_window_view_event_hop_to_strict_asc
-01059_window_view_event_hop_watch_strict_asc
-01060_window_view_event_tumble_to_asc
-01061_window_view_event_hop_to_asc
-01062_window_view_event_hop_watch_asc
-01063_window_view_event_tumble_to_bounded
-01064_window_view_event_hop_to_bounded
-01065_window_view_event_hop_watch_bounded
-01066_window_view_event_tumble_to_strict_asc_lateness
-01067_window_view_event_tumble_to_asc_lateness
-01068_window_view_event_tumble_to_bounded_lateness
-01069_window_view_proc_tumble_watch
-01070_window_view_watch_events
-01071_window_view_event_tumble_asc_join
-01073_window_view_event_tumble_to_asc_populate
-01074_window_view_event_tumble_asc_join_populate
-01075_window_view_proc_tumble_to_now_populate
-01076_window_view_alter_query_to
-01077_window_view_alter_query_to_modify_source
-01078_window_view_alter_query_watch
-01079_window_view_inner_table_memory_tumble
-01080_window_view_inner_table_memory_hop
-01081_window_view_target_table_engine
-01082_window_view_watch_limit
-01083_window_view_select
-01084_window_view_with_table_identifier
-01087_window_view_alter_query
-01088_window_view_default_column
-
     analyzer=0 (partially supported)
-02918_join_pm_lc_crash
-01925_join_materialized_columns
 02962_join_using_bug_57894
 01049_join_low_card_bug_long.gen
 01721_join_implicit_cast_long.gen
@@ -337,9 +297,6 @@
     minor: formatted query in system.query_log
 02751_query_log_test_partitions
 
-    fail with parallel_replicas_local_plan=0
-    03155_in_nested_subselects
-
     max_memory_usage limit
     !!!(MEMORY_LIMIT_EXCEEDED) (version 25.1.1.3390 (official build)) (from [::1]:59776) (comment: 02782_uniq_exact_parallel_merging_bug.sh) (in query: select count(distinct s) from test_372i6d19.t settings max_memory_usage = \'50Mi\')
 02782_uniq_exact_parallel_merging_bug
@@ -378,16 +335,7 @@
     max rows: 2.00, current rows: 11.00
 01585_use_index_for_global_in_with_null
 
-00955_test_final_mark_use
 01624_soft_constraints
-03031_minmax_index_for_pointinpolygon
-
-    ORDER BY ALL is missing for multiple queries
-00326_long_function_multi_if
-00328_long_case_construction
-
-    GLOBAL JOIN duplicates
-00857_global_joinsavel_table_alias
 
     !!!Reason: Timeout!
 01666_merge_tree_max_query_limit
