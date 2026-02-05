@@ -30,6 +30,7 @@ Allows to connect to [SQLite](https://www.sqlite.org/index.html) database and pe
 | INTEGER       | [Int32](../../sql-reference/data-types/int-uint.md)     |
 | REAL          | [Float32](../../sql-reference/data-types/float.md)      |
 | TEXT          | [String](../../sql-reference/data-types/string.md)      |
+| TEXT          | [UUID](../../sql-reference/data-types/uuid.md)          |
 | BLOB          | [String](../../sql-reference/data-types/string.md)      |
 
 ## Specifics and recommendations {#specifics-and-recommendations}
