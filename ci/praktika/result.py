@@ -443,7 +443,7 @@ class Result(MetaClasses.Serializable):
 
             # Run pytest
             _res = Shell.get_output(full_command, verbose=True)
-            print(_f"Pytest command output:\n{_res}")
+            print(f"Pytest command output:\n{_res}")
             test_result = ResultTranslator.from_pytest_jsonl(
                 pytest_report_file=pytest_report_file
             )
