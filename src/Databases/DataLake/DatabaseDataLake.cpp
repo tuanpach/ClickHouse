@@ -94,6 +94,11 @@ namespace ErrorCodes
     extern const int LOGICAL_ERROR;
 }
 
+namespace FailPoints
+{
+    extern const char lightweight_show_tables[];
+}
+
 DatabaseDataLake::DatabaseDataLake(
     const std::string & database_name_,
     const std::string & url_,
@@ -442,6 +447,11 @@ StoragePtr DatabaseDataLake::tryGetTableImpl(const String & name, ContextPtr con
 {
     auto catalog = getCatalog();
     auto table_metadata = DataLake::TableMetadata().withSchema().withLocation().withDataLakeSpecificProperties();
+
+	fiu_do_on(FailPoints::lightweight_show_tables,
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+    });
 
     const bool with_vended_credentials = settings[DatabaseDataLakeSetting::vended_credentials].value;
     if (!lightweight && with_vended_credentials)
