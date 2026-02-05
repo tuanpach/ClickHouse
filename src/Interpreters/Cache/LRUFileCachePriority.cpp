@@ -89,12 +89,14 @@ IFileCachePriority::IteratorPtr LRUFileCachePriority::add( /// NOLINT
     KeyMetadataPtr key_metadata,
     size_t offset,
     size_t size,
-    const UserInfo &,
     const CachePriorityGuard::WriteLock & lock,
     const CacheStateGuard::Lock * state_lock,
     bool)
 {
-    return std::make_shared<LRUIterator>(add(std::make_shared<Entry>(key_metadata->key, offset, size, key_metadata), lock, state_lock));
+    return std::make_shared<LRUIterator>(add(
+        std::make_shared<Entry>(key_metadata->key, offset, size, key_metadata),
+        lock,
+        state_lock));
 }
 
 LRUFileCachePriority::LRUIterator LRUFileCachePriority::add(
@@ -167,7 +169,9 @@ LRUFileCachePriority::LRUIterator::LRUIterator(
     LRUQueue::iterator iterator_)
     : cache_priority(cache_priority_)
     , iterator(iterator_)
+    , entry(*iterator)
 {
+    assertValid();
 }
 
 LRUFileCachePriority::LRUIterator::LRUIterator(const LRUIterator & other)
@@ -175,13 +179,15 @@ LRUFileCachePriority::LRUIterator::LRUIterator(const LRUIterator & other)
     *this = other;
 }
 
-LRUFileCachePriority::LRUIterator & LRUFileCachePriority::LRUIterator::operator =(const LRUIterator & other)
+LRUFileCachePriority::LRUIterator &
+LRUFileCachePriority::LRUIterator::operator =(const LRUIterator & other)
 {
     if (this == &other)
         return *this;
 
     cache_priority = other.cache_priority;
     iterator = other.iterator;
+    entry = other.entry;
     return *this;
 }
 
@@ -219,13 +225,14 @@ LRUFileCachePriority::iterateImpl(
 
         //LOG_TEST(log, "Entry: {}", entry.toString());
 
-        auto is_evictable_state = [&](Entry::State entry_state) -> bool
+        auto is_evictable_state = [&]() -> bool
         {
-            switch (entry_state)
+            switch (entry.getState())
             {
                 case Entry::State::Active:
                 {
-                    return true;
+                    /// TODO: Inroduce a separate pre-Active state for zero size valid entries
+                    return entry.size > 0;
                 }
                 case Entry::State::Invalidated:
                 {
@@ -260,7 +267,7 @@ LRUFileCachePriority::iterateImpl(
         };
 
         /// Check state without locked key as an optimization.
-        if (!is_evictable_state(entry.getState()))
+        if (!is_evictable_state())
         {
             ++it;
             continue;
@@ -279,7 +286,7 @@ LRUFileCachePriority::iterateImpl(
         }
 
         /// Reread entry state under locked key.
-        if (!is_evictable_state(entry.getState()))
+        if (!is_evictable_state())
         {
             ++it;
             continue;
@@ -317,6 +324,7 @@ bool LRUFileCachePriority::canFit( /// NOLINT
     size_t elements,
     const CacheStateGuard::Lock & lock,
     IteratorPtr,
+    const OriginInfo &,
     bool) const
 {
     return canFit(size, elements, 0, 0, lock);
@@ -345,10 +353,10 @@ EvictionInfoPtr LRUFileCachePriority::collectEvictionInfo(
     IFileCachePriority::Iterator *,
     bool is_total_space_cleanup,
     bool is_dynamic_resize,
-    const IFileCachePriority::UserInfo & user_info,
+    const IFileCachePriority::OriginInfo & origin_info,
     const CacheStateGuard::Lock & lock)
 {
-    auto info = std::make_unique<QueueEvictionInfo>(description, user_info.user_id);
+    auto info = std::make_unique<QueueEvictionInfo>(description, origin_info.user_id);
     if (!size && !elements)
         return std::make_unique<EvictionInfo>(queue_id, std::move(info));
 
@@ -401,7 +409,7 @@ bool LRUFileCachePriority::collectCandidatesForEviction(
     bool continue_from_last_eviction_pos,
     size_t max_candidates_size,
     bool /* is_total_space_cleanup */,
-    const UserInfo &,
+    const OriginInfo &,
     CachePriorityGuard & cache_guard,
     CacheStateGuard &)
 {
@@ -533,7 +541,7 @@ IFileCachePriority::PriorityDumpPtr LRUFileCachePriority::dump(const CachePriori
         res.emplace_back(FileSegment::getInfo(segment_metadata->file_segment));
         return IterationResult::CONTINUE;
     }, stat, lock);
-    return std::make_shared<LRUPriorityDump>(res);
+    return std::make_shared<IPriorityDump>(res);
 }
 
 bool LRUFileCachePriority::modifySizeLimits(
@@ -580,12 +588,12 @@ bool LRUFileCachePriority::tryIncreasePriority(
 IFileCachePriority::EntryPtr LRUFileCachePriority::LRUIterator::getEntry() const
 {
     assertValid();
-    return *iterator;
+    return entry.lock();
 }
 
-bool LRUFileCachePriority::LRUIterator::isValid(const CachePriorityGuard::WriteLock &)
+bool LRUFileCachePriority::LRUIterator::isValid(const CachePriorityGuard::WriteLock &) const
 {
-    return iterator != LRUQueue::iterator{};
+    return entry.lock() != nullptr && iterator != LRUQueue::iterator{};
 }
 
 void LRUFileCachePriority::LRUIterator::remove(const CachePriorityGuard::WriteLock & lock)
@@ -597,44 +605,47 @@ void LRUFileCachePriority::LRUIterator::remove(const CachePriorityGuard::WriteLo
 
 void LRUFileCachePriority::LRUIterator::invalidate()
 {
-    assertValid();
-
-    const auto & entry = *iterator;
-    if (entry->size)
-    {
-        cache_priority->state->sub(entry->size, 1);
-        entry->size = 0;
-    }
+    auto entry_ptr = entry.lock();
+    chassert(entry_ptr);
 
     LOG_TEST(cache_priority->log,
              "Invalidating entry in LRU queue {}: {}",
-             entry->toString(), cache_priority->getApproxStateInfoForLog());
+             entry_ptr->toString(), cache_priority->getApproxStateInfoForLog());
 
-    entry->setInvalidatedFlag();
+    size_t entry_size = entry_ptr->size;
+    entry_ptr->size = 0;
+    entry_ptr->setInvalidatedFlag();
+
+    if (entry_size)
+        cache_priority->state->sub(entry_size, 1);
 }
 
-void LRUFileCachePriority::LRUIterator::incrementSize(size_t size, const CacheStateGuard::Lock & lock)
+void LRUFileCachePriority::LRUIterator::incrementSize(
+    size_t size,
+    const CacheStateGuard::Lock & lock)
 {
     chassert(size);
     assertValid();
 
-    const auto & entry = *iterator;
-    size_t elements = entry->size > 0 ? 0 : 1;
+    auto entry_ptr = entry.lock();
+    chassert(entry_ptr);
+
+    size_t elements = entry_ptr->size > 0 ? 0 : 1;
 
     if (!cache_priority->canFit(size, elements, lock))
     {
         throw Exception(ErrorCodes::LOGICAL_ERROR,
                         "Cannot increment size by {} for entry {}. Current state: {}",
-                        size, entry->toString(), cache_priority->getStateInfoForLog(lock));
+                        size, entry_ptr->toString(), cache_priority->getStateInfoForLog(lock));
     }
 
     LOG_TEST(
         cache_priority->log,
         "Incrementing size with {} in LRU queue for entry {}",
-        size, entry->toString());
+        size, entry_ptr->toString());
 
     cache_priority->state->add(size, elements, lock);
-    entry->size += size;
+    entry_ptr->size += size;
 
     cache_priority->check(lock);
 }
@@ -643,22 +654,31 @@ void LRUFileCachePriority::LRUIterator::decrementSize(size_t size)
 {
     assertValid();
 
-    const auto & entry = *iterator;
-    chassert(entry->size >= 0);
-    chassert(entry->size >= size);
+    auto entry_ptr = entry.lock();
+    chassert(entry_ptr);
+    chassert(entry_ptr->size >= 0);
+    chassert(entry_ptr->size >= size);
 
     LOG_TEST(cache_priority->log,
              "Decrement size with {} in LRU queue entry {}",
-             size, entry->toString());
+             size, entry_ptr->toString());
 
     cache_priority->state->sub(size, 0);
-    entry->size -= size;
+    entry_ptr->size -= size;
 }
 
 bool LRUFileCachePriority::LRUIterator::assertValid() const
 {
-    if (iterator == LRUQueue::iterator{})
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Attempt to use invalid iterator");
+    const bool is_iterator_valid = iterator != LRUQueue::iterator{};
+    auto entry_ptr = entry.lock();
+    if (!entry_ptr || !is_iterator_valid)
+    {
+        throw Exception(
+            ErrorCodes::LOGICAL_ERROR,
+            "Attempt to use invalid iterator (entry: {}, iterator: {})",
+            bool(entry_ptr), is_iterator_valid);
+    }
+    chassert(entry_ptr == *iterator);
     return true;
 }
 

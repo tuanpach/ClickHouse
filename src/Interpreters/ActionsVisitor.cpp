@@ -98,7 +98,7 @@ static NamesAndTypesList::iterator findColumn(const String & name, NamesAndTypes
 namespace
 {
 std::pair<Field, DataTypePtr> buildCollectionFieldAndTypeFromASTFunction(
-    const std::shared_ptr<ASTFunction> & func, ContextPtr context)
+    const boost::intrusive_ptr<ASTFunction> & func, ContextPtr context)
 {
     if (!func)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "IN: empty function AST for constant set");
@@ -207,7 +207,7 @@ ColumnsWithTypeAndName createBlockForSet(
   */
 ColumnsWithTypeAndName createBlockForSet(
     const DataTypePtr & left_arg_type,
-    const std::shared_ptr<ASTFunction> & right_arg,
+    const boost::intrusive_ptr<ASTFunction> & right_arg,
     ContextPtr context)
 {
     GetSetElementParams params{
@@ -237,7 +237,7 @@ FutureSetPtr makeExplicitSet(
     const auto & dag_node = actions.findInOutputs(column_name);
     const DataTypePtr & left_arg_type = dag_node.result_type;
 
-    const auto & right_arg_func = std::dynamic_pointer_cast<ASTFunction>(right_arg);
+    const auto & right_arg_func = boost::dynamic_pointer_cast<ASTFunction>(right_arg);
 
     ColumnsWithTypeAndName block;
     if (right_arg_func && (right_arg_func->name == "tuple" || right_arg_func->name == "array"))
@@ -609,7 +609,7 @@ ASTs ActionsMatcher::doUntuple(const ASTFunction * function, ActionsMatcher::Dat
         if (tid != 0)
             tuple_ast = tuple_ast->clone();
 
-        auto literal = std::make_shared<ASTLiteral>(UInt64{++tid});
+        auto literal = make_intrusive<ASTLiteral>(UInt64{++tid});
         visit(*literal, literal, data);
 
         auto func = makeASTOperator("tupleElement", tuple_ast, literal);
@@ -678,7 +678,7 @@ void ActionsMatcher::visit(const ASTIdentifier & identifier, const ASTPtr &, Dat
         }
 
         /// Special check for WITH statement alias. Add alias action to be able to use this alias.
-        if (identifier.prefer_alias_to_column_name && !identifier.alias.empty())
+        if (identifier.preferAliasToColumnName() && !identifier.alias.empty())
             data.addAlias(identifier.name(), identifier.alias);
     }
 }
@@ -687,12 +687,12 @@ namespace
 {
 void checkFunctionHasEmptyNullsAction(const ASTFunction & node)
 {
-    if (node.nulls_action != NullsAction::EMPTY)
+    if (node.getNullsAction() != NullsAction::EMPTY)
         throw Exception(
             ErrorCodes::SYNTAX_ERROR,
             "Function {} cannot use {} NULLS",
             node.name,
-            node.nulls_action == NullsAction::IGNORE_NULLS ? "IGNORE" : "RESPECT");
+            node.getNullsAction() == NullsAction::IGNORE_NULLS ? "IGNORE" : "RESPECT");
 }
 }
 
@@ -858,7 +858,7 @@ void ActionsMatcher::visit(const ASTFunction & node, const ASTPtr & ast, Data & 
     }
 
     // Now we need to correctly process window functions and any expression which depend on them.
-    if (node.is_window_function)
+    if (node.isWindowFunction())
     {
         // Also add columns from PARTITION BY and ORDER BY of window functions.
         if (node.window_definition)
@@ -883,7 +883,7 @@ void ActionsMatcher::visit(const ASTFunction & node, const ASTPtr & ast, Data & 
         // aggregate functions.
         return;
     }
-    if (node.compute_after_window_functions)
+    if (node.computeAfterWindowFunctions())
     {
         if (!data.build_expression_with_window_functions)
         {

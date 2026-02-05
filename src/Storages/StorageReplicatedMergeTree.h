@@ -1,19 +1,5 @@
 #pragma once
 
-#include <atomic>
-#include <expected>
-
-#include <base/UUID.h>
-#include <base/defines.h>
-#include <pcg_random.hpp>
-
-#include <Common/EventNotifier.h>
-#include <Common/ProfileEventsScope.h>
-#include <Common/Throttler.h>
-#include <Common/ZooKeeper/ZooKeeper.h>
-#include <Common/ZooKeeper/ZooKeeperRetries.h>
-#include <Common/randomSeed.h>
-#include <Core/BackgroundSchedulePool.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Interpreters/Cluster.h>
 #include <Interpreters/PartLog.h>
@@ -45,6 +31,19 @@
 #include <Storages/MergeTree/ReplicatedTableStatus.h>
 #include <Storages/RenamingRestrictions.h>
 #include <Storages/TableZnodeInfo.h>
+#include <Core/BackgroundSchedulePool.h>
+#include <Common/EventNotifier.h>
+#include <Common/ProfileEventsScope.h>
+#include <Common/Throttler.h>
+#include <Common/ZooKeeper/ZooKeeper.h>
+#include <Common/ZooKeeper/ZooKeeperRetries.h>
+#include <Common/randomSeed.h>
+#include <base/UUID.h>
+#include <base/defines.h>
+
+#include <atomic>
+#include <expected>
+#include <pcg_random.hpp>
 
 
 namespace DB
@@ -1014,7 +1013,7 @@ private:
 
     struct DataValidationTasks : public IStorage::DataValidationTasksBase
     {
-        explicit DataValidationTasks(DataPartsVector && parts_, ReplicatedMergeTreePartCheckThread::TemporaryPause && pause_)
+        explicit DataValidationTasks(DataPartsVector && parts_, BackgroundSchedulePoolPausableTask::PauseHolderPtr && pause_)
             : pause(std::move(pause_)), parts(std::move(parts_)), it(parts.begin())
         {}
 
@@ -1034,7 +1033,7 @@ private:
 
         /// Pauses the part check thread while this object exists.
         /// Safe to destroy from any thread (unlike unique_lock which has thread affinity).
-        ReplicatedMergeTreePartCheckThread::TemporaryPause pause;
+        BackgroundSchedulePoolPausableTask::PauseHolderPtr pause;
 
         mutable std::mutex mutex;
         DataPartsVector parts;

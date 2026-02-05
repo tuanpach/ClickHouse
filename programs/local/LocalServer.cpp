@@ -408,7 +408,7 @@ void LocalServer::tryInitPath()
 
     global_context->setPath(fs::path(path) / "");
 
-    global_context->setTemporaryStoragePath(fs::path(path) / "tmp" / "", 0);
+    global_context->setTemporaryStoragePath(fs::path(path) / "tmp" / "", 1_GiB);
     global_context->setFlagsPath(fs::path(path) / "flags" / "");
 
     global_context->setUserFilesPath(""); /// user's files are everywhere
@@ -827,7 +827,7 @@ void LocalServer::processConfig()
     size_t max_server_memory_usage = server_settings[ServerSetting::max_server_memory_usage];
     const double max_server_memory_usage_to_ram_ratio = server_settings[ServerSetting::max_server_memory_usage_to_ram_ratio];
     const size_t physical_server_memory = getMemoryAmount();
-    const size_t default_max_server_memory_usage = static_cast<size_t>(physical_server_memory * max_server_memory_usage_to_ram_ratio);
+    const size_t default_max_server_memory_usage = static_cast<size_t>(static_cast<double>(physical_server_memory) * max_server_memory_usage_to_ram_ratio);
 
     if (max_server_memory_usage == 0)
     {
@@ -854,7 +854,7 @@ void LocalServer::processConfig()
     total_memory_tracker.setMetric(CurrentMetrics::MemoryTracking);
 
     const double cache_size_to_ram_max_ratio = server_settings[ServerSetting::cache_size_to_ram_max_ratio];
-    const size_t max_cache_size = static_cast<size_t>(physical_server_memory * cache_size_to_ram_max_ratio);
+    const size_t max_cache_size = static_cast<size_t>(static_cast<double>(physical_server_memory) * cache_size_to_ram_max_ratio);
 
     String uncompressed_cache_policy = server_settings[ServerSetting::uncompressed_cache_policy];
     size_t uncompressed_cache_size = server_settings[ServerSetting::uncompressed_cache_size];
