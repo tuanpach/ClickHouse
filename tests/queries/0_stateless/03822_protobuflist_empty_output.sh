@@ -30,7 +30,7 @@ else
 fi
 
 # Now read the file back via INSERT INTO ... FORMAT and make sure we get 0 rows, not a ghost row
-$CLICKHOUSE_CLIENT --query "INSERT INTO t_protobuflist_empty_roundtrip FORMAT ProtobufList SETTINGS format_schema = '$SCHEMADIR/03822_protobuflist_empty:Message'" < "$BINARY_FILE"
+$CLICKHOUSE_CLIENT --throw_if_no_data_to_insert=0 --query "INSERT INTO t_protobuflist_empty_roundtrip SETTINGS format_schema = '$SCHEMADIR/03822_protobuflist_empty:Message' FORMAT ProtobufList" < "$BINARY_FILE"
 ROWS=$($CLICKHOUSE_CLIENT --query "SELECT count() FROM t_protobuflist_empty_roundtrip")
 if [ "$ROWS" -eq 0 ]; then
     echo "OK: reading empty output gives 0 rows"

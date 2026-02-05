@@ -47,7 +47,13 @@ bool ProtobufListInputFormat::readRow(MutableColumns & columns, RowReadExtension
     if (!row_num)
     {
         serializer->setColumns(columns.data(), columns.size());
-        /// Start the outer message before checking eof.
+
+        /// Check for EOF before starting to read the envelope message.
+        /// An empty input (0 bytes) is valid and means 0 rows.
+        if (reader->eof())
+            return false;
+
+        /// Start the outer message before checking eof below.
         /// This is needed because the eof check relies on knowing the message bounds.
         serializer->startReading();
     }
