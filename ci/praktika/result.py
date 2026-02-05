@@ -448,7 +448,7 @@ class Result(MetaClasses.Serializable):
                 pytest_report_file=pytest_report_file
             )
             if "!!!!!!! xdist.dsession.Interrupted: session-timeout:" in _res:
-                test_result.set_info("session-timeout occurred during test execution")
+                test_result.info = "session-timeout occurred during test execution"
 
         return Result.create_from(
             name=name,
