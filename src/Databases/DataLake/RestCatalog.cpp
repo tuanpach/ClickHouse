@@ -1,7 +1,6 @@
 #include <Poco/JSON/Object.h>
 #include <Poco/Net/HTTPRequest.h>
-#include "Common/Logger.h"
-#include "Common/logger_useful.h"
+#include <Common/Logger.h>
 #include <Common/setThreadName.h>
 #include <Storages/ObjectStorage/DataLakes/Iceberg/IcebergWrites.h>
 #include <Databases/DataLake/Common.h>
