@@ -1705,9 +1705,9 @@ std::string_view getBaseNodeName(std::string_view path)
 }
 
 /// Thread-local storage for current component name
-static thread_local std::string_view current_component;
+static thread_local StaticString current_component;
 
-ComponentGuard::ComponentGuard(std::string_view component)
+ComponentGuard::ComponentGuard(StaticString component)
     : previous_component(current_component)
 {
     current_component = component;
@@ -1718,7 +1718,7 @@ ComponentGuard::~ComponentGuard()
     current_component = previous_component;
 }
 
-std::string_view getCurrentComponent()
+StaticString getCurrentComponent()
 {
     return current_component;
 }

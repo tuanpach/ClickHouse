@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Common/ZooKeeper/ZooKeeperConstants.h>
+#include <Common/StaticString.h>
 #include <Interpreters/ZooKeeperLog.h>
 
 #include <vector>
@@ -884,7 +885,7 @@ std::string_view getBaseNodeName(std::string_view path);
 class ComponentGuard
 {
 public:
-    explicit ComponentGuard(std::string_view component);
+    explicit ComponentGuard(StaticString component);
     ~ComponentGuard();
 
     ComponentGuard(const ComponentGuard &) = delete;
@@ -893,21 +894,15 @@ public:
     ComponentGuard & operator=(ComponentGuard &&) = delete;
 
 private:
-    std::string_view previous_component;
+    StaticString previous_component;
 };
 
 /// Sets component name (must be a compile-time string literal) and returns RAII guard
-template <typename T>
-[[nodiscard]] ComponentGuard setCurrentComponent(const T & component)
+[[nodiscard]] inline ComponentGuard setCurrentComponent(StaticString component)
 {
-    /// Component name must be a compile-time string literal
-    static_assert(!std::is_same_v<std::string, std::decay_t<T>>, "Component must be a string literal, not std::string");
-    static_assert(std::is_nothrow_convertible_v<T, const char * const>, "Component must be convertible to const char*");
-    static_assert(!std::is_pointer_v<T>, "Component must be a string literal, not a pointer");
-
-    return ComponentGuard(std::string_view(component));
+    return ComponentGuard(component);
 }
 
-std::string_view getCurrentComponent();
+StaticString getCurrentComponent();
 
 }

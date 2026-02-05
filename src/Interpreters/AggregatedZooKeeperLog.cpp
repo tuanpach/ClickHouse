@@ -78,7 +78,7 @@ void AggregatedZooKeeperLogElement::appendToBlock(MutableColumns & columns) cons
     columns[i++]->insert(count);
     errors->dumpToMapColumn(&typeid_cast<DB::ColumnMap &>(*columns[i++]));
     columns[i++]->insert(static_cast<Float64>(total_latency_microseconds) / count);
-    columns[i++]->insert(component);
+    columns[i++]->insert(component.view());
 }
 
 void AggregatedZooKeeperLog::stepFunction(TimePoint current_time)
@@ -111,7 +111,7 @@ void AggregatedZooKeeperLog::observe(
     const std::filesystem::path & path,
     UInt64 latency_microseconds,
     Coordination::Error error,
-    std::string_view component)
+    StaticString component)
 {
     std::lock_guard lock(stats_mutex);
 
@@ -130,7 +130,9 @@ size_t AggregatedZooKeeperLog::EntryKeyHash::operator()(const EntryKey & entry_k
     hash.update(entry_key.session_id);
     hash.update(entry_key.operation);
     hash.update(entry_key.parent_path);
-    hash.update(entry_key.component);
+    auto component_view = entry_key.component.view();
+    if (!component_view.empty())
+        hash.update(component_view);
     return hash.get64();
 }
 

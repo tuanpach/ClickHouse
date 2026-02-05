@@ -1964,7 +1964,7 @@ void ZooKeeper::logOperationIfNeeded(const ZooKeeperRequestPtr &, const ZooKeepe
 {}
 #endif
 
-void ZooKeeper::observeOperation(const ZooKeeperRequest * request, const Response * response, UInt64 elapsed_microseconds, std::string_view component)
+void ZooKeeper::observeOperation(const ZooKeeperRequest * request, const Response * response, UInt64 elapsed_microseconds, StaticString component)
 {
     chassert(response);
 

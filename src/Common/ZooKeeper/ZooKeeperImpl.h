@@ -281,7 +281,7 @@ private:
         ZooKeeperRequestPtr request;
         ResponseCallback callback;
         WatchCallbackPtrOrEventPtr watch;
-        std::string_view component;
+        StaticString component;
     };
 
     using RequestsQueue = ConcurrentBoundedQueue<RequestInfo>;
@@ -356,7 +356,7 @@ private:
     void logOperationIfNeeded(const ZooKeeperRequestPtr & request, const ZooKeeperResponsePtr & response = nullptr, bool finalize = false, UInt64 elapsed_microseconds = 0);
 
     /// Observes the operation in Aggregated ZooKeeper Log.
-    void observeOperation(const ZooKeeperRequest * request, const Response * response, UInt64 elapsed_microseconds, std::string_view component);
+    void observeOperation(const ZooKeeperRequest * request, const Response * response, UInt64 elapsed_microseconds, StaticString component);
 
     std::optional<String> tryGetSystemZnode(const std::string & path, const std::string & description);
 

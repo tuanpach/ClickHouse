@@ -5,6 +5,7 @@
 #include <Interpreters/PeriodicLog.h>
 #include <Common/ZooKeeper/ErrorCounter.h>
 #include <Common/ZooKeeper/ZooKeeperConstants.h>
+#include <Common/StaticString.h>
 #include <Storages/ColumnsDescription.h>
 
 namespace DB
@@ -17,7 +18,7 @@ struct AggregatedZooKeeperLogElement
     Int64 session_id;
     String parent_path;
     Int32 operation;
-    std::string_view component;
+    StaticString component;
 
     /// Group statistics.
     UInt32 count;
@@ -44,7 +45,7 @@ public:
         const std::filesystem::path & path,
         UInt64 latency_microseconds,
         Coordination::Error error,
-        std::string_view component);
+        StaticString component);
 
 private:
     struct EntryKey
@@ -52,7 +53,7 @@ private:
         Int64 session_id;
         Int32 operation;
         String parent_path;
-        std::string_view component;
+        StaticString component;
 
         bool operator==(const EntryKey & other) const = default;
     };
