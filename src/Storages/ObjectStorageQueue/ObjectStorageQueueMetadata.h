@@ -9,6 +9,7 @@
 #include <Storages/ObjectStorageQueue/ObjectStorageQueueOrderedFileMetadata.h>
 #include <Storages/ObjectStorageQueue/ObjectStorageQueueTableMetadata.h>
 #include <Storages/ObjectStorageQueue/ObjectStorageQueueFilenameParser.h>
+#include <Common/HashTable/Hash.h>
 #include <Common/CacheBase.h>
 #include <Common/ZooKeeper/ZooKeeper.h>
 #include <Common/ZooKeeper/ZooKeeperRetries.h>
@@ -28,7 +29,10 @@ struct ObjectStorageQueueMetadataCacheWeightFunction
 {
     size_t operator()(const ObjectStorageQueueIFileMetadata::FileStatus & cell) const
     {
-        return sizeof(cell);
+        return sizeof(cell)
+            + sizeof(UInt128) /// Cache key
+            + cell.path.capacity()
+            + cell.getException().capacity();
     }
 };
 
@@ -58,7 +62,11 @@ class ObjectStorageQueueMetadata
 {
 public:
     using FileMetadataPtr = std::shared_ptr<ObjectStorageQueueIFileMetadata>;
-    using FileStatusesCache = CacheBase<std::string, ObjectStorageQueueIFileMetadata::FileStatus, std::hash<String>, ObjectStorageQueueMetadataCacheWeightFunction>;
+    using FileStatusesCache = CacheBase<
+        UInt128,
+        ObjectStorageQueueIFileMetadata::FileStatus,
+        UInt128TrivialHash,
+        ObjectStorageQueueMetadataCacheWeightFunction>;
     using Bucket = size_t;
     using Processor = std::string;
 

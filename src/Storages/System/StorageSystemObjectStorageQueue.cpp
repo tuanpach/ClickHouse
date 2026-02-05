@@ -51,10 +51,11 @@ void StorageSystemObjectStorageQueue<type>::fillData(MutableColumns & res_column
             continue;
 
         auto cache = metadata->getFileStatusesCache().dump();
-        for (const auto & [file_path, file_status] : cache)
+        for (const auto & [_, file_status] : cache)
         {
             size_t i = 0;
             res_columns[i++]->insert(zookeeper_path);
+            const auto file_path = file_status->path;
             res_columns[i++]->insert(file_path);
             res_columns[i++]->insert(std::filesystem::path(file_path).filename().string());
 

@@ -80,11 +80,18 @@ namespace
         LOG_TEST(getLogger("ObjectStorageQueueMetadata"), "Reschedule interval: {}", interval);
         return interval;
     }
-}
 
-static bool isUnordered(ObjectStorageQueueMode mode)
-{
-    return mode == ObjectStorageQueueMode::UNORDERED;
+    bool isUnordered(ObjectStorageQueueMode mode)
+    {
+        return mode == ObjectStorageQueueMode::UNORDERED;
+    }
+
+    UInt128 getMetadataCacheKey(const std::string & path)
+    {
+        SipHash hash;
+        hash.update(path);
+        return hash.get128();
+    }
 }
 
 ObjectStorageQueueMetadata::ObjectStorageQueueMetadata(
@@ -225,9 +232,9 @@ ObjectStorageQueueMetadata::FileMetadataPtr ObjectStorageQueueMetadata::getFileM
 {
     chassert(metadata_ref_count);
     auto [file_status, _] = local_file_statuses.getOrSet(
-        path, []()
+        getMetadataCacheKey(path), [&]()
         {
-            return std::make_shared<ObjectStorageQueueIFileMetadata::FileStatus>();
+            return std::make_shared<ObjectStorageQueueIFileMetadata::FileStatus>(path);
         });
     switch (mode)
     {
@@ -567,7 +574,7 @@ ObjectStorageQueueTableMetadata ObjectStorageQueueMetadata::syncWithKeeper(
                 ObjectStorageQueueOrderedFileMetadata(
                     zookeeper_path,
                     table_metadata.last_processed_path,
-                    std::make_shared<ObjectStorageQueueIFileMetadata::FileStatus>(),
+                    std::make_shared<ObjectStorageQueueIFileMetadata::FileStatus>(table_metadata.last_processed_path),
                     /* bucket_info */nullptr,
                     buckets_num,
                     table_metadata.loading_retries,
@@ -1382,7 +1389,7 @@ void ObjectStorageQueueMetadata::cleanupTrackedNodes(
             LOG_TRACE(log, "Removing node at path {} ({}) because max files limit is reached",
                      node.metadata.file_path, node.zk_path);
 
-            local_file_statuses.remove(node.metadata.file_path);
+            local_file_statuses.remove(getMetadataCacheKey(node.metadata.file_path));
             remove_requests.push_back(zkutil::makeRemoveRequest(node.zk_path, -1));
             /// we either reach max multi batch size OR we already added maximum amount of nodes we want to delete based on the node limit
             if (remove_requests.size() == keeper_multi_batch_size || remove_requests.size() == nodes_to_remove)
@@ -1396,7 +1403,7 @@ void ObjectStorageQueueMetadata::cleanupTrackedNodes(
                 LOG_TRACE(log, "Removing node at path {} ({}) because file ttl is reached",
                         node.metadata.file_path, node.zk_path);
 
-                local_file_statuses.remove(node.metadata.file_path);
+                local_file_statuses.remove(getMetadataCacheKey(node.metadata.file_path));
                 remove_requests.push_back(zkutil::makeRemoveRequest(node.zk_path, -1));
                 if (remove_requests.size() == keeper_multi_batch_size)
                     remove_nodes(/*node_limit=*/false);
