@@ -1,3 +1,4 @@
+-- Tags: no-replicated-database
 -- Test for issue #70678: ALTER UPDATE with RENAME unexpected behavior
 -- If the ALTER statement is atomic, both UPDATE and RENAME should either
 -- succeed together or fail together.
