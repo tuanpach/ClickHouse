@@ -3,10 +3,6 @@ add_subdirectory(divide)
 include("${ClickHouse_SOURCE_DIR}/cmake/dbms_glob_sources.cmake")
 add_headers_and_sources(clickhouse_functions .)
 
-# Libcxx hardening means out-of-bounds checks which causes noticeable degradations for some workflows.
-# TUs where libcxx hardening needs to be disabled are specified here.
-set_source_files_properties(array/array.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
-
 # These files are moved from clickhouse_functions into dbms to make dbms self-contained (not depend on clickhouse_functions)
 # This allows less dependency and linker work (specially important when building many example executables)
 set(DBMS_FUNCTIONS

@@ -4,23 +4,24 @@ add_headers_and_sources(clickhouse_dictionaries .)
 
 add_headers_and_sources(clickhouse_dictionaries "${CMAKE_CURRENT_BINARY_DIR}/generated/")
 
-# Libcxx hardening means out-of-bounds checks which causes noticeable degradations for some workflows.
-# TUs where libcxx hardening needs to be disabled are specified here.
-set_source_files_properties(HashedDictionary.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
-set_source_files_properties(HashedArrayDictionary.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
-set_source_files_properties(RangeHashedDictionary.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
-
 if (OMIT_HEAVY_DEBUG_SYMBOLS)
-    # Won't generate debug info for files with heavy template instantiation to achieve faster linking and lower size.
+    # Libcxx hardening means out-of-bounds checks which causes noticeable degradations for some workflows.
+    # TUs where libcxx hardening needs to be disabled are specified here.
+    set_source_files_properties(HashedDictionary.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE -g1")
+    set_source_files_properties(HashedArrayDictionary.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE -g1")
+    set_source_files_properties(RangeHashedDictionary.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE -g1")
+
+    # Other files only need -g1
     set_source_files_properties(
         FlatDictionary.cpp
-        HashedDictionary.cpp
         SparseHashedDictionary.cpp
-        HashedArrayDictionary.cpp
         CacheDictionary.cpp
-        RangeHashedDictionary.cpp
         DirectDictionary.cpp
         PROPERTIES COMPILE_FLAGS -g1)
+else()
+    set_source_files_properties(HashedDictionary.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
+    set_source_files_properties(HashedArrayDictionary.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
+    set_source_files_properties(RangeHashedDictionary.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
 endif()
 
 extract_into_parent_list(clickhouse_dictionaries_sources dbms_sources
