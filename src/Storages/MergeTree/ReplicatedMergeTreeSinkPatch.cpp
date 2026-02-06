@@ -46,20 +46,21 @@ void ReplicatedMergeTreeSinkPatch::finishDelayed(const ZooKeeperWithFaultInjecti
             throw Exception(ErrorCodes::LOGICAL_ERROR, "Expected patch part, got part with name: {}", part->name);
 
         auto deduplication_hashes = partition.deduplication_info->getDeduplicationHashes(partition.block_with_partition.partition_id, deduplicate);
+        auto deduplication_blocks_ids = getDeduplicationBlockIds(deduplication_hashes);
         try
         {
-            auto conflicts = commitPart(zookeeper, part, deduplication_hashes);
+            auto conflicts = commitPart(zookeeper, part, deduplication_hashes, deduplication_blocks_ids);
             if (!conflicts.empty())
                 throw Exception(ErrorCodes::LOGICAL_ERROR, "Patch part {} was deduplicated. It's a bug", part->name);
 
             auto counters_snapshot = std::make_shared<ProfileEvents::Counters::Snapshot>(partition.part_counters.getPartiallyAtomicSnapshot());
-            PartLog::addNewPart(storage.getContext(), PartLog::PartLogEntry(part, partition.elapsed_ns, counters_snapshot), getDeduplicationBlockIds(deduplication_hashes), ExecutionStatus(0));
+            PartLog::addNewPart(storage.getContext(), PartLog::PartLogEntry(part, partition.elapsed_ns, counters_snapshot), deduplication_blocks_ids, ExecutionStatus(0));
             StorageReplicatedMergeTree::incrementInsertedPartsProfileEvent(part->getType());
         }
         catch (...)
         {
             auto counters_snapshot = std::make_shared<ProfileEvents::Counters::Snapshot>(partition.part_counters.getPartiallyAtomicSnapshot());
-            PartLog::addNewPart(storage.getContext(), PartLog::PartLogEntry(part, partition.elapsed_ns, counters_snapshot), getDeduplicationBlockIds(deduplication_hashes), ExecutionStatus::fromCurrentException(__PRETTY_FUNCTION__));
+            PartLog::addNewPart(storage.getContext(), PartLog::PartLogEntry(part, partition.elapsed_ns, counters_snapshot), deduplication_blocks_ids, ExecutionStatus::fromCurrentException(__PRETTY_FUNCTION__));
             throw;
         }
     }

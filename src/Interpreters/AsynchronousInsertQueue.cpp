@@ -97,7 +97,7 @@ namespace Setting
 
 namespace ServerSetting
 {
-    extern const ServerSettingsDeduplicationUnificationStage deduplication_unification_stage;
+    extern const ServerSettingsInsertDeduplicationVersions insert_deduplication_version;
 }
 
 namespace ErrorCodes
@@ -1251,8 +1251,8 @@ Chunk AsynchronousInsertQueue::processEntriesWithParsing(
         std::move(adding_defaults_transform));
 
     auto deduplication_info = DeduplicationInfo::create(
-        /*async_insert*/true,
-        insert_context->getServerSettings()[ServerSetting::deduplication_unification_stage].value);
+        /*async_insert=*/true,
+        insert_context->getServerSettings()[ServerSetting::insert_deduplication_version].value);
 
     for (const auto & entry : data->entries)
     {
@@ -1296,8 +1296,8 @@ Chunk AsynchronousInsertQueue::processPreprocessedEntries(
 {
     size_t total_rows = 0;
     auto deduplication_info = DeduplicationInfo::create(
-        /*async_insert*/true,
-        context_->getServerSettings()[ServerSetting::deduplication_unification_stage].value);
+        /*async_insert=*/true,
+        context_->getServerSettings()[ServerSetting::insert_deduplication_version].value);
     auto result_columns = header.cloneEmptyColumns();
 
     for (const auto & entry : data->entries)

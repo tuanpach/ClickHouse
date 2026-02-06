@@ -11,6 +11,14 @@ def cluster():
         cluster = ClickHouseCluster(__file__)
 
         cluster.add_instance(
+            "node_2512",
+            macros={"replica": "node_2512"},
+            with_installed_binary=True,
+            image="clickhouse/clickhouse-server",
+            tag="25.12",
+            with_zookeeper=True,
+        )
+        cluster.add_instance(
             "node_old",
             macros={"replica": "node_old"},
             main_configs=[
@@ -131,21 +139,21 @@ def test_not_replicated_table_migration(cluster):
     config_old = \
 """
 <clickhouse>
-    <deduplication_unification_stage>old_separate_hashes</deduplication_unification_stage>
+    <insert_deduplication_version>old_separate_hashes</insert_deduplication_version>
 </clickhouse>
 """
 
     config_compatible = \
 """
 <clickhouse>
-    <deduplication_unification_stage>compatible_double_hashes</deduplication_unification_stage>
+    <insert_deduplication_version>compatible_double_hashes</insert_deduplication_version>
 </clickhouse>
 """
 
     config_new = \
 """
 <clickhouse>
-    <deduplication_unification_stage>new_unified_hash</deduplication_unification_stage>
+    <insert_deduplication_version>new_unified_hash</insert_deduplication_version>
 </clickhouse>
 """
 
@@ -222,3 +230,43 @@ def test_sync_async_deduplicated(cluster, first_insert_type, second_insert_type,
         drop_query=drop_table_query,
     ):
         check_insert_deduplicated_across_nodes(node1, node2, first_insert_type, second_insert_type)
+
+
+@pytest.mark.parametrize("insert_type", ["sync", "async"])
+def test_sync_async_deduplicated_with_2512(cluster, insert_type):
+    create_table_query = \
+"""
+    DROP TABLE IF EXISTS test_sync_async_deduplicated_with_2512;
+
+    CREATE TABLE test_sync_async_deduplicated_with_2512 (key UInt32, value UInt32)
+    ENGINE=ReplicatedMergeTree('/clickhouse/tables/test_sync_async_deduplicated_with_2512/', '{replica}')
+    PRIMARY KEY key ORDER BY key
+"""
+
+    drop_table_query = "DROP TABLE IF EXISTS test_sync_async_deduplicated_with_2512 SYNC"
+
+    node_2512 = cluster.instances["node_2512"]
+    node_compatible = cluster.instances["node_compatible"]
+    nodes = [node_2512, node_compatible]
+
+    with with_tables(
+        nodes=nodes,
+        create_query=create_table_query,
+        drop_query=drop_table_query,
+    ):
+        async_insert = insert_type == "async"
+        node_2512.query(f"INSERT INTO test_sync_async_deduplicated_with_2512 SETTINGS async_insert={1 if async_insert else 0}, insert_deduplicate=1, async_insert_deduplicate=1 VALUES (1, 100), (2, 200), (3, 300)")
+        node_compatible.query(f"INSERT INTO test_sync_async_deduplicated_with_2512 SETTINGS async_insert={1 if async_insert else 0}, deduplicate_insert='enable' VALUES (1, 100), (2, 200), (3, 300)")
+
+        for node in nodes:
+            node.query("SYSTEM SYNC REPLICA test_sync_async_deduplicated_with_2512")
+
+        for node in nodes:
+            result = node.query("SELECT * FROM test_sync_async_deduplicated_with_2512 ORDER BY key")
+            assert result == "1\t100\n2\t200\n3\t300\n"
+
+        for node in nodes:
+            node.query("TRUNCATE TABLE test_sync_async_deduplicated_with_2512")
+
+        for node in nodes:
+            node.query("SYSTEM SYNC REPLICA test_sync_async_deduplicated_with_2512")

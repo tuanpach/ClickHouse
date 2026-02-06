@@ -2,9 +2,6 @@
 
 #include <cstddef>
 #include <memory>
-#include <optional>
-#include <variant>
-#include <filesystem>
 #include <Processors/Chunk.h>
 #include <Core/Block.h>
 #include <Interpreters/Context_fwd.h>
@@ -17,10 +14,10 @@
 
 namespace DB
 {
+enum class InsertDeduplicationVersions : uint8_t;
 
 class InsertDependenciesBuilder;
 using InsertDependenciesBuilderConstPtr = std::shared_ptr<const InsertDependenciesBuilder>;
-
 
 struct DeduplicationHash
 {
@@ -45,7 +42,7 @@ struct DeduplicationHash
     /// It returns string representation of the hash
     std::string getBlockId() const;
     /// It returns full path to the hash file on keeper
-    std::string getPath(const std::filesystem::path & storage_path) const;
+    std::string getPath(const std::string & storage_path) const;
 
     void setConflictPartName(const std::string & part_name);
     bool hasConflictPartName() const;
@@ -60,7 +57,7 @@ struct DeduplicationHash
 
 
 std::vector<std::string> getDeduplicationBlockIds(const std::vector<DeduplicationHash> & deduplication_hashes);
-std::vector<std::string> getDeduplicationPathes(std::filesystem::path storage_path, const std::vector<DeduplicationHash> & deduplication_hashes);
+std::vector<std::string> getDeduplicationPathes(std::string storage_path, const std::vector<DeduplicationHash> & deduplication_hashes);
 
 
 class DeduplicationInfo : public ChunkInfo
@@ -74,11 +71,10 @@ protected:
 public:
     using Ptr = std::shared_ptr<DeduplicationInfo>;
 
-    DeduplicationInfo(bool async_insert_, DeduplicationUnificationStage unification_stage_);
     DeduplicationInfo(const DeduplicationInfo & other);
     DeduplicationInfo(DeduplicationInfo && other) = default;
 
-    static Ptr create(bool async_insert_, DeduplicationUnificationStage unification_stage);
+    static Ptr create(bool async_insert_, InsertDeduplicationVersions unification_stage);
 
     ChunkInfo::Ptr merge(const ChunkInfo::Ptr & right) const override;
     Ptr mergeSelf(const Ptr & right) const;
@@ -127,6 +123,8 @@ public:
     const std::vector<StorageIDMaybeEmpty> & getVisitedViews() const;
 
 private:
+    DeduplicationInfo(bool async_insert_, InsertDeduplicationVersions unification_stage_);
+
     UInt128 calculateDataHash(size_t offset) const;
     // the old one hash
     DeduplicationHash getBlockHash(size_t offset, const std::string & partition_) const;
@@ -161,7 +159,7 @@ private:
     LoggerPtr logger = getLogger("DedupInfo");
     size_t instance_id = 0;
     bool is_async_insert = false;
-    DeduplicationUnificationStage unification_stage;
+    InsertDeduplicationVersions unification_stage;
 
 
     InsertDependenciesBuilderConstPtr insert_dependencies;
@@ -178,7 +176,9 @@ private:
         // if by_user is set then block id is calculated as a hash of this string extended with extra tokens
         // When both are empty then data hash is calculated and used as by_user token
         std::string by_user;
-        std::optional<UInt128> by_data;
+        std::optional<UInt128> by_part_writer;
+
+        std::optional<UInt128> data_hash;
 
         struct Extra
         {

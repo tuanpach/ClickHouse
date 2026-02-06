@@ -16,11 +16,6 @@
 namespace DB
 {
 
-namespace ServerSetting
-{
-    extern const ServerSettingsDeduplicationUnificationStage deduplication_unification_stage;
-}
-
 namespace MergeTreeSetting
 {
     extern const MergeTreeSettingsUInt64 cleanup_delay_period;

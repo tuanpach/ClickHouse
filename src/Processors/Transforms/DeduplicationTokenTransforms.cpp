@@ -117,7 +117,7 @@ AddDeduplicationInfoTransform::AddDeduplicationInfoTransform(
     InsertDependenciesBuilderConstPtr insert_dependencies_,
     StorageIDMaybeEmpty root_view_id_,
     std::string user_token_,
-    DeduplicationUnificationStage unification_stage_,
+    InsertDeduplicationVersions unification_stage_,
     SharedHeader header_)
     : ISimpleTransform(header_, header_, true)
     , insert_dependencies(std::move(insert_dependencies_))

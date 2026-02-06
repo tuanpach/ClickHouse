@@ -25,7 +25,6 @@
 #include <Common/typeid_cast.h>
 
 #include <Core/BackgroundSchedulePool.h>
-#include <Core/ServerSettings.h>
 #include <Core/ServerUUID.h>
 #include <Core/Settings.h>
 
@@ -185,11 +184,6 @@ namespace Setting
     extern const SettingsInt64 replication_wait_for_inactive_replica_timeout;
     extern const SettingsUInt64 select_sequential_consistency;
     extern const SettingsBool update_sequential_consistency;
-}
-
-namespace ServerSetting
-{
-    extern const ServerSettingsDeduplicationUnificationStage deduplication_unification_stage;
 }
 
 
@@ -2559,8 +2553,15 @@ bool StorageReplicatedMergeTree::executeFetch(LogEntry & entry, bool need_to_che
                             zkutil::CreateMode::Persistent));
 
                         /// Deleting from `blocks`.
-                        if (!entry.block_id.empty() && zookeeper->exists(fs::path(zookeeper_path) / "blocks" / entry.block_id))
-                            ops.emplace_back(zkutil::makeRemoveRequest(fs::path(zookeeper_path) / "blocks" / entry.block_id, -1));
+                        for (const auto & block_hash : entry.deduplication_block_ids)
+                        {
+                            if (zookeeper->exists(fs::path(zookeeper_path) / "blocks" / block_hash))
+                                ops.emplace_back(zkutil::makeRemoveRequest(fs::path(zookeeper_path) / "blocks" / block_hash, -1));
+                            if (zookeeper->exists(fs::path(zookeeper_path) / "async_blocks" / block_hash))
+                                ops.emplace_back(zkutil::makeRemoveRequest(fs::path(zookeeper_path) / "async_blocks" / block_hash, -1));
+                            if (zookeeper->exists(fs::path(zookeeper_path) / "deduplication_hashes" / block_hash))
+                                ops.emplace_back(zkutil::makeRemoveRequest(fs::path(zookeeper_path) / "deduplication_hashes" / block_hash, -1));
+                        }
 
                         Coordination::Responses responses;
                         auto code = zookeeper->tryMulti(ops, responses);
@@ -8641,8 +8642,7 @@ void StorageReplicatedMergeTree::clearBlocksInPartition(
     }
 
     async_block_ids_cache.truncate();
-    if (getContext()->getServerSettings()[ServerSetting::deduplication_unification_stage].value != DeduplicationUnificationStage::OLD_SEPARATE_HASHES)
-        deduplication_hashes_cache.truncate();
+    deduplication_hashes_cache.truncate();
 
     LOG_TRACE(log, "Deleted {} deduplication block IDs in partition ID {} in range [{}, {}]",
               delete_requests.size(), partition_id, min_block_num, max_block_num);

@@ -70,10 +70,12 @@ void ReplicatedMergeTreeLogEntryData::writeText(WriteBuffer & out) const
     if (!log_entry_id.empty())
         format_version = std::max<UInt8>(format_version, FORMAT_WITH_LOG_ENTRY_ID);
 
+    auto block_hashes_string = fmt::format("{}", fmt::join(deduplication_block_ids, ","));
+
     out << "format version: " << format_version << "\n"
         << "create_time: " << LocalDateTime(create_time ? create_time : time(nullptr), DateLUT::serverTimezoneInstance()) << "\n"
         << "source replica: " << source_replica << '\n'
-        << "block_id: " << escape << block_id << '\n';
+        << "block_id: " << escape << block_hashes_string << '\n';
 
     if (format_version >= FORMAT_WITH_LOG_ENTRY_ID)
         out << "log_entry_id: " << escape << log_entry_id << '\n';
@@ -237,7 +239,16 @@ void ReplicatedMergeTreeLogEntryData::readText(ReadBuffer & in, MergeTreeDataFor
 
     if (format_version >= FORMAT_WITH_BLOCK_ID)
     {
-        in >> "block_id: " >> escape >> block_id >> "\n";
+        String block_hashes_string;
+        in >> "block_id: " >> escape >> block_hashes_string >> "\n";
+
+        if (!block_hashes_string.empty())
+        {
+            std::istringstream block_ids_stream(block_hashes_string);
+            String block_id;
+            while (std::getline(block_ids_stream, block_id, ','))
+                deduplication_block_ids.push_back(block_id);
+        }
     }
 
     if (format_version >= FORMAT_WITH_LOG_ENTRY_ID)

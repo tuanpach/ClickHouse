@@ -4,7 +4,6 @@
 #include <base/types.h>
 #include <Common/ZooKeeper/ZooKeeperRetries.h>
 #include <Common/ZooKeeper/ZooKeeperWithFaultInjection.h>
-#include <Core/SettingsEnums.h>
 #include <Processors/Sinks/SinkToStorage.h>
 #include <Interpreters/InsertDeduplication.h>
 #include <Storages/MergeTree/MergeTreeData.h>
@@ -22,6 +21,8 @@ namespace zkutil
 
 namespace DB
 {
+enum class InsertDeduplicationVersions : uint8_t;
+
 
 class StorageReplicatedMergeTree;
 struct BlockWithPartition;
@@ -96,7 +97,8 @@ protected:
     std::vector<DeduplicationHash> commitPart(
         const ZooKeeperWithFaultInjectionPtr & zookeeper,
         MergeTreeData::MutableDataPartPtr & part,
-        const std::vector<DeduplicationHash> & deduplication_hashes);
+        const std::vector<DeduplicationHash> & deduplication_hashes,
+        const std::vector<String> & deduplication_block_ids);
 
     StorageReplicatedMergeTree & storage;
     StorageMetadataPtr metadata_snapshot;
@@ -134,7 +136,7 @@ protected:
     size_t max_parts_per_block;
 
     UInt64 deduplication_cache_version = 0;
-    UInt64 cache_version = 0;
+    UInt64 deduplication_asyn_inserts_cache_version = 0;
 
     bool is_attach = false;
     bool allow_attach_while_readonly = false;
@@ -148,7 +150,7 @@ protected:
     StorageSnapshotPtr storage_snapshot;
 
     bool is_async_insert = true;
-    DeduplicationUnificationStage deduplication_unification_stage = DeduplicationUnificationStage::NEW_UNIFIED_HASHES;
+    InsertDeduplicationVersions insert_deduplication_version = InsertDeduplicationVersions::NEW_UNIFIED_HASHES;
 };
 
 }

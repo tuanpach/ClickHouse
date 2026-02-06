@@ -57,7 +57,7 @@ namespace Setting
 
 namespace ServerSetting
 {
-    extern const ServerSettingsDeduplicationUnificationStage deduplication_unification_stage;
+    extern const ServerSettingsInsertDeduplicationVersions insert_deduplication_version;
 }
 
 namespace MergeTreeSetting
@@ -132,7 +132,7 @@ ReplicatedMergeTreeSink::ReplicatedMergeTreeSink(
     , context(context_)
     , storage_snapshot(storage.getStorageSnapshotWithoutData(metadata_snapshot, context_))
     , is_async_insert(async_insert_)
-    , deduplication_unification_stage(context->getServerSettings()[ServerSetting::deduplication_unification_stage].value)
+    , insert_deduplication_version(context->getServerSettings()[ServerSetting::insert_deduplication_version].value)
 {
     /// The quorum value `1` has the same meaning as if it is disabled.
     if (required_quorum_size == 1)
@@ -418,14 +418,15 @@ void ReplicatedMergeTreeSink::finishDelayed(const ZooKeeperWithFaultInjectionPtr
 
             /// reset the cache version to zero for every partition write.
             /// Version zero allows to avoid wait on first iteration
-            cache_version = 0;
+            deduplication_asyn_inserts_cache_version = 0;
             size_t retry_times = 0;
             while (true)
             {
                 partition.temp_part->finalize();
                 auto deduplication_hashes = partition.deduplication_info->getDeduplicationHashes(partition.block_with_partition.partition_id, deduplicate);
+                auto deduplication_blocks_ids = getDeduplicationBlockIds(deduplication_hashes);
 
-                auto conflicts = commitPart(zookeeper, partition.temp_part->part, deduplication_hashes);
+                auto conflicts = commitPart(zookeeper, partition.temp_part->part, deduplication_hashes, deduplication_blocks_ids);
 
                 if (isQuorumEnabled())
                 {
@@ -433,7 +434,7 @@ void ReplicatedMergeTreeSink::finishDelayed(const ZooKeeperWithFaultInjectionPtr
                         parts_to_wait_for_quorum.insert(partition.temp_part->part->name);
                     else
                     {
-                        for (const auto & hash: conflicts)
+                        for (const auto & hash : conflicts)
                             if (hash.hasConflictPartName())
                                 parts_to_wait_for_quorum.insert(hash.getConflictPartName());
                     }
@@ -442,13 +443,16 @@ void ReplicatedMergeTreeSink::finishDelayed(const ZooKeeperWithFaultInjectionPtr
                 if (conflicts.empty())
                 {
                     // Successfully committed
-                    block_ids_for_log = getDeduplicationBlockIds(deduplication_hashes);
+                    block_ids_for_log = deduplication_blocks_ids;
                     partition.temp_part->prewarmCaches();
                     break;
                 }
 
                 ++retry_times;
                 // TODO: sync debuplication could use cache too
+
+                if (insert_deduplication_version != InsertDeduplicationVersions::OLD_SEPARATE_HASHES)
+                    storage.deduplication_hashes_cache.triggerCacheUpdate();
 
                 if (is_async_insert)
                     storage.async_block_ids_cache.triggerCacheUpdate();
@@ -569,24 +573,26 @@ bool ReplicatedMergeTreeSink::writeExistingPart(MergeTreeData::MutableDataPartPt
     std::vector<DeduplicationHash> deduplication_hashes;
     if (deduplicate)
     {
-        switch (deduplication_unification_stage)
+        switch (insert_deduplication_version)
         {
-            case DeduplicationUnificationStage::OLD_SEPARATE_HASHES:
+            case InsertDeduplicationVersions::OLD_SEPARATE_HASHES:
                 deduplication_hashes.emplace_back(DeduplicationHash::createSyncHash(part->checksums.getTotalChecksumUInt128(), part->info.getPartitionId()));
                 break;
-            case DeduplicationUnificationStage::COMPATIBLE_DOUBLE_HASHES:
+            case InsertDeduplicationVersions::COMPATIBLE_DOUBLE_HASHES:
                 deduplication_hashes.emplace_back(DeduplicationHash::createSyncHash(part->checksums.getTotalChecksumUInt128(), part->info.getPartitionId()));
                 deduplication_hashes.emplace_back(DeduplicationHash::createUnifiedHash(part->checksums.getTotalChecksumUInt128(), part->info.getPartitionId()));
                 break;
-            case DeduplicationUnificationStage::NEW_UNIFIED_HASHES:
+            case InsertDeduplicationVersions::NEW_UNIFIED_HASHES:
                 deduplication_hashes.emplace_back(DeduplicationHash::createUnifiedHash(part->checksums.getTotalChecksumUInt128(), part->info.getPartitionId()));
                 break;
         }
     }
 
+    auto deduplication_ids = getDeduplicationBlockIds(deduplication_hashes);
+
     try
     {
-        auto conflicts = commitPart(zookeeper, part, deduplication_hashes);
+        auto conflicts = commitPart(zookeeper, part, deduplication_hashes, deduplication_ids);
         bool deduplicated = !conflicts.empty();
 
         int error = 0;
@@ -622,30 +628,30 @@ bool ReplicatedMergeTreeSink::writeExistingPart(MergeTreeData::MutableDataPartPt
                     relative_path, part_dir, part->name, part->name);
             }
         }
-        PartLog::addNewPart(storage.getContext(), PartLog::PartLogEntry(part, watch.elapsed(), profile_events_scope.getSnapshot()), getDeduplicationBlockIds(deduplication_hashes), ExecutionStatus(error, error_message));
+        PartLog::addNewPart(storage.getContext(), PartLog::PartLogEntry(part, watch.elapsed(), profile_events_scope.getSnapshot()), deduplication_ids, ExecutionStatus(error, error_message));
         return deduplicated;
     }
     catch (...)
     {
         try_rollback_part_rename();
-        PartLog::addNewPart(storage.getContext(), PartLog::PartLogEntry(part, watch.elapsed(), profile_events_scope.getSnapshot()), getDeduplicationBlockIds(deduplication_hashes), ExecutionStatus::fromCurrentException("", true));
+        PartLog::addNewPart(storage.getContext(), PartLog::PartLogEntry(part, watch.elapsed(), profile_events_scope.getSnapshot()), deduplication_ids, ExecutionStatus::fromCurrentException("", true));
         throw;
     }
 }
 
 std::vector<DeduplicationHash> ReplicatedMergeTreeSink::detectConflictsInAsyncBlockIDs(const std::vector<DeduplicationHash> & deduplication_hashes)
 {
-    if (deduplication_unification_stage != DeduplicationUnificationStage::NEW_UNIFIED_HASHES)
+    if (insert_deduplication_version != InsertDeduplicationVersions::NEW_UNIFIED_HASHES)
     {
-        auto conflict_block_ids = storage.async_block_ids_cache.detectConflicts(deduplication_hashes, cache_version);
+        auto conflict_block_ids = storage.async_block_ids_cache.detectConflicts(deduplication_hashes, deduplication_asyn_inserts_cache_version);
         if (!conflict_block_ids.empty())
         {
-            cache_version = 0;
+            deduplication_asyn_inserts_cache_version = 0;
             return conflict_block_ids;
         }
     }
 
-    if (deduplication_unification_stage != DeduplicationUnificationStage::OLD_SEPARATE_HASHES)
+    if (insert_deduplication_version != InsertDeduplicationVersions::OLD_SEPARATE_HASHES)
     {
         auto conflict_block_ids = storage.deduplication_hashes_cache.detectConflicts(deduplication_hashes, deduplication_cache_version);
         if (!conflict_block_ids.empty())
@@ -689,7 +695,8 @@ struct CommitRetryContext
 std::vector<DeduplicationHash> ReplicatedMergeTreeSink::commitPart(
     const ZooKeeperWithFaultInjectionPtr & zookeeper,
     MergeTreeData::MutableDataPartPtr & part,
-    const std::vector<DeduplicationHash> & deduplication_hashes)
+    const std::vector<DeduplicationHash> & deduplication_hashes,
+    const std::vector<String> & deduplication_block_ids)
 {
     /// It is possible that we alter a part with different types of source columns.
     /// In this case, if column was not altered, the result type will be different with what we have in metadata.
@@ -804,8 +811,8 @@ std::vector<DeduplicationHash> ReplicatedMergeTreeSink::commitPart(
 
         if (!is_async_insert && !deduplication_hashes.empty() && deduplicate)
         {
-            chassert(deduplication_hashes.size() == 1 || deduplication_unification_stage == DeduplicationUnificationStage::COMPATIBLE_DOUBLE_HASHES);
-            log_entry.block_id = deduplication_hashes[0].getBlockId();
+            chassert(deduplication_hashes.size() == 1 || insert_deduplication_version == InsertDeduplicationVersions::COMPATIBLE_DOUBLE_HASHES);
+            log_entry.deduplication_block_ids = deduplication_block_ids;
         }
 
         /// Prepare an entry for log.
@@ -1064,7 +1071,7 @@ std::vector<DeduplicationHash> ReplicatedMergeTreeSink::commitPart(
                     ErrorCodes::UNEXPECTED_ZOOKEEPER_ERROR,
                     "Unexpected ZooKeeper error while adding block {} with ID '{}': {}",
                     block_number,
-                    fmt::join(getDeduplicationBlockIds(deduplication_hashes), ", "),
+                    fmt::join(deduplication_block_ids, ", "),
                     multi_code);
 
         if (multi_code == Coordination::Error::ZNONODE && failed_op_idx == block_unlock_op_idx)
@@ -1086,7 +1093,7 @@ std::vector<DeduplicationHash> ReplicatedMergeTreeSink::commitPart(
                 ErrorCodes::UNEXPECTED_ZOOKEEPER_ERROR,
                 "Unexpected logical error while adding block {} with ID '{}': {}, path {}",
                 block_number,
-                fmt::join(getDeduplicationBlockIds(deduplication_hashes), ", "),
+                fmt::join(deduplication_block_ids, ", "),
                 multi_code,
                 failed_op_path);
     };

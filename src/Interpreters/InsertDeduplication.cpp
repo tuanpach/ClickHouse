@@ -76,7 +76,7 @@ std::string DeduplicationHash::getBlockId() const
 }
 
 
-std::string DeduplicationHash::getPath(const std::filesystem::path & storage_path) const
+std::string DeduplicationHash::getPath(const std::string & storage_path) const
 {
     std::string hashes_directory = [&] ()
     {
@@ -90,7 +90,7 @@ std::string DeduplicationHash::getPath(const std::filesystem::path & storage_pat
                 return "deduplication_hashes";
         }
     }();
-    return (storage_path / hashes_directory / getBlockId()).string();
+    return (std::filesystem::path(storage_path) / hashes_directory / getBlockId()).string();
 }
 
 
@@ -108,6 +108,7 @@ bool DeduplicationHash::hasConflictPartName() const
 
 std::string DeduplicationHash::getConflictPartName() const
 {
+    chassert(conflicted_part_name.has_value());
     return conflicted_part_name.value_or("");
 }
 
@@ -124,7 +125,7 @@ std::vector<std::string> getDeduplicationBlockIds(const std::vector<Deduplicatio
 }
 
 
-std::vector<std::string> getDeduplicationPathes(std::filesystem::path storage_path, const std::vector<DeduplicationHash> & deduplication_hashes)
+std::vector<std::string> getDeduplicationPathes(std::string storage_path, const std::vector<DeduplicationHash> & deduplication_hashes)
 {
     std::vector<std::string> result;
     result.reserve(deduplication_hashes.size());
@@ -326,6 +327,9 @@ UInt128 DeduplicationInfo::calculateDataHash(size_t offset) const
     chassert(offset < offsets.size());
     chassert(original_block->rows() == getRows());
 
+    if (tokens[offset].data_hash.has_value())
+        return tokens[offset].data_hash.value();
+
     auto cols = original_block->getColumns();
 
     SipHash hash;
@@ -335,7 +339,8 @@ UInt128 DeduplicationInfo::calculateDataHash(size_t offset) const
             col->updateHashWithValue(j, hash);
     }
 
-    return hash.get128();
+    tokens[offset].data_hash = hash.get128();
+    return tokens[offset].data_hash.value();
 }
 
 
@@ -388,17 +393,15 @@ DeduplicationHash DeduplicationInfo::getBlockHash(size_t offset, const std::stri
     if (token.empty())
     {
         chassert(level == Level::SOURCE);
-        token.by_data = calculateDataHash(offset);
+        token.by_part_writer = calculateDataHash(offset);
     }
 
-    if (token.by_data.has_value() && level == Level::SOURCE)
+    if (token.by_part_writer.has_value() && level == Level::SOURCE)
     {
-        LOG_TEST(logger, "getBlockHash token by data on source level debug: {}", debug());
-
         if (is_async_insert)
-            return DeduplicationHash::createAsyncHash(token.by_data.value(), partition_id);
+            return DeduplicationHash::createAsyncHash(token.by_part_writer.value(), partition_id);
         else
-            return DeduplicationHash::createSyncHash(token.by_data.value(), partition_id);
+            return DeduplicationHash::createSyncHash(token.by_part_writer.value(), partition_id);
     }
 
     // only one value is set here
@@ -407,7 +410,7 @@ DeduplicationHash DeduplicationInfo::getBlockHash(size_t offset, const std::stri
     if (!token.by_user.empty())
         extension = "user-token-" + token.by_user;
     else
-        extension = fmt::format("{}_{}", token.by_data->items[0], token.by_data->items[1]);
+        extension = fmt::format("{}_{}", token.by_part_writer->items[0], token.by_part_writer->items[1]);
 
     // for other token sources addition parts are appended
     for (const auto & extra : token.extra_tokens)
@@ -415,7 +418,7 @@ DeduplicationHash DeduplicationInfo::getBlockHash(size_t offset, const std::stri
         if (extra.type == TokenDefinition::Extra::SOURCE_ID)
             continue; // do not include source id
 
-        if (token.by_data.has_value()
+        if (token.by_part_writer.has_value()
             && (extra.type == TokenDefinition::Extra::SOURCE_ID || extra.type == TokenDefinition::Extra::SOURCE_NUMBER))
             continue; // source id is already included in by_data
 
@@ -453,14 +456,14 @@ std::vector<DeduplicationHash> DeduplicationInfo::chooseDeduplicationHashes(size
     std::vector<DeduplicationHash> result;
     switch (unification_stage)
     {
-        case DeduplicationUnificationStage::OLD_SEPARATE_HASHES:
+        case InsertDeduplicationVersions::OLD_SEPARATE_HASHES:
             result.push_back(getBlockHash(offset, partition_id));
             break;
-        case DeduplicationUnificationStage::COMPATIBLE_DOUBLE_HASHES:
+        case InsertDeduplicationVersions::COMPATIBLE_DOUBLE_HASHES:
             result.push_back(getBlockHash(offset, partition_id));
             result.push_back(getBlockUnifiedHash(offset, partition_id));
             break;
-        case DeduplicationUnificationStage::NEW_UNIFIED_HASHES:
+        case InsertDeduplicationVersions::NEW_UNIFIED_HASHES:
             result.push_back(getBlockUnifiedHash(offset, partition_id));
             break;
     }
@@ -510,7 +513,7 @@ std::pair<std::string, size_t> DeduplicationInfo::debug(size_t offset) const
     else if (!token.by_user.empty())
         return {tokens[offset].by_user, getTokenEnd(offset)};
     else
-        return {fmt::format("{}_{}", token.by_data->items[0], token.by_data->items[1]), getTokenEnd(offset)};
+        return {fmt::format("{}_{}", token.by_part_writer->items[0], token.by_part_writer->items[1]), getTokenEnd(offset)};
 }
 
 
@@ -554,9 +557,15 @@ std::string DeduplicationInfo::debug() const
 }
 
 
-DeduplicationInfo::Ptr DeduplicationInfo::create(bool async_insert_, DeduplicationUnificationStage unification_stage_)
+DeduplicationInfo::Ptr DeduplicationInfo::create(bool async_insert_, InsertDeduplicationVersions unification_stage_)
 {
-    return std::make_shared<DeduplicationInfo>(async_insert_, unification_stage_);
+    struct make_shared_enabler : public DeduplicationInfo
+    {
+        make_shared_enabler(bool async_insert_, InsertDeduplicationVersions unification_stage_)
+            : DeduplicationInfo(async_insert_, unification_stage_)
+        {}
+    };
+    return std::make_shared<make_shared_enabler>(async_insert_, unification_stage_);
 }
 
 
@@ -656,13 +665,13 @@ void DeduplicationInfo::redefineTokensWithDataHash()
         if (token.empty())
         {
             /// calculate tokens from data
-            token.by_data = calculateDataHash(i);
+            token.by_part_writer = calculateDataHash(i);
         }
     }
 }
 
 
-DeduplicationInfo::DeduplicationInfo(bool async_insert_, DeduplicationUnificationStage unification_stage_)
+DeduplicationInfo::DeduplicationInfo(bool async_insert_, InsertDeduplicationVersions unification_stage_)
     : instance_id(deduplication_info_id_counter.fetch_add(1, std::memory_order_relaxed))
     , is_async_insert(async_insert_)
     , unification_stage(unification_stage_)
@@ -713,7 +722,7 @@ void DeduplicationInfo::TokenDefinition::setDataToken(UInt128 token)
 {
     if (!empty())
         return;
-    by_data = token;
+    by_part_writer = token;
 }
 
 
@@ -980,13 +989,13 @@ void DeduplicationInfo::addExtraPart(const TokenDefinition::Extra & extra)
 
 bool DeduplicationInfo::TokenDefinition::empty() const
 {
-    return by_user.empty() && !by_data.has_value();
+    return by_user.empty() && !by_part_writer.has_value();
 }
 
 
 bool DeduplicationInfo::TokenDefinition::operator==(const TokenDefinition & other) const
 {
-    return by_user == other.by_user && by_data == other.by_data && extra_tokens == other.extra_tokens;
+    return by_user == other.by_user && by_part_writer == other.by_part_writer && data_hash == other.data_hash && extra_tokens == other.extra_tokens;
 }
 
 
@@ -1129,8 +1138,8 @@ std::string DeduplicationInfo::TokenDefinition::debug() const
 
     if (!by_user.empty())
         str = fmt::format("user<{}>", by_user);
-    else if (by_data.has_value())
-        str = fmt::format("data-hash<{}_{}>",by_data->items[0], by_data->items[1]);
+    else if (by_part_writer.has_value())
+        str = fmt::format("data-hash<{}_{}>",by_part_writer->items[0], by_part_writer->items[1]);
     else
         str = "-";
 
@@ -1178,7 +1187,7 @@ bool DeduplicationInfo::TokenDefinition::canBeExtended(const TokenDefinition & r
 {
     LOG_TEST(getLogger("canBeExtended"), "{} vs {}", this->debug(), right.debug());
 
-    if (by_user != right.by_user || by_data != right.by_data)
+    if (by_user != right.by_user || by_part_writer != right.by_part_writer)
         return false;
 
     if (extra_tokens.size() != right.extra_tokens.size())
