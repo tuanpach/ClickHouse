@@ -400,7 +400,7 @@ ProcessListEntry::~ProcessListEntry()
 {
     {
         /// We need to block the overcommit tracker here to avoid lock inversion because OvercommitTracker takes a lock on the ProcessList::mutex.
-        /// When task is added, we lock the ProcessList::mutex, and then the CancellatioCheker mutex.
+        /// When task is added, we lock the ProcessList::mutex, and then the CancellationChecker mutex.
         OvercommitTrackerBlockerInThread blocker;
         CancellationChecker::getInstance().appendDoneTasks(*it);
     }
