@@ -41,7 +41,7 @@ When writing tests, do not add "no-*" tags (like "no-parallel") unless strictly 
 
 When writing tests in tests/queries, prefer adding a new test instead of extending existing ones.
 
-Never use sleep to fix race conditions - this is stupid and not acceptable!
+Never use sleep in C++ code to fix race conditions - this is stupid and not acceptable!
 
 When writing messages, say ASan, not ASAN, and similar (because there are two words: Address Sanitizer).
 
