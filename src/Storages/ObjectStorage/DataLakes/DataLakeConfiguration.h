@@ -19,6 +19,7 @@
 #include <Formats/FormatParserSharedResources.h>
 #include <memory>
 #include <string>
+#include <type_traits>
 
 #include <Common/ErrorCodes.h>
 #include <Common/filesystemHelpers.h>
@@ -179,10 +180,20 @@ public:
         return std::nullopt;
     }
 
+    bool supportsTotalRows() const override
+    {
+        return DataLakeMetadata::supportsTotalRows();
+    }
+
     std::optional<size_t> totalRows(ContextPtr local_context) override
     {
         assertInitialized();
         return current_metadata->totalRows(local_context);
+    }
+
+    bool supportsTotalBytes() const override
+    {
+        return DataLakeMetadata::supportsTotalBytes();
     }
 
     std::optional<size_t> totalBytes(ContextPtr local_context) override
