@@ -172,14 +172,14 @@ ObjectStoragePtr StorageS3Configuration::createObjectStorage(ContextPtr context,
     {
         // Capture by value to avoid circular references
         auto url_copy = url;
-        auto s3_settings_copy = std::make_unique<S3Settings>(*s3_settings);
+        auto s3_settings_shared = std::make_shared<S3Settings>(*s3_settings);
         ContextWeakPtr context_weak = context;
-        client_refresher = [refresh_credentials_callback, url_copy, s3_settings_copy = std::move(s3_settings_copy), context_weak] () mutable
+        client_refresher = [refresh_credentials_callback, url_copy, s3_settings_shared, context_weak] () mutable
         {
             auto context_locked = context_weak.lock();
             if (!context_locked)
                 return std::unique_ptr<const S3::Client>();
-            auto new_client = getClient(url_copy, *s3_settings_copy, context_locked, /* for_disk_s3 */false, /*opt_disk_name*/ {}, refresh_credentials_callback);
+            auto new_client = getClient(url_copy, *s3_settings_shared, context_locked, /* for_disk_s3 */false, /*opt_disk_name*/ {}, refresh_credentials_callback);
             return std::unique_ptr<const S3::Client>(new_client.release());
         };
     }
