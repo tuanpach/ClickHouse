@@ -344,7 +344,7 @@ set_target_properties(libllvmlibc PROPERTIES FOLDER "contrib/libllvmlibc-cmake")
 set(LLVMLIBC_DEFS
     LIBC_NAMESPACE=${LIBC_NAMESPACE}
 
-    LIBC_COPT_PUBLIC_PACKAGING=1
+    # LIBC_COPT_PUBLIC_PACKAGING=0
 
     LIBC_MATH_HAS_NO_ERRNO=1
     LIBC_MATH_HAS_NO_EXCEPT=1
@@ -417,4 +417,30 @@ target_compile_definitions(libllvmlibc PRIVATE ${LLVMLIBC_DEFS})
 
 target_include_directories(libllvmlibc SYSTEM BEFORE
     PRIVATE $<BUILD_INTERFACE:${LIBLLVMLIBC_SOURCE_DIR}>
+)
+
+
+set(LLVMLIBC_DEFS_BASIC
+    LIBC_NAMESPACE=${LIBC_NAMESPACE}_basic
+
+    # LIBC_COPT_PUBLIC_PACKAGING=0
+
+    LIBC_MATH_HAS_NO_ERRNO=1
+    LIBC_MATH_HAS_NO_EXCEPT=1
+    LIBC_MATH_HAS_SKIP_ACCURATE_PASS=1
+
+    LIBC_TARGET_CPU_HAS_FMA=0
+    LIBC_TARGET_CPU_HAS_AVX=1
+    LIBC_TARGET_CPU_HAS_AVX2=1
+)
+
+add_library(libllvmlibc_basic ${SRCS})
+target_compile_definitions(libllvmlibc_basic PRIVATE ${LLVMLIBC_DEFS_BASIC})
+target_include_directories(libllvmlibc_basic SYSTEM BEFORE
+    PRIVATE $<BUILD_INTERFACE:${LIBLLVMLIBC_SOURCE_DIR}>
+)
+
+
+add_library(llvmlibc_dispatch STATIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/llvmlibc_dispatch.cpp"
 )
