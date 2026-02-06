@@ -4,8 +4,6 @@
 -- may not have an alias because createUniqueAliasesIfNecessary doesn't visit
 -- inside ConstantNode source expressions. This should not cause an exception.
 
-SET allow_experimental_correlated_subqueries = 1;
-
 -- Simplified reproduction: EXISTS in a scalar subquery evaluated during analysis.
 -- The remote() call forces SECONDARY_QUERY context where isASTLevelOptimizationAllowed() is false.
 SELECT exists((SELECT 1)) FROM remote('127.0.0.1', numbers(1));
