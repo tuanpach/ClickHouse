@@ -14,7 +14,6 @@
 #include <Columns/ColumnNullable.h>
 
 #include <AggregateFunctions/TimeSeries/AggregateFunctionTimeseriesBase.h>
-#include <Common/VectorWithMemoryTracking.h>
 
 
 namespace DB

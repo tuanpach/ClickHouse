@@ -5,7 +5,6 @@
 
 #include <AggregateFunctions/AggregateFunctionNothing.h>
 #include <DataTypes/DataTypeNullable.h>
-#include <Common/UnorderedSetWithMemoryTracking.h>
 
 
 namespace DB
