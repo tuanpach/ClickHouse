@@ -1170,7 +1170,9 @@ void StorageMergeTree::loadMutations()
                     }
                     else
                     {
-                        TransactionLog::assertTIDIsNotOutdated(entry.tid);
+                        /// Transaction is not committed. The TID may be outdated if the transaction log entry
+                        /// was garbage-collected (e.g. after upgrade from a version that advanced tail_ptr).
+                        /// In either case the mutation was not committed and should be removed.
                         LOG_DEBUG(log, "Mutation entry {} was created by transaction {}, but it was not committed. Removing mutation entry",
                                   it->name(), entry.tid);
                         disk->removeFile(it->path());
