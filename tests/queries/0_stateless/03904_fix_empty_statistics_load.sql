@@ -12,7 +12,7 @@ CREATE TABLE tab
     b                   Bool,
     s                   String,
 ) Engine = MergeTree() ORDER BY tuple() PARTITION BY u64_minmax
-SETTINGS min_bytes_for_wide_part = 0;
+SETTINGS min_bytes_for_wide_part = 0, auto_statistics_types = '';
 
 -- 1000 parts
 INSERT INTO tab 
