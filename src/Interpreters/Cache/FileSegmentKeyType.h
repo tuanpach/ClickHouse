@@ -1,8 +1,5 @@
 #pragma once
-#include <cctype>
-#include <Interpreters/Cache/FileCache_fwd.h>
-#include <Interpreters/Cache/FileCacheKey.h>
-#include <boost/algorithm/string/case_conv.hpp>
+
 #include <base/EnumReflection.h>
 
 namespace DB

@@ -10,7 +10,6 @@
 #include <Common/SharedMutexHelper.h>
 #include <Common/StopToken.h>
 #include <Core/UUID.h>
-#include <Core/ParallelReplicasMode.h>
 #include <IO/ReadSettings.h>
 #include <IO/WriteSettings.h>
 #include <Disks/IO/getThreadPoolReader.h>
@@ -27,7 +26,6 @@
 #include <Backups/BackupsInMemoryHolder.h>
 
 #include <Poco/AutoPtr.h>
-#include <Poco/Util/AbstractConfiguration.h>
 
 #include "config.h"
 
@@ -42,6 +40,12 @@ namespace Poco::Net
 class IPAddress;
 class SocketAddress;
 }
+
+namespace Poco::Util
+{
+class AbstractConfiguration;
+}
+
 namespace zkutil
 {
     class ZooKeeper;
