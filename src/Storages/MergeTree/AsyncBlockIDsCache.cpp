@@ -66,7 +66,7 @@ catch (...)
 template <typename TStorage>
 AsyncBlockIDsCache<TStorage>::AsyncBlockIDsCache(TStorage & storage_)
     : storage(storage_)
-    , update_wait((*storage.getSettings())[MergeTreeSetting::async_block_ids_cache_update_wait_ms])
+    , update_wait(std::chrono::milliseconds((*storage.getSettings())[MergeTreeSetting::async_block_ids_cache_update_wait_ms].totalMilliseconds()))
     , path(storage.getZooKeeperPath() + "/async_blocks")
     , log_name(storage.getStorageID().getFullTableName() + " (AsyncBlockIDsCache)")
     , log(getLogger(log_name))

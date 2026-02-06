@@ -6913,7 +6913,7 @@ void Context::setAsynchronousInsertQueue(const std::shared_ptr<AsynchronousInser
 
     std::lock_guard lock(shared->mutex);
 
-    if (std::chrono::milliseconds(getSettingsRef()[Setting::async_insert_poll_timeout_ms]) == std::chrono::milliseconds::zero())
+    if (std::chrono::milliseconds(getSettingsRef()[Setting::async_insert_poll_timeout_ms].totalMilliseconds()) == std::chrono::milliseconds::zero())
         throw Exception(ErrorCodes::INVALID_SETTING_VALUE, "Setting async_insert_poll_timeout_ms can't be zero");
 
     shared->async_insert_queue = ptr;
