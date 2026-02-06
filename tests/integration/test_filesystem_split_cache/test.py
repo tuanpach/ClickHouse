@@ -9,7 +9,7 @@ from helpers.cluster import ClickHouseCluster
 cluster = ClickHouseCluster(__file__)
 node = cluster.add_instance(
     "node",
-    main_configs=["configs/config.d/split_cache.xml"],
+    main_configs=["configs/config.d/split_cache.xml", "configs/config.d/test_logger.xml"],
     stay_alive=True,
     with_minio=True,
 )
@@ -89,16 +89,21 @@ def test_split_cache_restart(started_cluster):
 
     node.restart_clickhouse()
     wait_for_cache_initialized(node, "split_cache_slru")
-    assert (
-        int(node.query("SELECT count() FROM system.filesystem_cache WHERE size > 0"))
-        == cache_count
+
+    cache_count_after_restart = int(
+        node.query("SELECT count() FROM system.filesystem_cache WHERE size > 0")
     )
-    assert (
-        node.query(
-            "SELECT key, file_segment_range_begin, size FROM system.filesystem_cache WHERE size > 0 ORDER BY key, file_segment_range_begin, size"
-        )
-        == cache_state
+    cache_state_after_restart = node.query(
+        "SELECT key, file_segment_range_begin, size FROM system.filesystem_cache WHERE size > 0 ORDER BY key, file_segment_range_begin, size"
     )
+
+    print(f"Cache count before restart:\n{cache_count}")
+    print(f"Cache count after restart:\n{cache_count_after_restart}")
+    print(f"Cache state before restart:\n{cache_state}")
+    print(f"Cache state after restart:\n{cache_state_after_restart}")
+
+    assert cache_count_after_restart == cache_count
+    assert cache_state_after_restart == cache_state
 
     node.query("DROP TABLE t0")
 
