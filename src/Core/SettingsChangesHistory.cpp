@@ -44,6 +44,7 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"deduplicate_insert", "backward_compatible_choice", "backward_compatible_choice", "New setting to control deduplication for INSERT queries."},
             {"parallel_replicas_filter_pushdown", false, false, "New setting"},
             {"use_statistics_cache", false, true, "Enable statistics cache"},
+            {"ignore_format_null_for_explain", false, true, "FORMAT Null is now ignored for EXPLAIN queries by default"},
 
         });
         addSettingsChanges(settings_changes_history, "26.1",
