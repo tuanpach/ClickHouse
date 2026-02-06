@@ -106,6 +106,7 @@ void MySQLWithFailoverSource::onStart()
             mysqlxx::PoolWithFailover::Entry entry = pool->get();
             mysqlxx::Connection & mysql_conn = entry;
             mysql_connection_id = mysql_conn.getDriverThreadID();
+            LOG_TEST(log, "Get data from database");
             connection = std::make_unique<Connection>(entry, query_str);
             break;
         }
@@ -390,6 +391,7 @@ namespace
 
 Chunk MySQLSource::generate()
 {
+    LOG_TEST(log, "Generate a chuck");
     auto row = connection->result.fetch();
     if (!row)
     {
