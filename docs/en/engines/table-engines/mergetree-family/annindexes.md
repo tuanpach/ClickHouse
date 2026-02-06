@@ -437,7 +437,7 @@ By default, the cache can grow up to 5 GB in size.
 The following log messages (`system.text_log`) indicate that the vector similarity index is being loaded.
 If such messages appear repeatedly for different vector search queries, this indicates that the cache size is too low.
 
-```
+```text
 2026-02-03 07:39:10.351635 [1386] f0ac5c85-1b1c-4f35-8848-87a1d1aa00ba : VectorSimilarityIndex Start loading vector similarity index
 
 <...>
