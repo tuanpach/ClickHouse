@@ -1,9 +1,8 @@
 #pragma once
 
-#include <DataTypes/IDataType.h>
-#include <DataTypes/DataTypeDynamic.h>
 #include <Core/Field.h>
-#include <Common/re2.h>
+#include <DataTypes/DataTypeDynamic.h>
+#include <DataTypes/IDataType.h>
 
 
 namespace DB
