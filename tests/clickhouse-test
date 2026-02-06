@@ -1583,6 +1583,7 @@ class TestResult:
             self.status != TestStatus.FAIL
             or not need_retry(args, stdout, stderr, self.total_time)
             or MAX_RETRIES < runs_count
+            or args.dont_retry_failures
         ):
             return
         self.need_retry = True
@@ -4991,6 +4992,12 @@ def parse_args():
             "test",
         ],
         help="Changes the CH setting 'send_logs_level'",
+    )
+
+    parser.add_argument(
+        "--dont_retry_failures",
+        action="store_true",
+        help="Do not retry failed tests",
     )
 
     return parser.parse_args()
