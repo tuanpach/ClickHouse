@@ -1292,6 +1292,7 @@ def test_check_parquet_schema(started_cluster):
     file_path = 'http://minio1:9001/root/test_parquet/test_check_parquet_schema.parquet'
     table_function = f"s3('{file_path}', structure='a Int32, b String', format='{format_name}')"
     expected_lines = 15000
+    instance.query("DROP TABLE IF EXISTS t_s3_schema_test")
     instance.query(f"""
         CREATE TABLE t_s3_schema_test
         (
