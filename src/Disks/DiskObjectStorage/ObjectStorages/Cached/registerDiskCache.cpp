@@ -144,6 +144,7 @@ void registerDiskCache(DiskFactory & factory, bool /* global_skip_access_check *
                 disk_name, name);
 
         auto cached_disk_object_storage = std::dynamic_pointer_cast<DiskObjectStorage>(disk)->wrapWithCache(cache, cache_settings, name);
+        cached_disk_object_storage->startupImpl();
 
         LOG_INFO(
             getLogger("DiskCache"),

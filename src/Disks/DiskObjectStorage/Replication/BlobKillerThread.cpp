@@ -11,6 +11,7 @@
 #include <Common/DelayWithJitter.h>
 #include <Common/Exception.h>
 #include <Common/Logger.h>
+#include <Common/logger_useful.h>
 #include <Common/ProfileEvents.h>
 
 #include <utility>
@@ -266,7 +267,7 @@ void BlobKillerThread::applyNewSettings(const Poco::Util::AbstractConfiguration 
     }
     else
     {
-        LOG_INFO(log, "Execution stopped");
+        LOG_INFO(log, "Execution stopped: Enabled: {}, Started: {}", enabled.load(), started.load());
         task->deactivate();
     }
 }
