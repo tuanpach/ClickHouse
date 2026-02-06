@@ -105,8 +105,8 @@ void ParquetV3BlockInputFormat::initializeIfNeeded()
     }
 }
 
-parquet::format::FileMetaData ParquetV3BlockInputFormat::getFileMetadata(Parquet::Prefetcher & prefetcher) const {
-
+parquet::format::FileMetaData ParquetV3BlockInputFormat::getFileMetadata(Parquet::Prefetcher & prefetcher) const
+{
     if (metadata_cache && metadata.has_value())
     {
         String file_name = metadata->getPath();
@@ -119,7 +119,6 @@ parquet::format::FileMetaData ParquetV3BlockInputFormat::getFileMetadata(Parquet
     {
         return Parquet::Reader::readFileMetaData(prefetcher);
     }
-
 }
 
 Chunk ParquetV3BlockInputFormat::read()
