@@ -13,6 +13,7 @@
 #include <DataTypes/Serializations/SerializationString.h>
 #include <DataTypes/DataTypeLowCardinality.h>
 #include <Interpreters/ITokenExtractor.h>
+#include <Interpreters/TokenizerFactory.h>
 #include <Parsers/ASTFunction.h>
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTLiteral.h>
@@ -1288,15 +1289,18 @@ std::optional<Type> extractOption(std::unordered_map<String, Field> & options, c
     return value.safeGet<Type>();
 }
 
-std::unordered_map<String, Field> convertArgumentsToOptionsMap(const FieldVector & arguments)
+Tuple parseNamedArgumentFromAST(const ASTFunction * ast_equal_function);
+
+std::unordered_map<String, Field> convertArgumentsToOptionsMap(const ASTPtr & arguments)
 {
     std::unordered_map<String, Field> options;
-    for (const Field & argument : arguments)
-    {
-        if (argument.getType() != Field::Types::Tuple)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Arguments of text index must be key-value pair (identifier = literal)");
+    if (!arguments)
+        return options;
 
-        Tuple tuple = argument.safeGet<Tuple>();
+    for (const auto & child : arguments->children)
+    {
+        const auto * ast_equal_function = child->as<ASTFunction>();
+        Tuple tuple = parseNamedArgumentFromAST(ast_equal_function);
         String key = tuple[0].safeGet<String>();
 
         if (options.contains(key))
@@ -1312,7 +1316,7 @@ std::unordered_map<String, Field> convertArgumentsToOptionsMap(const FieldVector
  * In case of a function, tokenizer specific argument is provided as parameter of the function.
  * This function is responsible to extract the tokenizer name and parameter if provided.
  */
-std::pair<String, std::vector<Field>> extractTokenizer(std::unordered_map<String, Field> & options)
+std::pair<String, FieldVector> extractTokenizer(std::unordered_map<String, Field> & options)
 {
     /// Check that tokenizer is present
     if (!options.contains(ARGUMENT_TOKENIZER))
@@ -1338,7 +1342,7 @@ std::pair<String, std::vector<Field>> extractTokenizer(std::unordered_map<String
                 function_name.getTypeName());
         }
 
-        std::vector<Field> params(tokenizer_tuple->begin() + 1, tokenizer_tuple->end());
+        FieldVector params(tokenizer_tuple->begin() + 1, tokenizer_tuple->end());
         return {function_name.safeGet<String>(), std::move(params)};
     }
 
@@ -1356,14 +1360,14 @@ MergeTreeIndexPtr textIndexCreator(const IndexDescription & index)
     std::unordered_map<String, Field> options = convertArgumentsToOptionsMap(index.arguments);
     const auto [tokenizer, params] = extractTokenizer(options);
 
-    static std::vector<String> allowed_tokenizers
-        = {NgramsTokenExtractor::getExternalName(),
-           SplitByNonAlphaTokenExtractor::getExternalName(),
-           SplitByStringTokenExtractor::getExternalName(),
-           ArrayTokenExtractor::getExternalName(),
-           SparseGramsTokenExtractor::getExternalName()};
+    static std::set<ITokenExtractor::Type> allowed_types
+        = {ITokenExtractor::Type::Ngrams,
+           ITokenExtractor::Type::SplitByNonAlpha,
+           ITokenExtractor::Type::SplitByString,
+           ITokenExtractor::Type::Array,
+           ITokenExtractor::Type::SparseGrams};
 
-    auto token_extractor = TokenizerFactory::createTokenizer(tokenizer, params, allowed_tokenizers, index.name);
+    auto token_extractor = TokenizerFactory::instance().get(tokenizer, params, allowed_types);
 
     String preprocessor = extractOption<String>(options, ARGUMENT_PREPROCESSOR).value_or("");
     UInt64 dictionary_block_size = extractOption<UInt64>(options, ARGUMENT_DICTIONARY_BLOCK_SIZE).value_or(DEFAULT_DICTIONARY_BLOCK_SIZE);
@@ -1394,14 +1398,14 @@ void textIndexValidator(const IndexDescription & index, bool /*attach*/)
     std::unordered_map<String, Field> options = convertArgumentsToOptionsMap(index.arguments);
     const auto [tokenizer, params] = extractTokenizer(options);
 
-    static std::vector<String> allowed_tokenizers
-        = {NgramsTokenExtractor::getExternalName(),
-           SplitByNonAlphaTokenExtractor::getExternalName(),
-           SplitByStringTokenExtractor::getExternalName(),
-           ArrayTokenExtractor::getExternalName(),
-           SparseGramsTokenExtractor::getExternalName()};
+    static std::set<ITokenExtractor::Type> allowed_types
+        = {ITokenExtractor::Type::Ngrams,
+           ITokenExtractor::Type::SplitByNonAlpha,
+           ITokenExtractor::Type::SplitByString,
+           ITokenExtractor::Type::Array,
+           ITokenExtractor::Type::SparseGrams};
 
-    TokenizerFactory::createTokenizer(tokenizer, params, allowed_tokenizers, index.name, /*only_validate = */ true);
+    TokenizerFactory::instance().get(tokenizer, params, allowed_types);
 
     UInt64 dictionary_block_size = extractOption<UInt64>(options, ARGUMENT_DICTIONARY_BLOCK_SIZE).value_or(DEFAULT_DICTIONARY_BLOCK_SIZE);
     if (dictionary_block_size == 0)
@@ -1528,18 +1532,5 @@ static Tuple parseNamedArgumentFromAST(const ASTFunction * ast_equal_function)
     return result;
 }
 
-FieldVector MergeTreeIndexText::parseArgumentsListFromAST(const ASTPtr & arguments)
-{
-    FieldVector result;
-    result.reserve(arguments->children.size());
-
-    for (const auto & argument : arguments->children)
-    {
-        const auto * ast_equal_function = argument->as<ASTFunction>();
-        result.emplace_back(parseNamedArgumentFromAST(ast_equal_function));
-    }
-
-    return result;
-}
 
 }

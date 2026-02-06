@@ -8,6 +8,7 @@
 #include <Functions/IFunction.h>
 #include <Interpreters/Context_fwd.h>
 #include <Interpreters/ITokenExtractor.h>
+#include <Interpreters/TokenizerFactory.h>
 #include <Common/Exception.h>
 
 namespace DB
@@ -61,14 +62,14 @@ std::unique_ptr<ITokenExtractor> createTokenizer(const ColumnsWithTypeAndName & 
         }
     }
 
-    static std::vector<String> allowed_tokenizers
-        = {NgramsTokenExtractor::getExternalName(),
-           SplitByNonAlphaTokenExtractor::getExternalName(),
-           SplitByStringTokenExtractor::getExternalName(),
-           ArrayTokenExtractor::getExternalName(),
-           SparseGramsTokenExtractor::getExternalName()};
+    static std::set<ITokenExtractor::Type> allowed_types
+        = {ITokenExtractor::Type::Ngrams,
+           ITokenExtractor::Type::SplitByNonAlpha,
+           ITokenExtractor::Type::SplitByString,
+           ITokenExtractor::Type::Array,
+           ITokenExtractor::Type::SparseGrams};
 
-    return TokenizerFactory::createTokenizer(tokenizer, params, allowed_tokenizers, function_name);
+    return TokenizerFactory::instance().get(tokenizer, params, allowed_types);
 }
 
 class ExecutableFunctionTokens : public IExecutableFunction
