@@ -132,7 +132,7 @@ possible_properties = {
     "compiled_expression_cache_elements_size": threshold_generator(0.2, 0.2, 0, 10000),
     "compiled_expression_cache_size": threshold_generator(0.2, 0.2, 0, 10000),
     "concurrent_threads_scheduler": lambda: random.choice(
-        ["round_robin", "fair_round_robin"]
+        ["round_robin", "fair_round_robin", "max_min_fair"]
     ),
     "concurrent_threads_soft_limit_num": threads_lambda,
     "concurrent_threads_soft_limit_ratio_to_cores": threads_lambda,
@@ -368,7 +368,7 @@ s3_with_keeper_properties = {
 }
 
 metadata_cleanup_properties = {
-    "enabled": lambda: random.randint(0, 9) < 9,
+    "enabled": lambda: 1 if random.randint(0, 9) < 9 else 0,
     "deleted_objects_delay_sec": threshold_generator(0.2, 0.2, 0, 60),
     "old_transactions_delay_sec": threshold_generator(0.2, 0.2, 0, 60),
     "interval_sec": threshold_generator(0.2, 0.2, 1, 60),
@@ -384,6 +384,7 @@ cache_storage_properties = {
     "background_download_threads": threads_lambda,
     "boundary_alignment": threshold_generator(0.2, 0.2, 0, 128),
     "cache_on_write_operations": true_false_lambda,
+    "check_cache_probability": threshold_generator(0.2, 0.2, 0.0, 1.0),
     "enable_bypass_cache_with_threshold": true_false_lambda,
     "enable_filesystem_query_cache_limit": true_false_lambda,
     "keep_free_space_elements_ratio": threshold_generator(0.2, 0.2, 0.0, 1.0),
@@ -414,7 +415,7 @@ all_disks_properties = {
     "keep_free_space_bytes": threshold_generator(0.2, 0.2, 0, 10 * 1024 * 1024),
     "min_bytes_for_seek": threshold_generator(0.2, 0.2, 0, 10 * 1024 * 1024),
     "perform_ttl_move_on_insert": true_false_lambda,
-    "readonly": lambda: random.randint(0, 9) < 2,
+    "readonly": lambda: 1 if random.randint(0, 9) < 2 else 0,
     "skip_access_check": true_false_lambda,
 }
 
@@ -846,6 +847,11 @@ class DiskPropertiesGroup(PropertiesGroup):
             smt_element = ET.SubElement(top_root, "shared_merge_tree")
             disk_element = ET.SubElement(smt_element, "disk")
             disk_element.text = f"disk{random.choice(created_keeper_disks)}"
+        # Optionally set database disk
+        if number_disks > 0 and random.randint(1, 100) <= 30:
+            dbd_element = ET.SubElement(top_root, "database_disk")
+            disk_element = ET.SubElement(dbd_element, "disk")
+            disk_element.text = f"disk{random.randint(0, number_disks - 1)}"
 
 
 def add_single_cache(i: int, next_cache: ET.Element):

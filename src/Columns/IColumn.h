@@ -7,7 +7,6 @@
 #include <Common/PODArray_fwd.h>
 #include <Common/typeid_cast.h>
 
-#include <IO/WriteBufferFromString.h>
 #include "config.h"
 
 #include <span>
@@ -38,6 +37,7 @@ struct ColumnsInfo;
 using DataTypePtr = std::shared_ptr<const IDataType>;
 using IColumnPermutation = PaddedPODArray<size_t>;
 using IColumnFilter = PaddedPODArray<UInt8>;
+class WriteBufferFromOwnString;
 
 /// A range of column values between row indexes `from` and `to`. The name "equal range" is due to table sorting as its main use case: With
 /// a PRIMARY KEY (c_pk1, c_pk2, ...), the first PK column is fully sorted. The second PK column is sorted within equal-value runs of the
@@ -157,11 +157,7 @@ public:
     struct Options
     {
         Int64 optimize_const_name_size = -1;
-
-        bool notFull(WriteBufferFromOwnString & buf) const
-        {
-            return optimize_const_name_size < 0 || static_cast<Int64>(buf.count()) <= optimize_const_name_size;
-        }
+        bool notFull(WriteBufferFromOwnString & buf) const;
     };
 
     virtual DataTypePtr getValueNameAndTypeImpl(WriteBufferFromOwnString &, size_t, const Options &) const = 0;
@@ -366,6 +362,10 @@ public:
       */
     using Filter = IColumnFilter;
     [[nodiscard]] virtual Ptr filter(const Filter & filt, ssize_t result_size_hint) const = 0;
+
+    /// In-place filter that modifies the current column directly.
+    /// Elements that don't match the filter are removed from the current column.
+    virtual void filter(const Filter & filt) = 0;
 
     /** Expand column by mask inplace. After expanding column will
       * satisfy the following: if we filter it by given mask, we will
@@ -857,9 +857,6 @@ bool isColumnConst(const IColumn & column);
 
 /// True if column's an ColumnNullable instance. It's just a syntax sugar for type check.
 bool isColumnNullable(const IColumn & column);
-
-/// True if column's an ColumnLazy instance. It's just a syntax sugar for type check.
-bool isColumnLazy(const IColumn & column);
 
 /// True if column's is ColumnNullable or ColumnLowCardinality with nullable nested column.
 bool isColumnNullableOrLowCardinalityNullable(const IColumn & column);

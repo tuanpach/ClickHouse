@@ -5,6 +5,7 @@
 #include <Core/ServerUUID.h>
 #include <Core/Settings.h>
 #include <Formats/FormatFactory.h>
+#include <Formats/FormatParserSharedResources.h>
 #include <IO/EmptyReadBuffer.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/DatabaseCatalog.h>
@@ -72,6 +73,7 @@ extern const Event KafkaMessagesRead;
 extern const Event KafkaMessagesFailed;
 extern const Event KafkaRowsRead;
 extern const Event KafkaWrites;
+extern const Event KafkaMVNotReady;
 }
 
 
@@ -1013,7 +1015,10 @@ void StorageKafka2::threadFunc(size_t idx)
             {
                 maybe_stall_reason.reset();
                 if (!StorageKafkaUtils::checkDependencies(table_id, getContext()))
+                {
+                    ProfileEvents::increment(ProfileEvents::KafkaMVNotReady);
                     break;
+                }
 
                 LOG_DEBUG(log, "Started streaming to {} attached views", num_views);
 
@@ -1175,7 +1180,7 @@ void StorageKafka2::cleanConsumers()
 std::optional<size_t> StorageKafka2::streamFromConsumer(KeeperHandlingConsumer & consumer, const Stopwatch & watch)
 {
     // Create an INSERT query for streaming data
-    auto insert = std::make_shared<ASTInsertQuery>();
+    auto insert = make_intrusive<ASTInsertQuery>();
     insert->table_id = getStorageID();
 
     auto modified_context = Context::createCopy(getContext());

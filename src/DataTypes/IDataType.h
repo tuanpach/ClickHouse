@@ -106,13 +106,13 @@ public:
     void updateHash(SipHash & hash) const;
     virtual void updateHashImpl(SipHash & hash) const = 0;
 
-    bool hasSubcolumn(std::string_view subcolumn_name, SerializationPtr override_default = nullptr) const;
+    bool hasSubcolumn(std::string_view subcolumn_name) const;
 
-    DataTypePtr tryGetSubcolumnType(std::string_view subcolumn_name, SerializationPtr override_default = nullptr) const;
-    DataTypePtr getSubcolumnType(std::string_view subcolumn_name, SerializationPtr override_default = nullptr) const;
+    DataTypePtr tryGetSubcolumnType(std::string_view subcolumn_name) const;
+    DataTypePtr getSubcolumnType(std::string_view subcolumn_name) const;
 
-    ColumnPtr tryGetSubcolumn(std::string_view subcolumn_name, const ColumnPtr & column, SerializationPtr override_default = nullptr) const;
-    ColumnPtr getSubcolumn(std::string_view subcolumn_name, const ColumnPtr & column, SerializationPtr override_default = nullptr) const;
+    ColumnPtr tryGetSubcolumn(std::string_view subcolumn_name, const ColumnPtr & column) const;
+    ColumnPtr getSubcolumn(std::string_view subcolumn_name, const ColumnPtr & column) const;
 
     SerializationPtr getSubcolumnSerialization(std::string_view subcolumn_name, const SerializationPtr & serialization) const;
 
@@ -145,7 +145,8 @@ public:
     SerializationPtr getDefaultSerialization(SerializationPtr override_default = {}) const;
 
     /// Chooses serialization according to serialization kind stack.
-    SerializationPtr getSerialization(ISerialization::KindStack kind_stack, SerializationPtr override_default = {}) const;
+    SerializationPtr getSerialization(
+        ISerialization::KindStack kind_stack, const SerializationInfoSettings & settings, SerializationPtr override_default = {}) const;
 
     /// Chooses serialization according to collected information about content of column.
     virtual SerializationPtr getSerialization(const SerializationInfo & info) const;
@@ -366,11 +367,13 @@ protected:
     static std::unique_ptr<SubstreamData> getSubcolumnData(
         std::string_view subcolumn_name,
         const SubstreamData & data,
+        size_t initial_array_level,
         bool throw_if_null);
 
     virtual std::unique_ptr<SubstreamData> getDynamicSubcolumnData(
         std::string_view /*subcolumn_name*/,
         const SubstreamData & /*data*/,
+        size_t /*initial_array_level*/,
         bool throw_if_null) const
     {
         if (throw_if_null)
@@ -503,6 +506,7 @@ bool isInteger(TYPE data_type); \
 bool isNativeInteger(TYPE data_type); \
 \
 bool isDecimal(TYPE data_type); \
+bool isDecimal64(TYPE data_type); \
 \
 bool isFloat(TYPE data_type); \
 \

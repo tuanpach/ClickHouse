@@ -62,6 +62,14 @@ OutputPort & JoiningTransform::getFinishedSignal()
 
 IProcessor::Status JoiningTransform::prepare()
 {
+    /// Check if we can fully skip reading left side when right side is empty
+    if (inputs.size() > 1)
+    {
+        auto & last_in = inputs.back();
+        if (last_in.isFinished() && join->alwaysReturnsEmptySet() && !on_totals)
+            stop_reading = true;
+    }
+
     auto & output = outputs.front();
     auto & on_finish_output = outputs.back();
 
@@ -136,7 +144,7 @@ void JoiningTransform::work()
     {
         chassert(!output_chunk.has_value());
         transform(input_chunk);
-        has_input = join_result != nullptr;
+        has_input = input_chunk.hasRows() || join_result != nullptr;
     }
     else
     {
@@ -172,6 +180,8 @@ void JoiningTransform::work()
     }
 }
 
+/// transform should consume the input chunk and set the output chunk
+/// if not all data is consumed it may be set to the chunk and transform will be called again
 void JoiningTransform::transform(Chunk & chunk)
 {
     if (!initialized)
@@ -228,6 +238,13 @@ Block JoiningTransform::readExecute(Chunk & chunk)
     }
 
     auto data = join_result->next();
+    if (data.is_last && data.next_block)
+    {
+        data.next_block->filterBySelector();
+        auto next_block = std::move(*data.next_block).getSourceBlock();
+        chunk.setColumns(next_block.getColumns(), next_block.rows());
+    }
+
     if (data.is_last)
         join_result.reset();
 

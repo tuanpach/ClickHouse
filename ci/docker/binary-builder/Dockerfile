@@ -5,6 +5,8 @@ ARG TARGETARCH
 ENV CC=clang-${LLVM_VERSION}
 ENV CXX=clang++-${LLVM_VERSION}
 
+#non-functional change
+
 # If the cctools is updated, then first build it in the CI, then update here in a different commit
 COPY --from=clickhouse/cctools:859fb360308eb8ac47ad /cctools /cctools
 
@@ -28,6 +30,9 @@ RUN add-apt-repository ppa:ubuntu-toolchain-r/test --yes \
         zstd \
         zip \
         clang-tidy-${LLVM_VERSION} \
+        llvm-${LLVM_VERSION} \
+    && ln -sf /usr/bin/llvm-profdata-${LLVM_VERSION} /usr/bin/llvm-profdata \
+    && ln -sf /usr/bin/llvm-cov-${LLVM_VERSION} /usr/bin/llvm-cov \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /var/cache/debconf /tmp/*
 
