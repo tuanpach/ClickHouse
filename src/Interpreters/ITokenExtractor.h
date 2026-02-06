@@ -6,6 +6,7 @@
 #include <Common/assert_cast.h>
 
 #include <Functions/sparseGrams.h>
+#include <fmt/ranges.h>
 
 namespace DB
 {
@@ -32,6 +33,9 @@ public:
 
     virtual ~ITokenExtractor() = default;
     virtual std::unique_ptr<ITokenExtractor> clone() const = 0;
+
+    /// Returns a formatted description of the tokenizer with arguments.
+    virtual String getDescription() const = 0;
 
     /// Fast inplace implementation for regular use.
     /// Gets string (data ptr and len) and start position for extracting next token (state of extractor).
@@ -175,6 +179,7 @@ struct NgramsTokenExtractor final : public ITokenExtractorHelper<NgramsTokenExtr
 
     static const char * getName() { return "ngrambf_v1"; }
     static const char * getExternalName() { return "ngrams"; }
+    String getDescription() const override { return fmt::format("ngrams({})", n); }
 
     bool nextInString(const char * data, size_t length, size_t & __restrict pos, size_t & __restrict token_start, size_t & __restrict token_length) const override;
     bool nextInStringLike(const char * data, size_t length, size_t & pos, String & token) const override;
@@ -193,6 +198,7 @@ struct SplitByNonAlphaTokenExtractor final : public ITokenExtractorHelper<SplitB
 
     static const char * getName() { return "tokenbf_v1"; }
     static const char * getExternalName() { return "splitByNonAlpha"; }
+    String getDescription() const override { return "splitByNonAlpha"; }
 
     bool nextInString(const char * data, size_t length, size_t & __restrict pos, size_t & __restrict token_start, size_t & __restrict token_length) const override;
     bool nextInStringPadded(const char * data, size_t length, size_t & __restrict pos, size_t & __restrict token_start, size_t & __restrict token_length) const override;
@@ -212,6 +218,11 @@ struct SplitByStringTokenExtractor final : public ITokenExtractorHelper<SplitByS
     static const char * getName() { return "splitByString"; }
     static const char * getExternalName() { return getName(); }
 
+    String getDescription() const override
+    {
+        return fmt::format("splitByString({})", fmt::join(separators, ","));
+    }
+
     bool nextInString(const char * data, size_t length, size_t & pos, size_t & token_start, size_t & token_length) const override;
     bool nextInStringLike(const char * data, size_t length, size_t & pos, String & token) const override;
 
@@ -227,6 +238,7 @@ struct ArrayTokenExtractor final : public ITokenExtractorHelper<ArrayTokenExtrac
 
     static const char * getName() { return "array"; }
     static const char * getExternalName() { return getName(); }
+    String getDescription() const override { return "array"; }
 
     bool nextInString(const char * data, size_t length, size_t & pos, size_t & token_start, size_t & token_length) const override;
     bool nextInStringLike(const char * data, size_t length, size_t & pos, String & token) const override;
@@ -244,6 +256,15 @@ struct SparseGramsTokenExtractor final : public ITokenExtractorHelper<SparseGram
     static const char * getName() { return "sparseGrams"; }
     static const char * getExternalName() { return getName(); }
 
+    String getDescription() const override
+    {
+        String result = fmt::format("sparseGrams({},{}", min_gram_length, max_gram_length);
+        if (min_cutoff_length.has_value())
+            result += fmt::format(", {}", *min_cutoff_length);
+        result += ")";
+        return result;
+    }
+
     bool nextInString(const char * data, size_t length, size_t & __restrict pos, size_t & __restrict token_start, size_t & __restrict token_length) const override;
     std::vector<String> compactTokens(const std::vector<String> & tokens) const override;
 
@@ -251,6 +272,9 @@ struct SparseGramsTokenExtractor final : public ITokenExtractorHelper<SparseGram
     bool supportsStringLike() const override { return true; }
 
 private:
+    size_t min_gram_length;
+    size_t max_gram_length;
+    std::optional<size_t> min_cutoff_length;
     mutable SparseGramsImpl<true> sparse_grams_iterator;
     mutable const char * previous_data = nullptr;
     mutable size_t previous_len = 0;

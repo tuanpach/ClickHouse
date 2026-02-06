@@ -346,6 +346,9 @@ bool ArrayTokenExtractor::nextInStringLike(const char * /*data*/, size_t /*lengt
 
 SparseGramsTokenExtractor::SparseGramsTokenExtractor(size_t min_length, size_t max_length, std::optional<size_t> min_cutoff_length_)
     : ITokenExtractorHelper(Type::SparseGrams)
+    , min_gram_length(min_length)
+    , max_gram_length(max_length)
+    , min_cutoff_length(min_cutoff_length_)
     , sparse_grams_iterator(min_length, max_length, min_cutoff_length_)
 {
 }
