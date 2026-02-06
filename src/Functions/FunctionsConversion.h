@@ -72,7 +72,6 @@
 #include <IO/parseDateTimeBestEffort.h>
 #include <Interpreters/Context.h>
 #include <Common/Concepts.h>
-#include <Common/CurrentThread.h>
 #include <Common/Exception.h>
 #include <Common/HashTable/HashMap.h>
 #include <Common/IPv6ToBinary.h>
