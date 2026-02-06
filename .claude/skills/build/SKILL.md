@@ -8,7 +8,7 @@ allowed-tools: Task, Bash(ninja:*), Bash(cd:*), Bash(ls:*), Bash(pgrep:*), Bash(
 
 # ClickHouse Build Skill
 
-Build ClickHouse in `build` or `build_${buildType}` or `build/${buildType}` directory (e.g., `build`, `build_debug`, `build_asan`...)
+Build ClickHouse in `build` or `build_debug`, `build_asan`, `build_tsan`, `build_msan`, `build_ubsan` or, if exists, `build/${buildType}` directory.
 
 ## Arguments
 
