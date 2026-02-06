@@ -2,8 +2,9 @@
 
 #include <AggregateFunctions/Combinators/IAggregateFunctionCombinator.h>
 
-#include <string>
 #include <Common/VectorWithMemoryTracking.h>
+
+#include <string>
 
 
 namespace DB

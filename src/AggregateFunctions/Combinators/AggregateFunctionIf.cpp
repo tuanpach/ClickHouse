@@ -2,8 +2,9 @@
 #include <AggregateFunctions/Combinators/AggregateFunctionIf.h>
 #include <AggregateFunctions/Combinators/AggregateFunctionNull.h>
 
-#include <absl/container/inlined_vector.h>
 #include <Common/VectorWithMemoryTracking.h>
+
+#include <absl/container/inlined_vector.h>
 
 namespace DB
 {

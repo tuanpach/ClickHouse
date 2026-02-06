@@ -10,10 +10,10 @@
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
 #include <Common/assert_cast.h>
-
-#include <list>
 #include <Common/ListWithMemoryTracking.h>
 #include <Common/VectorWithMemoryTracking.h>
+
+#include <list>
 
 
 namespace DB

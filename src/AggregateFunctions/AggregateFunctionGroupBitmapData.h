@@ -7,6 +7,8 @@
 #include <boost/noncopyable.hpp>
 #include <Common/HashTable/SmallTable.h>
 #include <Common/PODArray.h>
+#include <Common/SetWithMemoryTracking.h>
+#include <Common/VectorWithMemoryTracking.h>
 
 // Include this header last, because it is an auto-generated dump of questionable
 // garbage that breaks the build (e.g. it changes _POSIX_C_SOURCE).
@@ -14,8 +16,6 @@
 // this one: https://github.com/RoaringBitmap/CRoaring/blob/master/include/roaring/roaring.h
 #include <roaring/roaring.hh>
 #include <roaring/roaring64map.hh>
-#include <Common/SetWithMemoryTracking.h>
-#include <Common/VectorWithMemoryTracking.h>
 
 
 namespace DB

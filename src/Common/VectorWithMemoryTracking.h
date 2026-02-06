@@ -3,7 +3,6 @@
 #include <Common/AllocatorWithMemoryTracking.h>
 
 #include <vector>
-#include <Common/VectorWithMemoryTracking.h>
 
 namespace DB
 {

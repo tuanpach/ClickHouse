@@ -3,7 +3,6 @@
 #include <Common/AllocatorWithMemoryTracking.h>
 
 #include <list>
-#include <Common/ListWithMemoryTracking.h>
 
 namespace DB
 {

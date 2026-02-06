@@ -2,6 +2,7 @@
 #include <AggregateFunctions/FactoryHelpers.h>
 #include <AggregateFunctions/Helpers.h>
 #include <Common/FieldVisitorConvertToNumber.h>
+#include <Common/VectorWithMemoryTracking.h>
 
 #include <Common/NaNUtils.h>
 
@@ -25,7 +26,6 @@
 #include <queue>
 #include <cmath>
 #include <cstddef>
-#include <Common/VectorWithMemoryTracking.h>
 
 
 namespace DB

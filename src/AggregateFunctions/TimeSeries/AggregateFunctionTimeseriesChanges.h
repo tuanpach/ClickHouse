@@ -2,8 +2,6 @@
 
 #include <cstddef>
 #include <cstring>
-#include <deque>
-#include <vector>
 
 #include <IO/WriteHelpers.h>
 #include <IO/ReadHelpers.h>
@@ -15,12 +13,12 @@
 #include <Columns/ColumnVector.h>
 #include <Columns/ColumnArray.h>
 #include <Columns/ColumnNullable.h>
+#include <Common/DequeWithMemoryTracking.h>
+#include <Common/VectorWithMemoryTracking.h>
 
 #include <AggregateFunctions/TimeSeries/AggregateFunctionTimeseriesBase.h>
 
 #include <absl/container/flat_hash_map.h>
-#include <Common/DequeWithMemoryTracking.h>
-#include <Common/VectorWithMemoryTracking.h>
 
 
 namespace DB

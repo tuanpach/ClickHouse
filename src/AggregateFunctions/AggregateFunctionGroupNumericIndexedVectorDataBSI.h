@@ -4,15 +4,15 @@
 #include <Formats/FormatSettings.h>
 #include <IO/ReadBuffer.h>
 #include <Common/JSONBuilder.h>
+#include <Common/MapWithMemoryTracking.h>
+#include <Common/SetWithMemoryTracking.h>
+#include <Common/VectorWithMemoryTracking.h>
 
 #include <base/demangle.h>
 
 /// Include this last — see the reason inside
 #include <AggregateFunctions/AggregateFunctionGroupBitmapData.h>
 #include <roaring/containers/containers.h>
-#include <Common/MapWithMemoryTracking.h>
-#include <Common/SetWithMemoryTracking.h>
-#include <Common/VectorWithMemoryTracking.h>
 
 namespace DB
 {

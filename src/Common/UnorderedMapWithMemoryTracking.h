@@ -3,7 +3,6 @@
 #include <Common/AllocatorWithMemoryTracking.h>
 
 #include <unordered_map>
-#include <Common/UnorderedMapWithMemoryTracking.h>
 
 namespace DB
 {
