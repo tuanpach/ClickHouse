@@ -346,19 +346,21 @@ public:
         size_t i = 0;
         while (i < size)
         {
-            if ((max_fill() - m_size) > insert_many_batch_size && ((size - i) > insert_many_batch_size))
+            /// Check that we have enough capacity and enough values to insert in batch. If not, we will insert values one by one which
+            /// allows us to check the shrink condition after each insert and avoid inserting too many values before shrinking.
+            if ((max_fill() - m_size) >= insert_many_batch_size && ((size - i) >= insert_many_batch_size))
             {
                 /// We read and transform multiple values at once which allows both the compiler and the CPU to better optimize the code.
                 /// We calculate place() even for !good() hashes to maximize data independence and enable better out-of-order execution.
                 /// The extra work is negligible compared to the instruction level parallelization benefits.
-                HashValue hash_value[insert_many_batch_size];
+                std::array<HashValue, insert_many_batch_size> hash_value;
                 for (size_t j = 0; j < insert_many_batch_size; ++j)
                 {
                     hash_value[j] = hash(Transform(data[i + j]));
                 }
                 i += insert_many_batch_size;
 
-                size_t place_value_batch[insert_many_batch_size];
+                std::array<size_t, insert_many_batch_size> place_value_batch;
                 for (size_t j = 0; j < insert_many_batch_size; ++j)
                 {
                     place_value_batch[j] = place(hash_value[j]);
