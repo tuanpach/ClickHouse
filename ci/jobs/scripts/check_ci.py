@@ -796,7 +796,6 @@ def main():
                 f"gh pr ready {pr_number} --repo ClickHouse/ClickHouse",
                 strict=True,
                 verbose=True,
-                retries=5,
             )
         else:
             sys.exit(0)
@@ -806,7 +805,7 @@ def main():
         mergeable_check_status, sha=head_sha
     )
 
-    if Shell.check(f"gh pr merge {pr_number} --auto --repo ClickHouse/ClickHouse", retries=5):
+    if Shell.check(f"gh pr merge {pr_number} --auto --repo ClickHouse/ClickHouse"):
         # Check if PR was successfully added to the merge queue
         # uncomment/fix if GH misses became regular
         # merge_status = Shell.check(
