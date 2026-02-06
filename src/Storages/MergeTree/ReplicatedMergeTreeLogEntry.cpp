@@ -11,6 +11,7 @@
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
 
+#include <base/find_symbols.h>
 #include <fmt/ranges.h>
 
 namespace DB
@@ -239,16 +240,11 @@ void ReplicatedMergeTreeLogEntryData::readText(ReadBuffer & in, MergeTreeDataFor
 
     if (format_version >= FORMAT_WITH_BLOCK_ID)
     {
-        String block_hashes_string;
+        std::string block_hashes_string;
         in >> "block_id: " >> escape >> block_hashes_string >> "\n";
 
         if (!block_hashes_string.empty())
-        {
-            std::istringstream block_ids_stream(block_hashes_string);
-            String block_id;
-            while (std::getline(block_ids_stream, block_id, ','))
-                deduplication_block_ids.push_back(block_id);
-        }
+            splitInto<','>(deduplication_block_ids, block_hashes_string, true);
     }
 
     if (format_version >= FORMAT_WITH_LOG_ENTRY_ID)
