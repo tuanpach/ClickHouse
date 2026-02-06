@@ -165,7 +165,7 @@ ObjectStoragePtr StorageS3Configuration::createObjectStorage(ContextPtr context,
     }
 
     auto client = getClient(url, *s3_settings, context, /* for_disk_s3 */false);
-    
+
     // Only create refresher callback if refresh_credentials_callback is provided and callable
     S3ObjectStorage::S3CredentialsRefreshCallback client_refresher;
     if (refresh_credentials_callback)
