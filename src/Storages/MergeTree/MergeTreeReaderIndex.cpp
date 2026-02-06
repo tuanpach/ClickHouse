@@ -61,10 +61,17 @@ size_t MergeTreeReaderIndex::readRows(
         next_lazy_row_it = std::lower_bound(lazy_materializing_rows->begin(), lazy_materializing_rows->end(), starting_row);
 
     /// Clamp max_rows_to_read.
-    size_t total_rows = data_part_info_for_read->getIndexGranularity().getTotalRows();
+    /// Use min of getTotalRows() and getRowCount() because getTotalRows() from index granularity
+    /// can overestimate the last granule when use_const_adaptive_granularity=1 and index_granularity_bytes=0
+    /// (adjustLastMark is not called in that configuration, so the last mark reports full granularity
+    /// instead of the actual remaining rows).
+    size_t total_rows = std::min(
+        data_part_info_for_read->getIndexGranularity().getTotalRows(),
+        data_part_info_for_read->getRowCount());
     if (starting_row < total_rows)
         max_rows_to_read = std::min(max_rows_to_read, total_rows - starting_row);
-    max_rows_to_read = std::min(max_rows_to_read, data_part_info_for_read->getRowCount());
+    else
+        max_rows_to_read = 0;
     /// If projection index is available, attempt to construct the filter column
     if (index_read_result && index_read_result->projection_index_read_result)
     {
