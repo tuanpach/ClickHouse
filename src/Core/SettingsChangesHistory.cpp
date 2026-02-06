@@ -45,6 +45,7 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"default_dictionary_database", "", "", "New setting"},
             {"enable_join_runtime_filters", false, true, "Enabled this optimization"},
             {"parallel_replicas_filter_pushdown", false, false, "New setting"},
+            {"use_statistics_cache", false, true, "Enable statistics cache"},
 
         });
         addSettingsChanges(settings_changes_history, "26.1",
