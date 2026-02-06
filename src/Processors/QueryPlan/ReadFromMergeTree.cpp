@@ -3909,7 +3909,9 @@ bool ReadFromMergeTree::areSkipIndexColumnsInPrimaryKey(const Names & primary_ke
 
 ConditionSelectivityEstimatorPtr ReadFromMergeTree::getConditionSelectivityEstimator() const
 {
-    return data.getConditionSelectivityEstimator(getParts(), getContext());
+    if (getStorageMetadata()->hasStatistics())
+        return data.getConditionSelectivityEstimator(getParts(), getContext());
+    return nullptr;
 }
 
 }

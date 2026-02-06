@@ -280,6 +280,9 @@ struct StorageInMemoryMetadata
     const SelectQueryDescription & getSelectQuery() const;
     bool hasSelectQuery() const;
 
+    /// If any columns has statistics.
+    bool hasStatistics() const;
+
     /// Get version of metadata
     int32_t getMetadataVersion() const { return metadata_version; }
 
