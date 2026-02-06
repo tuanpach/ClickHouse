@@ -14,7 +14,7 @@ set -e
 
 function wait_for_cache_cleanup()
 {
-    local max_tries="${1:-20}"
+    local max_tries=30
     # Wait for all queries to finish (query may still be running if a thread is killed by timeout)
     local num_tries=0
     while [[ $($CLICKHOUSE_CLIENT -q "SELECT count() FROM system.filesystem_cache WHERE cache_name = '$1'") -ne 0 ]]; do
