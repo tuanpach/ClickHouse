@@ -9,6 +9,7 @@
 #include <Common/Base64.h>
 
 #include <gtest/gtest.h>
+#include <Common/VectorWithMemoryTracking.h>
 
 TEST(DDSketch, MergeDifferentGammasWithoutSegfault)
 {

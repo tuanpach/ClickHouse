@@ -12,7 +12,6 @@
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
 #include <base/range.h>
-#include <Common/ContainersWithMemoryTracking.h>
 #include <Common/assert_cast.h>
 
 #include <bitset>
@@ -20,6 +19,7 @@
 #include <iterator>
 #include <stack>
 #include <vector>
+#include <Common/VectorWithMemoryTracking.h>
 
 
 namespace DB

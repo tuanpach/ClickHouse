@@ -6,7 +6,6 @@
 #include <base/sort.h>
 #include <boost/noncopyable.hpp>
 #include <Common/HashTable/SmallTable.h>
-#include <Common/ContainersWithMemoryTracking.h>
 #include <Common/PODArray.h>
 
 // Include this header last, because it is an auto-generated dump of questionable
@@ -15,6 +14,8 @@
 // this one: https://github.com/RoaringBitmap/CRoaring/blob/master/include/roaring/roaring.h
 #include <roaring/roaring.hh>
 #include <roaring/roaring64map.hh>
+#include <Common/SetWithMemoryTracking.h>
+#include <Common/VectorWithMemoryTracking.h>
 
 
 namespace DB

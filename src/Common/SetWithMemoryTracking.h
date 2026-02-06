@@ -3,6 +3,7 @@
 #include <Common/AllocatorWithMemoryTracking.h>
 
 #include <set>
+#include <Common/SetWithMemoryTracking.h>
 
 namespace DB
 {

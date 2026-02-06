@@ -6,6 +6,7 @@
 #include <Core/Field.h>
 #include <Common/HashTable/HashMap.h>
 #include <Common/NaNUtils.h>
+#include <Common/VectorWithMemoryTracking.h>
 
 
 namespace DB

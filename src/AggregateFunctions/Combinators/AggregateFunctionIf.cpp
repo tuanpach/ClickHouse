@@ -3,6 +3,7 @@
 #include <AggregateFunctions/Combinators/AggregateFunctionNull.h>
 
 #include <absl/container/inlined_vector.h>
+#include <Common/VectorWithMemoryTracking.h>
 
 namespace DB
 {

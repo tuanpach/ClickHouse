@@ -7,7 +7,6 @@
 #include <DataTypes/DataTypesNumber.h>
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
-#include <Common/ContainersWithMemoryTracking.h>
 #include <Common/assert_cast.h>
 
 #include <absl/container/inlined_vector.h>
@@ -15,6 +14,7 @@
 #include <array>
 
 #include "config.h"
+#include <Common/VectorWithMemoryTracking.h>
 
 #if USE_EMBEDDED_COMPILER
 #    include <llvm/IR/IRBuilder.h>

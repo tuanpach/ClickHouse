@@ -3,7 +3,6 @@
 #include <Common/AllocatorWithMemoryTracking.h>
 
 #include <deque>
-#include <Common/DequeWithMemoryTracking.h>
 
 namespace DB
 {

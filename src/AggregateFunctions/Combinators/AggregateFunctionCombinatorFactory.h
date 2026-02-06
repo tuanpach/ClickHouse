@@ -1,9 +1,9 @@
 #pragma once
 
 #include <AggregateFunctions/Combinators/IAggregateFunctionCombinator.h>
-#include <Common/ContainersWithMemoryTracking.h>
 
 #include <string>
+#include <Common/VectorWithMemoryTracking.h>
 
 
 namespace DB

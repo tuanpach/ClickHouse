@@ -16,7 +16,6 @@
 #include <Processors/Transforms/WindowTransform.h>
 #include <base/arithmeticOverflow.h>
 #include <Common/Arena.h>
-#include <Common/ContainersWithMemoryTracking.h>
 #include <Common/FieldAccurateComparison.h>
 #include <Common/FieldVisitorConvertToNumber.h>
 
@@ -25,6 +24,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <Common/VectorWithMemoryTracking.h>
 
 
 /// See https://fmt.dev/latest/api.html#formatting-user-defined-types

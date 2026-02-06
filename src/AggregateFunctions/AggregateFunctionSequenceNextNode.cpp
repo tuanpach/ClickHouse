@@ -15,13 +15,13 @@
 #include <Columns/ColumnNullable.h>
 
 #include <Common/ArenaAllocator.h>
-#include <Common/ContainersWithMemoryTracking.h>
 #include <Common/assert_cast.h>
 
 #include <AggregateFunctions/IAggregateFunction.h>
 #include <base/range.h>
 
 #include <bitset>
+#include <Common/UnorderedMapWithMemoryTracking.h>
 
 
 namespace DB

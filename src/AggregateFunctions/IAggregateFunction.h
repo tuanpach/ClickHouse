@@ -11,7 +11,6 @@
 #include <Core/ValuesWithType.h>
 #include <Interpreters/Context_fwd.h>
 #include <base/types.h>
-#include <Common/ContainersWithMemoryTracking.h>
 #include <Common/ThreadPool_fwd.h>
 
 #include <IO/ReadBuffer.h>
@@ -21,6 +20,7 @@
 #include <memory>
 #include <vector>
 #include <type_traits>
+#include <Common/UnorderedSetWithMemoryTracking.h>
 
 namespace llvm
 {
