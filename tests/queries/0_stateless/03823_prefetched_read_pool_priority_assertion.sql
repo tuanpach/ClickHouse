@@ -1,8 +1,4 @@
 -- Regression test for https://github.com/ClickHouse/ClickHouse/issues/78287
--- The assertion in `MergeTreePrefetchedReadPool::startPrefetches` could fail
--- when `filesystem_prefetch_max_memory_usage` is low enough that the first tasks
--- of all threads are skipped for prefetching, so the top of the prefetch queue
--- has a priority higher than the initial (highest) priority.
 
 DROP TABLE IF EXISTS t0;
 
