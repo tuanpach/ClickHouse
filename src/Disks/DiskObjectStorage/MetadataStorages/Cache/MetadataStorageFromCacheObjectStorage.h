@@ -13,6 +13,8 @@ public:
     explicit MetadataStorageFromCacheObjectStorage(MetadataStoragePtr underlying_);
     ~MetadataStorageFromCacheObjectStorage() override = default;
 
+    MetadataStoragePtr getUnderlying() const;
+
     MetadataTransactionPtr createTransaction() override;
 
     const std::string & getPath() const override;

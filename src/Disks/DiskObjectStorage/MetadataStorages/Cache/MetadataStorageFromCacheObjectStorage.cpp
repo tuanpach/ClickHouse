@@ -10,6 +10,11 @@ MetadataStorageFromCacheObjectStorage::MetadataStorageFromCacheObjectStorage(Met
 {
 }
 
+MetadataStoragePtr MetadataStorageFromCacheObjectStorage::getUnderlying() const
+{
+    return underlying;
+}
+
 MetadataTransactionPtr MetadataStorageFromCacheObjectStorage::createTransaction()
 {
     return std::make_shared<MetadataStorageFromCacheObjectStorageTransaction>(underlying->createTransaction(), *this);
