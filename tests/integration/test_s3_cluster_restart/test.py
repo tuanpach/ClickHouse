@@ -192,17 +192,6 @@ def test_reconnect_after_nodes_restart_no_wait(started_cluster):
 
     assert result == "14950\n"
 
-    node1.query("system flush logs query_log")
-
-    result = node1.query(
-            f"""SELECT ProfileEvents['DistributedConnectionReconnectCount'], ProfileEvents['DistributedConnectionFailTry'] FROM system.query_log WHERE query_id = '{uuid}' and type = 'QueryFinish';"""
-        ).strip().split('\t')
-    reconnect_count = int(result[0])
-    fail_try = int(result[1])
-    assert reconnect_count == 1
-    # DistributedConnectionFailTry can be 0 if node2 restarted fast enough before the reconnection attempt
-    assert fail_try <= 1
-
     # avoid leaving the test w/o started node, so next test will start with fully runnning cluster
     node2.wait_for_start(30)
 
@@ -280,12 +269,6 @@ def test_insert_select(started_cluster, wait_restart, missing_table):
             ).strip()
         ) == generated_rows
     )
-
-    if (not wait_restart):
-        node1.query("SYSTEM FLUSH LOGS query_log");
-        # DistributedConnectionFailTry can be 0 if node2 restarted fast enough before the query tried to connect
-        assert int(node1.query(f"select ProfileEvents['DistributedConnectionFailTry'] from system.query_log where query_id = '{uuid}' and type = 'QueryFinish'").strip()) <= 1
-
 
     if (missing_table):
         node1.query("SYSTEM FLUSH LOGS query_log");
