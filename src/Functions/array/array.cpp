@@ -4,7 +4,6 @@
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnTuple.h>
-#include <Common/PODArray.h>
 #include <Core/Settings.h>
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/getLeastSupertype.h>
@@ -71,7 +70,7 @@ public:
             */
 
         Columns columns_holder(num_elements);
-        PODArray<const IColumn *> column_ptrs(num_elements);
+        ColumnRawPtrs column_ptrs(num_elements);
         for (size_t i = 0; i < num_elements; ++i)
         {
             const auto & arg = arguments[i];
@@ -111,7 +110,7 @@ public:
     }
 
 private:
-    bool execute(const PODArray<const IColumn *> & columns, IColumn & out_data, size_t input_rows_count) const
+    bool execute(const ColumnRawPtrs & columns, IColumn & out_data, size_t input_rows_count) const
     {
         return executeNumber<UInt8>(columns, out_data, input_rows_count) || executeNumber<UInt16>(columns, out_data, input_rows_count)
             || executeNumber<UInt32>(columns, out_data, input_rows_count) || executeNumber<UInt64>(columns, out_data, input_rows_count)
@@ -130,7 +129,7 @@ private:
     }
 
     template <typename T>
-    bool executeNumber(const PODArray<const IColumn *> & columns, IColumn & out_data, size_t input_rows_count) const
+    bool executeNumber(const ColumnRawPtrs & columns, IColumn & out_data, size_t input_rows_count) const
     {
         using Container = ColumnVectorOrDecimal<T>::Container;
         std::vector<const Container *> containers(columns.size(), nullptr);
@@ -156,7 +155,7 @@ private:
         return true;
     }
 
-    bool executeString(const PODArray<const IColumn *> & columns, IColumn & out_data, size_t input_rows_count) const
+    bool executeString(const ColumnRawPtrs & columns, IColumn & out_data, size_t input_rows_count) const
     {
         size_t total_bytes = 0;
         std::vector<const ColumnString *> concrete_columns(columns.size(), nullptr);
@@ -191,7 +190,7 @@ private:
         return true;
     }
 
-    bool executeFixedString(const PODArray<const IColumn *> & columns, IColumn & out_data, size_t input_rows_count) const
+    bool executeFixedString(const ColumnRawPtrs & columns, IColumn & out_data, size_t input_rows_count) const
     {
         std::vector<const ColumnFixedString *> concrete_columns(columns.size(), nullptr);
         for (size_t i = 0; i < columns.size(); ++i)
@@ -223,10 +222,10 @@ private:
         return true;
     }
 
-    bool executeNullable(const PODArray<const IColumn *> & columns, IColumn & out_data, size_t input_rows_count) const
+    bool executeNullable(const ColumnRawPtrs & columns, IColumn & out_data, size_t input_rows_count) const
     {
-        PODArray<const IColumn *> null_maps(columns.size(), nullptr);
-        PODArray<const IColumn *> nested_columns(columns.size(), nullptr);
+        ColumnRawPtrs null_maps(columns.size(), nullptr);
+        ColumnRawPtrs nested_columns(columns.size(), nullptr);
         for (size_t i = 0; i < columns.size(); ++i)
         {
             const ColumnNullable * concrete_column = checkAndGetColumn<ColumnNullable>(columns[i]);
@@ -245,7 +244,7 @@ private:
         return true;
     }
 
-    bool executeTuple(const PODArray<const IColumn *> & columns, IColumn & out_data, size_t input_rows_count) const
+    bool executeTuple(const ColumnRawPtrs & columns, IColumn & out_data, size_t input_rows_count) const
     {
         ColumnTuple * concrete_out_data = typeid_cast<ColumnTuple *>(&out_data);
         if (!concrete_out_data)
@@ -261,7 +260,7 @@ private:
         {
             for (size_t i = 0; i < tuple_size; ++i)
             {
-                PODArray<const IColumn *> elem_columns(columns.size(), nullptr);
+                ColumnRawPtrs elem_columns(columns.size(), nullptr);
                 for (size_t j = 0; j < columns.size(); ++j)
                 {
                     const ColumnTuple * concrete_column = assert_cast<const ColumnTuple *>(columns[j]);
@@ -273,7 +272,7 @@ private:
         return true;
     }
 
-    bool executeGeneric(const PODArray<const IColumn *> & columns, IColumn & out_data, size_t input_rows_count) const
+    bool executeGeneric(const ColumnRawPtrs & columns, IColumn & out_data, size_t input_rows_count) const
     {
         for (size_t i = 0; i < input_rows_count; ++i)
             for (const auto * column : columns)
