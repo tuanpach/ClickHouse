@@ -776,8 +776,12 @@ MergeTreeIndexConditionPtr MergeTreeIndexBloomFilterText::createIndexCondition(
 
 MergeTreeIndexPtr bloomFilterIndexTextCreator(const IndexDescription & index)
 {
-    static std::set<ITokenExtractor::Type> allowed_types
-        = {ITokenExtractor::Type::Ngrams, ITokenExtractor::Type::SplitByNonAlpha, ITokenExtractor::Type::SparseGrams};
+    static std::set<ITokenExtractor::Type> allowed_types =
+    {
+        ITokenExtractor::Type::Ngrams,
+        ITokenExtractor::Type::SplitByNonAlpha,
+        ITokenExtractor::Type::SparseGrams
+    };
 
     FieldVector args = getFieldsFromIndexArgumentsAST(index.arguments);
 

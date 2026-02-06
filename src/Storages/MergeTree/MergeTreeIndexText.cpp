@@ -8,6 +8,8 @@
 #include <Common/formatReadable.h>
 #include <Common/logger_useful.h>
 #include <Common/typeid_cast.h>
+#include "Parsers/IAST_fwd.h"
+#include "Storages/IndicesDescription.h"
 #include <Core/ColumnWithTypeAndName.h>
 #include <DataTypes/Serializations/SerializationNumber.h>
 #include <DataTypes/Serializations/SerializationString.h>
@@ -1264,128 +1266,91 @@ Type castAs(const Field & field, std::string_view argument_name)
 }
 
 template <typename Type>
-std::optional<Type> extractOption(std::unordered_map<String, Field> & options, const String & option, bool throw_on_unexpected_type = true)
+std::optional<Type> extractFieldOption(std::unordered_map<String, ASTPtr> & options, const String & option)
 {
     auto it = options.find(option);
     if (it == options.end())
         return {};
 
-    Field value;
-
-    if (throw_on_unexpected_type)
-    {
-        value = castAs<Type>(it->second, option);
-    }
-    else
-    {
-        auto maybe_value = tryCastAs<Type>(it->second);
-        if (!maybe_value.has_value())
-            return {};
-
-        value = maybe_value.value();
-    }
+    Field value = getFieldFromIndexArgumentAST(it->second);
+    value = castAs<Type>(value, option);
 
     options.erase(it);
     return value.safeGet<Type>();
 }
 
-Tuple parseNamedArgumentFromAST(const ASTFunction * ast_equal_function);
-
-std::unordered_map<String, Field> convertArgumentsToOptionsMap(const ASTPtr & arguments)
+ASTPtr exctractASTOption(std::unordered_map<String, ASTPtr> & options, const String & option, bool is_required)
 {
-    std::unordered_map<String, Field> options;
+    auto it = options.find(option);
+
+    if (it != options.end())
+    {
+        ASTPtr ast = it->second;
+        options.erase(it);
+        return ast;
+    }
+
+    if (is_required)
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Text index argument '{}' is required", option);
+
+    return nullptr;
+}
+
+std::pair<String, ASTPtr> parseNamedArgument(const ASTFunction * ast_equal_function)
+{
+    if (!ast_equal_function
+        || ast_equal_function->name != "equals"
+        || ast_equal_function->arguments->children.size() != 2)
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cannot mix key-value pair and single argument as text index arguments");
+
+    const auto & arguments = ast_equal_function->arguments;
+    const auto * key_identifier = arguments->children[0]->as<ASTIdentifier>();
+
+    if (!key_identifier)
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Text index argument must be a key-value pair. got {}", ast_equal_function->formatForErrorMessage());
+
+    return {key_identifier->name(), arguments->children[1]};
+}
+
+std::unordered_map<String, ASTPtr> convertArgumentsToOptionsMap(const ASTPtr & arguments)
+{
+    std::unordered_map<String, ASTPtr> options;
     if (!arguments)
         return options;
 
     for (const auto & child : arguments->children)
     {
         const auto * ast_equal_function = child->as<ASTFunction>();
-        Tuple tuple = parseNamedArgumentFromAST(ast_equal_function);
-        String key = tuple[0].safeGet<String>();
+        auto [key, ast] = parseNamedArgument(ast_equal_function);
 
-        if (options.contains(key))
+        if (options.emplace(key, ast).second)
             throw Exception(ErrorCodes::BAD_ARGUMENTS, "Text index '{}' argument is specified more than once", key);
-
-        options[key] = tuple[1];
     }
     return options;
-}
-
-/**
- * Tokenizer option can be String literal, identifier or function.
- * In case of a function, tokenizer specific argument is provided as parameter of the function.
- * This function is responsible to extract the tokenizer name and parameter if provided.
- */
-std::pair<String, FieldVector> extractTokenizer(std::unordered_map<String, Field> & options)
-{
-    /// Check that tokenizer is present
-    if (!options.contains(ARGUMENT_TOKENIZER))
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Text index must have an '{}' argument", ARGUMENT_TOKENIZER);
-
-    /// Tokenizer is provided as Literal or Identifier.
-    if (auto tokenizer_str = extractOption<String>(options, ARGUMENT_TOKENIZER, false); tokenizer_str)
-        return {tokenizer_str.value(), {}};
-
-    /// Tokenizer is provided as Function.
-    if (auto tokenizer_tuple = extractOption<Tuple>(options, ARGUMENT_TOKENIZER, false); tokenizer_tuple)
-    {
-        /// Functions are converted into Tuples as the first entry is the name of the function and rest is arguments.
-        chassert(!tokenizer_tuple->empty());
-
-        const auto & function_name = tokenizer_tuple->at(0);
-        if (function_name.getType() != Field::Types::Which::String)
-        {
-            throw Exception(
-                ErrorCodes::BAD_ARGUMENTS,
-                "Text index argument '{}': function name expected to be String, but got {}",
-                ARGUMENT_TOKENIZER,
-                function_name.getTypeName());
-        }
-
-        FieldVector params(tokenizer_tuple->begin() + 1, tokenizer_tuple->end());
-        return {function_name.safeGet<String>(), std::move(params)};
-    }
-
-    throw Exception(
-        ErrorCodes::BAD_ARGUMENTS,
-        "Text index argument '{}' expected to be either String or Function, but got {}",
-        ARGUMENT_TOKENIZER,
-        options.at(ARGUMENT_TOKENIZER).getTypeName());
 }
 
 }
 
 MergeTreeIndexPtr textIndexCreator(const IndexDescription & index)
 {
-    std::unordered_map<String, Field> options = convertArgumentsToOptionsMap(index.arguments);
-    const auto [tokenizer, params] = extractTokenizer(options);
+    auto options = convertArgumentsToOptionsMap(index.arguments);
 
-    static std::set<ITokenExtractor::Type> allowed_types
-        = {ITokenExtractor::Type::Ngrams,
-           ITokenExtractor::Type::SplitByNonAlpha,
-           ITokenExtractor::Type::SplitByString,
-           ITokenExtractor::Type::Array,
-           ITokenExtractor::Type::SparseGrams};
+    auto tokenizer_ast = exctractASTOption(options, ARGUMENT_TOKENIZER, true);
+    auto preprocessor_ast = exctractASTOption(options, ARGUMENT_PREPROCESSOR, false);
+    auto token_extractor = TokenizerFactory::instance().get(tokenizer_ast);
 
-    auto token_extractor = TokenizerFactory::instance().get(tokenizer, params, allowed_types);
-
-    String preprocessor = extractOption<String>(options, ARGUMENT_PREPROCESSOR).value_or("");
-    UInt64 dictionary_block_size = extractOption<UInt64>(options, ARGUMENT_DICTIONARY_BLOCK_SIZE).value_or(DEFAULT_DICTIONARY_BLOCK_SIZE);
-    UInt64 dictionary_block_frontcoding_compression = extractOption<UInt64>(options, ARGUMENT_DICTIONARY_BLOCK_FRONTCODING_COMPRESSION).value_or(DEFAULT_DICTIONARY_BLOCK_USE_FRONTCODING);
-    UInt64 posting_list_block_size = extractOption<UInt64>(options, ARGUMENT_POSTING_LIST_BLOCK_SIZE).value_or(DEFAULT_POSTING_LIST_BLOCK_SIZE);
+    UInt64 dictionary_block_size = extractFieldOption<UInt64>(options, ARGUMENT_DICTIONARY_BLOCK_SIZE).value_or(DEFAULT_DICTIONARY_BLOCK_SIZE);
+    UInt64 dictionary_block_frontcoding_compression = extractFieldOption<UInt64>(options, ARGUMENT_DICTIONARY_BLOCK_FRONTCODING_COMPRESSION).value_or(DEFAULT_DICTIONARY_BLOCK_USE_FRONTCODING);
+    UInt64 posting_list_block_size = extractFieldOption<UInt64>(options, ARGUMENT_POSTING_LIST_BLOCK_SIZE).value_or(DEFAULT_POSTING_LIST_BLOCK_SIZE);
 
     MergeTreeIndexTextParams index_params{
         dictionary_block_size,
         dictionary_block_frontcoding_compression,
         posting_list_block_size,
-        preprocessor};
+        std::move(preprocessor_ast)};
 
-    String posting_list_codec_name = extractOption<String>(options, ARGUMENT_POSTING_LIST_CODEC).value_or(DEFAULT_POSTING_LIST_CODEC);
-    static std::vector<String> allowed_codecs
-        = { PostingListCodecNone::getName(),
-            PostingListCodecBitpacking::getName(),
-        };
-    auto posting_list_codec = PostingListCodecFactory::createPostingListCodec(posting_list_codec_name, allowed_codecs, index.name);
+    String posting_list_codec_name = extractFieldOption<String>(options, ARGUMENT_POSTING_LIST_CODEC).value_or(DEFAULT_POSTING_LIST_CODEC);
+    auto posting_list_codec = PostingListCodecFactory::createPostingListCodec(posting_list_codec_name, index.name);
 
     if (!options.empty())
         throw Exception(ErrorCodes::BAD_ARGUMENTS, "Unexpected text index arguments: {}", fmt::join(std::views::keys(options), ", "));
@@ -1395,33 +1360,25 @@ MergeTreeIndexPtr textIndexCreator(const IndexDescription & index)
 
 void textIndexValidator(const IndexDescription & index, bool /*attach*/)
 {
-    std::unordered_map<String, Field> options = convertArgumentsToOptionsMap(index.arguments);
-    const auto [tokenizer, params] = extractTokenizer(options);
+    auto options = convertArgumentsToOptionsMap(index.arguments);
 
-    static std::set<ITokenExtractor::Type> allowed_types
-        = {ITokenExtractor::Type::Ngrams,
-           ITokenExtractor::Type::SplitByNonAlpha,
-           ITokenExtractor::Type::SplitByString,
-           ITokenExtractor::Type::Array,
-           ITokenExtractor::Type::SparseGrams};
+    auto tokenizer_ast = exctractASTOption(options, ARGUMENT_TOKENIZER, true);
+    auto preprocessor_ast = exctractASTOption(options, ARGUMENT_PREPROCESSOR, false);
+    TokenizerFactory::instance().get(tokenizer_ast);
 
-    TokenizerFactory::instance().get(tokenizer, params, allowed_types);
-
-    UInt64 dictionary_block_size = extractOption<UInt64>(options, ARGUMENT_DICTIONARY_BLOCK_SIZE).value_or(DEFAULT_DICTIONARY_BLOCK_SIZE);
+    UInt64 dictionary_block_size = extractFieldOption<UInt64>(options, ARGUMENT_DICTIONARY_BLOCK_SIZE).value_or(DEFAULT_DICTIONARY_BLOCK_SIZE);
     if (dictionary_block_size == 0)
         throw Exception(ErrorCodes::BAD_ARGUMENTS, "Text index argument '{}' must be greater than 0, but got {}", ARGUMENT_DICTIONARY_BLOCK_SIZE, dictionary_block_size);
 
-    UInt64 dictionary_block_use_fc_compression = extractOption<UInt64>(options, ARGUMENT_DICTIONARY_BLOCK_FRONTCODING_COMPRESSION).value_or(DEFAULT_DICTIONARY_BLOCK_USE_FRONTCODING);
+    UInt64 dictionary_block_use_fc_compression = extractFieldOption<UInt64>(options, ARGUMENT_DICTIONARY_BLOCK_FRONTCODING_COMPRESSION).value_or(DEFAULT_DICTIONARY_BLOCK_USE_FRONTCODING);
     if (dictionary_block_use_fc_compression > 1)
         throw Exception(ErrorCodes::BAD_ARGUMENTS, "Text index argument '{}' must be 0 or 1, but got {}", ARGUMENT_DICTIONARY_BLOCK_FRONTCODING_COMPRESSION, dictionary_block_use_fc_compression);
 
-    UInt64 posting_list_block_size = extractOption<UInt64>(options, ARGUMENT_POSTING_LIST_BLOCK_SIZE).value_or(DEFAULT_POSTING_LIST_BLOCK_SIZE);
+    UInt64 posting_list_block_size = extractFieldOption<UInt64>(options, ARGUMENT_POSTING_LIST_BLOCK_SIZE).value_or(DEFAULT_POSTING_LIST_BLOCK_SIZE);
     if (posting_list_block_size == 0)
         throw Exception(ErrorCodes::BAD_ARGUMENTS, "Text index argument '{}' must be greater than 0, but got {}", ARGUMENT_POSTING_LIST_BLOCK_SIZE, posting_list_block_size);
 
-    extractOption<String>(options, ARGUMENT_POSTING_LIST_CODEC).value_or(DEFAULT_POSTING_LIST_CODEC);
-
-    auto preprocessor = extractOption<String>(options, ARGUMENT_PREPROCESSOR, false);
+    extractFieldOption<String>(options, ARGUMENT_POSTING_LIST_CODEC).value_or(DEFAULT_POSTING_LIST_CODEC);
 
     if (!options.empty())
         throw Exception(ErrorCodes::BAD_ARGUMENTS, "Unexpected text index arguments: {}", fmt::join(std::views::keys(options), ", "));
@@ -1451,14 +1408,14 @@ void textIndexValidator(const IndexDescription & index, bool /*attach*/)
 
     /// Check preprocessor now, after data_type and column_names and index.data_types were already checked because we want to get accurate
     /// error messages.
-    if (preprocessor.has_value())
+    if (preprocessor_ast)
     {
         /// For very strict validation of the expression we fully parse it here.  However it will be parsed again for index construction,
         /// generally immediately after this call.
         /// This is a bit redundant but I won't expect that this impact performance anyhow because the expression is intended to be simple
         /// enough.  But if this redundant construction represents an issue we could simple build the "intermediate" ASTPtr and use it for
         /// validation. That way we skip the ActionsDAG and ExpressionActions constructions.
-        ExpressionActions expression = MergeTreeIndexTextPreprocessor::parseExpression(index, preprocessor.value());
+        ExpressionActions expression = MergeTreeIndexTextPreprocessor::createExpressionActions(index, preprocessor_ast);
 
         const Names required_columns = expression.getRequiredColumns();
 
@@ -1468,69 +1425,5 @@ void textIndexValidator(const IndexDescription & index, bool /*attach*/)
             throw Exception(ErrorCodes::LOGICAL_ERROR, "Text index preprocessor expression must depend only of column: {}", index.column_names.front());
     }
 }
-
-static Tuple parseNamedArgumentFromAST(const ASTFunction * ast_equal_function)
-{
-    if (ast_equal_function == nullptr
-        || ast_equal_function->name != "equals"
-        || ast_equal_function->arguments->children.size() != 2)
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cannot mix key-value pair and single argument as text index arguments");
-
-    Tuple result;
-
-    ASTPtr arguments = ast_equal_function->arguments;
-    /// Parse parameter name. It can be Identifier.
-    {
-        const auto * identifier = arguments->children[0]->as<ASTIdentifier>();
-        if (identifier == nullptr)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Text index parameter name: Expected identifier");
-
-        result.emplace_back(identifier->name());
-    }
-
-    if (result.back() == ARGUMENT_PREPROCESSOR)
-    {
-        const ASTFunction * preprocessor_function = arguments->children[1]->as<ASTFunction>();
-        if (preprocessor_function == nullptr)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Text index preprocessor argument must be an expression");
-
-        /// preprocessor_function->getColumnName() returns the string representation for the expression. That string will be parsed again on
-        /// index recreation but can also be stored in the index metadata as is.
-        result.emplace_back(preprocessor_function->getColumnName());
-    }
-    else
-    {
-        /// Parse parameter value. It can be Literal, Identifier or Function.
-        if (const auto * literal_arg = arguments->children[1]->as<ASTLiteral>(); literal_arg != nullptr)
-        {
-            result.emplace_back(literal_arg->value);
-        }
-        else if (const auto * identifier_arg = arguments->children[1]->as<ASTIdentifier>(); identifier_arg != nullptr)
-        {
-            result.emplace_back(identifier_arg->name());
-        }
-        else if (const auto * function_arg = arguments->children[1]->as<ASTFunction>(); function_arg != nullptr)
-        {
-            Tuple tuple;
-            tuple.emplace_back(function_arg->name);
-            for (const auto & subargument : function_arg->arguments->children)
-            {
-                const auto * arg_literal = subargument->as<ASTLiteral>();
-                if (arg_literal == nullptr)
-                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Text index function argument: Expected literal");
-
-                tuple.emplace_back(arg_literal->value);
-            }
-            result.emplace_back(tuple);
-        }
-        else
-        {
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Text index parameter value: Expected literal, identifier or function");
-        }
-    }
-
-    return result;
-}
-
 
 }

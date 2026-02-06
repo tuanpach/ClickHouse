@@ -96,8 +96,8 @@ DataTypePtr getInnerType(DataTypePtr type)
 
 }
 
-MergeTreeIndexTextPreprocessor::MergeTreeIndexTextPreprocessor(const String & expression_str, const IndexDescription & index_description)
-    : expression(MergeTreeIndexTextPreprocessor::parseExpression(index_description, expression_str))
+MergeTreeIndexTextPreprocessor::MergeTreeIndexTextPreprocessor(ASTPtr expression_ast, const IndexDescription & index_description)
+    : expression(MergeTreeIndexTextPreprocessor::createExpressionActions(index_description, expression_ast))
     , inner_type(getInnerType(index_description.data_types.front()))
     , column_name(index_description.column_names.front())
 {
@@ -158,46 +158,23 @@ String MergeTreeIndexTextPreprocessor::process(const String & input) const
     return String{input_block.safeGetByPosition(0).column->getDataAt(0)};
 }
 
-ExpressionActions MergeTreeIndexTextPreprocessor::parseExpression(const IndexDescription & index_description, const String & expression)
+ExpressionActions MergeTreeIndexTextPreprocessor::createExpressionActions(const IndexDescription & index_description, ASTPtr expression_ast)
 {
     chassert(index_description.column_names.size() == 1);
     chassert(index_description.data_types.size() == 1);
 
-    /// Empty expression still creates a preprocessor without actions.
-    if (expression.empty())
+    if (expression_ast == nullptr)
         return ExpressionActions(ActionsDAG());
 
-    /// This parser received the string stored from the expression's `column_name` or empty if no preprocessor set.
-    /// `column_name` (from the DAG) should never be a blank string.
-    /// But we add this tests in case someone decides to "manipulate" the expression before arriving here.
-    if (expression.find_first_not_of(" \t\n\v\f\r") == std::string::npos)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Preprocessor expression contains a blank non-empty string");
+    /// Repeat expression validation here. after the string has been parsed into an AST.
+    /// We already made this check during index construction, but "don't trust, verify"
+    const ASTFunction * preprocessor_function = expression_ast->as<ASTFunction>();
+    if (preprocessor_function == nullptr)
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Preprocessor argument must be an expression");
 
-    const char * expression_begin = &*expression.begin();
-    const char * expression_end = &*expression.end();
-
-    /// These are expression tokens, do not confuse with index tokens
-    Tokens tokens(expression_begin, expression_end);
-    IParser::Pos token_iterator(tokens, 1000, 1000000);
-
-    Expected expected;
-    ASTPtr expression_ast;
-
-    { /// Parse and verify the expression: String -> ASTPtr
-        ParserExpression parser_expression;
-        if (!parser_expression.parse(token_iterator, expression_ast, expected))
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Could not parse preprocessor expression");
-
-        /// Repeat expression validation here. after the string has been parsed into an AST.
-        /// We already made this check during index construction, but "don't trust, verify"
-        const ASTFunction * preprocessor_function = expression_ast->as<ASTFunction>();
-        if (preprocessor_function == nullptr)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Preprocessor argument must be an expression");
-
-        /// Now we know that the only valid identifier_name must be the text indexed column.
-        String identifier_name = index_description.column_names.front();
-        validatePreprocessorASTExpression(preprocessor_function, identifier_name);
-    }
+    /// Now we know that the only valid identifier_name must be the text indexed column.
+    String identifier_name = index_description.column_names.front();
+    validatePreprocessorASTExpression(preprocessor_function, identifier_name);
 
     /// Convert ASTPtr -> ActionsDAG
     /// We can do less checks here because in porevious scope we tested that the ASTPtr es an ASTFunction.
@@ -205,7 +182,6 @@ ExpressionActions MergeTreeIndexTextPreprocessor::parseExpression(const IndexDes
     const String alias = expression_ast->getAliasOrColumnName();
 
     DataTypePtr column_data_type = getInnerType(index_description.data_types.front());
-
 
     NamesAndTypesList source_columns({{index_description.column_names.front(), column_data_type}});
 
