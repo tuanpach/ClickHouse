@@ -21,7 +21,6 @@ TEMP_DIR = Path(f"{Utils.cwd()}/ci/tmp")
 BINARY_PATH = TEMP_DIR / "clickhouse"
 DATA_DIR = TEMP_DIR / "data"
 LOG_DIR = TEMP_DIR / "log"
-CONFIG_DIR = TEMP_DIR / "config"
 
 S3_BUCKET_HTTP_ENDPOINT = "clickhouse-builds.s3.amazonaws.com"
 
@@ -66,39 +65,24 @@ def download_binary():
 
 def prepare_directories():
     """Create necessary directories for ClickHouse."""
-    for dir_path in [DATA_DIR, LOG_DIR, CONFIG_DIR]:
+    for dir_path in [DATA_DIR, LOG_DIR]:
         dir_path.mkdir(parents=True, exist_ok=True)
 
 
-def write_config():
-    """Write minimal server config."""
-    config_path = CONFIG_DIR / "config.xml"
-    config_content = f"""<?xml version="1.0"?>
-<clickhouse>
-    <path>{DATA_DIR}/</path>
-    <tmp_path>{DATA_DIR}/tmp/</tmp_path>
-    <user_files_path>{DATA_DIR}/user_files/</user_files_path>
-    <format_schema_path>{DATA_DIR}/format_schemas/</format_schema_path>
-    <logger>
-        <log>{LOG_DIR}/clickhouse-server.log</log>
-        <errorlog>{LOG_DIR}/clickhouse-server.err.log</errorlog>
-        <level>information</level>
-        <console>0</console>
-    </logger>
-    <http_port>8123</http_port>
-    <tcp_port>9000</tcp_port>
-    <listen_host>127.0.0.1</listen_host>
-    <mark_cache_size>5368709120</mark_cache_size>
-    <mlock_executable>false</mlock_executable>
-</clickhouse>
-"""
-    config_path.write_text(config_content)
-    return config_path
-
-
-def start_server(config_path):
-    """Start ClickHouse server and return the process."""
-    cmd = f"{BINARY_PATH} server --config-file={config_path} --daemon"
+def start_server():
+    """Start ClickHouse server using embedded config with overrides."""
+    cmd = (
+        f"{BINARY_PATH} server --daemon"
+        f" -- --path {DATA_DIR}/"
+        f" --logger.log {LOG_DIR}/clickhouse-server.log"
+        f" --logger.errorlog {LOG_DIR}/clickhouse-server.err.log"
+        f" --logger.level information"
+        f" --logger.console 0"
+        f" --tcp_port 9000"
+        f" --http_port 8123"
+        f" --listen_host 127.0.0.1"
+        f" --mlock_executable false"
+    )
     print(f"Starting server: {cmd}")
     Shell.check(cmd, verbose=True)
     # Give server time to start
@@ -165,9 +149,8 @@ def main():
         )
     )
 
-    # Prepare directories and config
+    # Prepare directories
     prepare_directories()
-    config_path = write_config()
 
     # Test: Get version
     test_results.append(
@@ -181,7 +164,7 @@ def main():
     # Test: Start server
     server_started = False
     try:
-        start_server(config_path)
+        start_server()
         if wait_for_server():
             test_results.append(
                 Result.create_from(
