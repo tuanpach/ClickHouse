@@ -3,6 +3,7 @@
 #include <Common/Exception.h>
 #include <Common/Logger.h>
 #include <Common/logger_useful.h>
+#include "Core/NamesAndTypes.h"
 #include <Core/Settings.h>
 #include <Formats/FormatFactory.h>
 #include <Formats/ReadSchemaUtils.h>
@@ -33,7 +34,7 @@
 #include <Storages/ColumnsDescription.h>
 #include <Storages/HivePartitioningUtils.h>
 #include <Storages/ObjectStorage/StorageObjectStorageSettings.h>
-
+#include <Processors/Formats/ISchemaReader.h>
 
 namespace DB
 {
@@ -272,6 +273,27 @@ StorageObjectStorage::StorageObjectStorage(
     {
         auto metadata_snapshot = configuration->getStorageSnapshotMetadata(context);
         setInMemoryMetadata(metadata_snapshot);
+    }
+    if (!configuration->isDataLakeConfiguration() && !columns_in_table_or_function_definition.empty())
+    {
+        String sample_path_schema;   
+        std::optional<ColumnsDescription> schema_file;
+        try
+        {
+            schema_file = resolveSchemaFromData(object_storage_, configuration_, {}, sample_path_schema, context);
+        }
+        catch (...)
+        {
+            tryLogCurrentException(log);
+        }
+        if (schema_file)
+        {
+            if (schema_file->size() != columns_in_table_or_function_definition.size())
+                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Number of columns mismatch in schema and file {} {}", schema_file->size(), columns_in_table_or_function_definition.size());
+            for (const auto & column : *schema_file)
+                if (!columns_in_table_or_function_definition.tryGet(column.name))
+                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cannot find column in schema {}", column.name);
+        }
     }
 }
 
