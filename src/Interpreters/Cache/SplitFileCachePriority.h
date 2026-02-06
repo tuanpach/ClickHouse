@@ -105,6 +105,12 @@ public:
         double size_ratio_,
         const CacheStateGuard::Lock &) override;
 
+    EvictionInfoPtr collectEvictionInfoForResize(
+        size_t desired_max_size,
+        size_t desired_max_elements,
+        const OriginInfo & origin_info,
+        const CacheStateGuard::Lock & lock) override;
+
     void resetEvictionPos() override;
 
 protected:

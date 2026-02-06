@@ -143,6 +143,27 @@ bool SplitFileCachePriority::modifySizeLimits(
 }
 
 
+EvictionInfoPtr SplitFileCachePriority::collectEvictionInfoForResize(
+    size_t desired_max_size,
+    size_t desired_max_elements,
+    const IFileCachePriority::OriginInfo & origin_info,
+    const CacheStateGuard::Lock & lock)
+{
+    /// Compute per-segment desired limits and delegate to each inner priority.
+    size_t desired_data_size = getRatio(desired_max_size, 1 - system_segment_size_ratio);
+    size_t desired_system_size = getRatio(desired_max_size, system_segment_size_ratio);
+    size_t desired_data_elements = getRatio(desired_max_elements, 1 - system_segment_size_ratio);
+    size_t desired_system_elements = getRatio(desired_max_elements, system_segment_size_ratio);
+
+    auto info = priorities_holder.at(SegmentType::Data)->collectEvictionInfoForResize(
+        desired_data_size, desired_data_elements, origin_info, lock);
+
+    info->add(priorities_holder.at(SegmentType::System)->collectEvictionInfoForResize(
+        desired_system_size, desired_system_elements, origin_info, lock));
+
+    return info;
+}
+
 IFileCachePriority::IteratorPtr SplitFileCachePriority::add( /// NOLINT
     KeyMetadataPtr key_metadata,
     size_t offset,

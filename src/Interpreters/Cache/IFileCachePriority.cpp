@@ -1,4 +1,5 @@
 #include <Interpreters/Cache/IFileCachePriority.h>
+#include <Interpreters/Cache/EvictionCandidates.h>
 #include <Common/CurrentMetrics.h>
 #include <Common/Exception.h>
 
@@ -64,6 +65,24 @@ std::unordered_map<std::string, IFileCachePriority::UsageStat> IFileCachePriorit
         ErrorCodes::NOT_IMPLEMENTED,
         "getUsageStatPerClient() is not implemented for {} policy",
         magic_enum::enum_name(getType()));
+}
+
+EvictionInfoPtr IFileCachePriority::collectEvictionInfoForResize(
+    size_t desired_max_size,
+    size_t desired_max_elements,
+    const OriginInfo & origin_info,
+    const CacheStateGuard::Lock & lock)
+{
+    size_t current_size = getSize(lock);
+    size_t current_elements = getElementsCount(lock);
+    size_t size_to_evict = current_size > desired_max_size ? current_size - desired_max_size : 0;
+    size_t elements_to_evict = current_elements > desired_max_elements ? current_elements - desired_max_elements : 0;
+    return collectEvictionInfo(
+        size_to_evict, elements_to_evict,
+        /* reservee */ nullptr,
+        /* is_total_space_cleanup */ false,
+        /* is_dynamic_resize */ true,
+        origin_info, lock);
 }
 
 void IFileCachePriority::removeEntries(

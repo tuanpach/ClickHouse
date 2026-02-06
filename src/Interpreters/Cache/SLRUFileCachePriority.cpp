@@ -787,6 +787,49 @@ bool SLRUFileCachePriority::modifySizeLimits(
     return true;
 }
 
+EvictionInfoPtr SLRUFileCachePriority::collectEvictionInfoForResize(
+    size_t desired_max_size,
+    size_t desired_max_elements,
+    const IFileCachePriority::OriginInfo & origin_info,
+    const CacheStateGuard::Lock & lock)
+{
+    /// Compute per-sub-queue eviction based on each sub-queue's
+    /// current size vs. its new limit (derived from the desired total and ratio).
+    /// This is needed because the total cache size might be under the desired total,
+    /// but one sub-queue (e.g. protected) might exceed its new sub-limit.
+
+    size_t new_prot_size_limit = getRatio(desired_max_size, size_ratio);
+    size_t new_prob_size_limit = getRatio(desired_max_size, 1 - size_ratio);
+    size_t new_prot_elem_limit = getRatio(desired_max_elements, size_ratio);
+    size_t new_prob_elem_limit = getRatio(desired_max_elements, 1 - size_ratio);
+
+    size_t prot_size = protected_queue.getSize(lock);
+    size_t prob_size = probationary_queue.getSize(lock);
+    size_t prot_elems = protected_queue.getElementsCount(lock);
+    size_t prob_elems = probationary_queue.getElementsCount(lock);
+
+    size_t prot_size_evict = prot_size > new_prot_size_limit ? prot_size - new_prot_size_limit : 0;
+    size_t prob_size_evict = prob_size > new_prob_size_limit ? prob_size - new_prob_size_limit : 0;
+    size_t prot_elem_evict = prot_elems > new_prot_elem_limit ? prot_elems - new_prot_elem_limit : 0;
+    size_t prob_elem_evict = prob_elems > new_prob_elem_limit ? prob_elems - new_prob_elem_limit : 0;
+
+    auto info = protected_queue.collectEvictionInfo(
+        prot_size_evict, prot_elem_evict,
+        /* reservee */ nullptr,
+        /* is_total_space_cleanup */ false,
+        /* is_dynamic_resize */ true,
+        origin_info, lock);
+
+    info->add(probationary_queue.collectEvictionInfo(
+        prob_size_evict, prob_elem_evict,
+        /* reservee */ nullptr,
+        /* is_total_space_cleanup */ false,
+        /* is_dynamic_resize */ true,
+        origin_info, lock));
+
+    return info;
+}
+
 SLRUFileCachePriority::SLRUIterator::SLRUIterator(
     SLRUFileCachePriority * cache_priority_,
     LRUFileCachePriority::LRUIterator && lru_iterator_,

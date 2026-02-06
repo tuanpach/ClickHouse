@@ -278,6 +278,16 @@ public:
         double size_ratio_,
         const CacheStateGuard::Lock &) = 0;
 
+    /// Compute eviction info needed to resize the cache to the given limits.
+    /// Unlike collectEvictionInfo which takes total amounts to evict,
+    /// this method takes desired limits and computes per-sub-queue eviction
+    /// correctly for priority types with internal structure (e.g., SLRU).
+    virtual EvictionInfoPtr collectEvictionInfoForResize(
+        size_t desired_max_size,
+        size_t desired_max_elements,
+        const OriginInfo & origin_info,
+        const CacheStateGuard::Lock & lock);
+
     virtual void resetEvictionPos() = 0;
 
     /// Remove given queue entries for the queue.

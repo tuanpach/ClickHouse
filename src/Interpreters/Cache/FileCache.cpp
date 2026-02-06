@@ -2288,22 +2288,9 @@ bool FileCache::doDynamicResizeImpl(
     /// b. Release a cache lock.
     ///     1. Do actual eviction from filesystem.
 
-    size_t current_size = main_priority->getSize(state_lock);
-    size_t current_elements_count = main_priority->getElementsCount(state_lock);
-
-    size_t size_to_evict = current_size > desired_limits.max_size
-        ? current_size - desired_limits.max_size
-        : 0;
-    size_t elements_to_evict = current_elements_count > desired_limits.max_elements
-        ? current_elements_count - desired_limits.max_elements
-        : 0;
-
-    auto eviction_info = main_priority->collectEvictionInfo(
-        size_to_evict,
-        elements_to_evict,
-        /* reservee */nullptr,
-        /* is_total_space_cleanup */false,
-        /* is_dynamic_resize */true,
+    auto eviction_info = main_priority->collectEvictionInfoForResize(
+        desired_limits.max_size,
+        desired_limits.max_elements,
         getInternalOrigin(),
         state_lock);
 
