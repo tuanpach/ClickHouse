@@ -140,7 +140,7 @@ void MetadataStorageFromCacheObjectStorage::shutdown()
     underlying->shutdown();
 }
 
-void MetadataStorageFromCacheObjectStorage::refresh(UInt64 not_sooner_than_milliseconds )
+void MetadataStorageFromCacheObjectStorage::refresh(UInt64 not_sooner_than_milliseconds)
 {
     underlying->refresh(not_sooner_than_milliseconds);
 }
