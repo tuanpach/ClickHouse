@@ -272,7 +272,10 @@ StorageObjectStorage::StorageObjectStorage(
         auto metadata_snapshot = configuration->getStorageSnapshotMetadata(context);
         setInMemoryMetadata(metadata_snapshot);
     }
-    if (!configuration->isDataLakeConfiguration() && !columns_in_table_or_function_definition.empty() && !is_table_function && configuration_->format == "Parquet")
+    if (!configuration->isDataLakeConfiguration() &&
+        !columns_in_table_or_function_definition.empty() &&
+        !is_table_function && configuration_->format == "Parquet" &&
+        mode == LoadingStrictnessLevel::CREATE)
     {
         String sample_path_schema;
         std::optional<ColumnsDescription> schema_file;
