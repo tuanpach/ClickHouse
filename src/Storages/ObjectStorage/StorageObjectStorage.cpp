@@ -275,7 +275,8 @@ StorageObjectStorage::StorageObjectStorage(
     if (!configuration->isDataLakeConfiguration() &&
         !columns_in_table_or_function_definition.empty() &&
         !is_table_function && configuration_->format == "Parquet" &&
-        mode == LoadingStrictnessLevel::CREATE)
+        mode == LoadingStrictnessLevel::CREATE &&
+        !do_lazy_init)
     {
         String sample_path_schema;
         std::optional<ColumnsDescription> schema_file;
