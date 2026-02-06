@@ -185,12 +185,11 @@ class JobConfigs:
         digest_config=fast_test_digest_config,
         result_name_for_cidb="Tests",
     )
-    fast_test_macos = Job.Config(
-        name=JobNames.FAST_TEST_MACOS,
+    smoke_tests_macos = Job.Config(
+        name=JobNames.SMOKE_TEST_MACOS,
         runs_on=RunnerLabels.MACOS_ARM_SMALL,
-        command="python3 ./ci/jobs/fast_test.py",
+        command="python3 ./ci/jobs/smoke_test.py",
         digest_config=fast_test_digest_config,
-        result_name_for_cidb="Tests",
     )
     tidy_build_arm_jobs = common_build_job_config.parametrize(
         Job.ParamSet(
