@@ -38,7 +38,7 @@ set send_logs_level='none';
 SELECT SUM(value) FROM t WHERE value = 42 FORMAT Null SETTINGS log_comment='03783_autopr_dataflow_cache_reuse_query_2'; -- empty cache, don't apply optimization, collect stats
 
 -- For an unclear reason, the QCC is not always populated with the knowledge about all irrelevant granules from the first run.
--- It make take a few invocations (we do five to be sure). Because of that, we do a bit relaxed check here and only check the end result - that parallel replicas won't be used eventually.
+-- It may take a few invocations (we do five to be sure). Because of that, we do a bit relaxed check here and only check the end result - that parallel replicas won't be used eventually.
 SELECT SUM(value) FROM t WHERE value = 42 FORMAT Null;
 SELECT SUM(value) FROM t WHERE value = 42 FORMAT Null;
 SELECT SUM(value) FROM t WHERE value = 42 FORMAT Null;
