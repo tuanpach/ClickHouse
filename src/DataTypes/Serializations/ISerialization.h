@@ -1,8 +1,8 @@
 #pragma once
 
 #include <Columns/IColumn_fwd.h>
+#include <Core/MergeTreeSerializationEnums.h>
 #include <Core/Types_fwd.h>
-#include <Core/SettingsEnums.h>
 #include <base/demangle.h>
 #include <Common/typeid_cast.h>
 #include <Common/ThreadPool_fwd.h>
@@ -539,10 +539,7 @@ public:
 
     /// Method that is used to serialize value for generic hash calculation of a value in the column.
     /// Note that this method should respect compatibility.
-    virtual void serializeForHashCalculation(const IColumn & column, size_t row_num, WriteBuffer & ostr) const
-    {
-        serializeBinary(column, row_num, ostr, {});
-    }
+    virtual void serializeForHashCalculation(const IColumn & column, size_t row_num, WriteBuffer & ostr) const;
 
     /** Text serialization with escaping but without quoting.
       */

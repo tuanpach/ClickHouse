@@ -533,6 +533,11 @@ bool tryDeserializeText(const F deserialize, DB::IColumn & column)
 
 }
 
+void ISerialization::serializeForHashCalculation(const IColumn & column, size_t row_num, WriteBuffer & ostr) const
+{
+    serializeBinary(column, row_num, ostr, {});
+}
+
 bool ISerialization::tryDeserializeTextCSV(DB::IColumn & column, DB::ReadBuffer & istr, const DB::FormatSettings & settings) const
 {
     return tryDeserializeText([&](DB::IColumn & my_column) { deserializeTextCSV(my_column, istr, settings); }, column);
