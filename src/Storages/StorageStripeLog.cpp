@@ -99,7 +99,7 @@ public:
     }
 
     StripeLogSource(
-        const StorageStripeLog & storage_,
+        std::shared_ptr<const StorageStripeLog> storage_holder_,
         const StorageSnapshotPtr & storage_snapshot_,
         const Names & column_names,
         ReadSettings read_settings_,
@@ -108,7 +108,8 @@ public:
         IndexForNativeFormat::Blocks::const_iterator index_end_,
         size_t file_size_)
         : ISource(std::make_shared<const Block>(getHeader(storage_snapshot_, column_names, index_begin_, index_end_)))
-        , storage(storage_)
+        , storage_holder(std::move(storage_holder_))
+        , storage(*storage_holder)
         , storage_snapshot(storage_snapshot_)
         , read_settings(std::move(read_settings_))
         , indices(indices_)
@@ -143,6 +144,7 @@ protected:
     }
 
 private:
+    const std::shared_ptr<const StorageStripeLog> storage_holder;
     const StorageStripeLog & storage;
     StorageSnapshotPtr storage_snapshot;
     ReadSettings read_settings;
@@ -406,7 +408,7 @@ Pipe StorageStripeLog::read(
         std::advance(end, (stream + 1) * size / num_streams);
 
         pipes.emplace_back(std::make_shared<StripeLogSource>(
-            *this, storage_snapshot, column_names, read_settings, indices_for_selected_columns, begin, end, data_file_size));
+            std::static_pointer_cast<const StorageStripeLog>(shared_from_this()), storage_snapshot, column_names, read_settings, indices_for_selected_columns, begin, end, data_file_size));
     }
 
     /// We do not keep read lock directly at the time of reading, because we read ranges of data that do not change.

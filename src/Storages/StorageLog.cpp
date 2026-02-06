@@ -91,7 +91,7 @@ public:
     LogSource(
         size_t block_size_,
         const NamesAndTypesList & columns_,
-        const StorageLog & storage_,
+        std::shared_ptr<const StorageLog> storage_holder_,
         size_t rows_limit_,
         const std::vector<size_t> & offsets_,
         const std::vector<size_t> & file_sizes_,
@@ -100,7 +100,8 @@ public:
         : ISource(std::make_shared<const Block>(getHeader(columns_)))
         , block_size(block_size_)
         , columns(columns_)
-        , storage(storage_)
+        , storage_holder(std::move(storage_holder_))
+        , storage(*storage_holder)
         , rows_limit(rows_limit_)
         , offsets(offsets_)
         , file_sizes(file_sizes_)
@@ -119,6 +120,7 @@ private:
 
     const size_t block_size;
     const NamesAndTypesList columns;
+    const std::shared_ptr<const StorageLog> storage_holder;
     const StorageLog & storage;
     const size_t rows_limit;      /// The maximum number of rows that can be read
     size_t rows_read = 0;
@@ -990,7 +992,7 @@ Pipe StorageLog::createReadingPipe(
         pipes.emplace_back(std::make_shared<LogSource>(
             max_block_size,
             all_columns,
-            *this,
+            std::static_pointer_cast<const StorageLog>(shared_from_this()),
             row_limit,
             offsets,
             file_sizes,
@@ -1017,7 +1019,7 @@ void StorageLog::read(
     plan.addStep(std::make_unique<ReadFromStorageLogStep>(
         column_names,
         local_context,
-        *this,
+        std::static_pointer_cast<StorageLog>(shared_from_this()),
         storage_snapshot,
         max_block_size,
         num_streams));
@@ -1294,7 +1296,7 @@ SharedHeader getHeader(
 ReadFromStorageLogStep::ReadFromStorageLogStep(
         const Names & column_names_,
         ContextPtr local_context_,
-        StorageLog & storage_,
+        std::shared_ptr<StorageLog> storage_,
         const StorageSnapshotPtr & storage_snapshot_,
         size_t max_block_size_,
         size_t num_streams_
@@ -1302,7 +1304,7 @@ ReadFromStorageLogStep::ReadFromStorageLogStep(
     : ISourceStep(getHeader(column_names_, storage_snapshot_))
     , column_names(column_names_)
     , local_context(local_context_)
-    , storage(storage_)
+    , storage(std::move(storage_))
     , storage_snapshot(storage_snapshot_)
     , max_block_size(max_block_size_)
     , num_streams(num_streams_)
@@ -1311,7 +1313,7 @@ ReadFromStorageLogStep::ReadFromStorageLogStep(
 
 void ReadFromStorageLogStep::initializePipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings & /*settings*/)
 {
-    auto pipe = storage.createReadingPipe(column_names, local_context, storage_snapshot, max_block_size, num_streams);
+    auto pipe = storage->createReadingPipe(column_names, local_context, storage_snapshot, max_block_size, num_streams);
     pipeline.init(std::move(pipe));
 }
 
