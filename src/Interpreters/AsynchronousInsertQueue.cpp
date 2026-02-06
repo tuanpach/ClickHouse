@@ -1218,7 +1218,7 @@ Chunk AsynchronousInsertQueue::processEntriesWithParsing(
 
     if (insert_context->getSettingsRef()[Setting::input_format_defaults_for_omitted_fields] && insert_context->hasInsertionTableColumnsDescription())
     {
-        const auto & columns = insert_context->getInsertionTableColumnsDescription().value();
+        const auto & columns = *insert_context->getInsertionTableColumnsDescription();
         if (columns.hasDefaults())
             adding_defaults_transform = std::make_shared<AddingDefaultsTransform>(std::make_shared<const Block>(header), columns, *format, insert_context);
     }
