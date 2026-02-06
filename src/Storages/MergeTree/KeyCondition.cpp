@@ -1553,7 +1553,7 @@ bool KeyCondition::tryPrepareSetIndexForIn(
     /// the set, the atom's hyperrectangle is expanded to encompass the missing
     /// dimensions and any "gaps".
     if (adjusted_indexes_mapping.size() < set_types.size() || out.set_index->size() > 1 || is_constant_transformed)
-        relaxed = true;
+        out.relaxed = true;
 
     return true;
 }
@@ -1665,7 +1665,7 @@ bool KeyCondition::tryPrepareSetIndexForHas(
     /// the set, the atom's hyperrectangle is expanded to encompass the missing
     /// dimensions and any "gaps".
     if (adjusted_indexes_mapping.size() < set_types.size() || out.set_index->size() > 1 || is_constant_transformed)
-        relaxed = true;
+        out.relaxed = true;
 
     return true;
 }
@@ -3649,6 +3649,12 @@ BoolMask KeyCondition::checkInHyperrectangle(
             {
                 rpn_stack.back().can_be_true = mayExistOnBloomFilter(*element.bloom_filter_data, column_index_to_column_bf);
             }
+
+            /// If the condition is relaxed, the `can_be_false` branch is no longer reliable; it may have false negatives.
+            /// Additionally, when `KeyCondition::isRelaxed()` is true, the caller should ignore `can_be_false` anyway.
+            /// Therefore, we must set `can_be_false = true` to be safe.
+            if (element.relaxed)
+                rpn_stack.back().can_be_false = true;
 
             if (element.function == RPNElement::FUNCTION_NOT_IN_SET)
                 rpn_stack.back() = !rpn_stack.back();
