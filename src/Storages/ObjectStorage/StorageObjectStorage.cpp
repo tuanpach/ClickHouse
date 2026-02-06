@@ -272,7 +272,7 @@ StorageObjectStorage::StorageObjectStorage(
         auto metadata_snapshot = configuration->getStorageSnapshotMetadata(context);
         setInMemoryMetadata(metadata_snapshot);
     }
-    if (!configuration->isDataLakeConfiguration() && !columns_in_table_or_function_definition.empty())
+    if (!configuration->isDataLakeConfiguration() && !columns_in_table_or_function_definition.empty() && !is_table_function && configuration_->format == "Parquet")
     {
         String sample_path_schema;
         std::optional<ColumnsDescription> schema_file;
@@ -286,9 +286,12 @@ StorageObjectStorage::StorageObjectStorage(
         }
         if (schema_file)
         {
+            std::unordered_set<String> hive_parititioning_columns;
+            for (const auto & column_name : hive_partition_columns_to_read_from_file_path.getNames())
+                hive_parititioning_columns.insert(column_name);
             for (const auto & column : columns_in_table_or_function_definition)
-                if (!schema_file->tryGet(column.name))
-                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cannot find column in schema {}", column.name);
+                if (!schema_file->tryGet(column.name) && !hive_parititioning_columns.contains(column.name))
+                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cannot find column {} in schema {}", column.name, schema_file->toString(false));
         }
     }
 }
