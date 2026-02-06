@@ -1,5 +1,6 @@
 #include <Interpreters/JoinedTables.h>
 
+#include <Core/Settings.h>
 #include <Core/SettingsEnums.h>
 
 #include <Interpreters/DatabaseCatalog.h>
@@ -27,6 +28,14 @@
 
 namespace DB
 {
+namespace Setting
+{
+    extern const SettingsBool asterisk_include_alias_columns;
+    extern const SettingsBool asterisk_include_materialized_columns;
+    extern const SettingsBool enable_optimize_predicate_expression;
+    extern const SettingsBool joined_subquery_requires_alias;
+    extern const SettingsJoinAlgorithm join_algorithm;
+}
 
 namespace ErrorCodes
 {
@@ -39,18 +48,18 @@ namespace
 {
 
 template <typename T, typename ... Args>
-std::shared_ptr<T> addASTChildrenTo(IAST & node, ASTPtr & children, Args && ... args)
+boost::intrusive_ptr<T> addASTChildrenTo(IAST & node, ASTPtr & children, Args && ... args)
 {
-    auto new_children = std::make_shared<T>(std::forward<Args>(args)...);
+    auto new_children = make_intrusive<T>(std::forward<Args>(args)...);
     children = new_children;
     node.children.push_back(children);
     return new_children;
 }
 
 template <typename T>
-std::shared_ptr<T> addASTChildren(IAST & node)
+boost::intrusive_ptr<T> addASTChildren(IAST & node)
 {
-    auto children = std::make_shared<T>();
+    auto children = make_intrusive<T>();
     node.children.push_back(children);
     return children;
 }
@@ -96,9 +105,9 @@ void replaceJoinedTable(const ASTSelectQuery & select_query)
             auto list_of_selects = addASTChildrenTo<ASTExpressionList>(*sub_select_with_union, sub_select_with_union->list_of_selects);
 
             auto new_select = addASTChildren<ASTSelectQuery>(*list_of_selects);
-            new_select->setExpression(ASTSelectQuery::Expression::SELECT, std::make_shared<ASTExpressionList>());
+            new_select->setExpression(ASTSelectQuery::Expression::SELECT, make_intrusive<ASTExpressionList>());
             addASTChildren<ASTAsterisk>(*new_select->select());
-            new_select->setExpression(ASTSelectQuery::Expression::TABLES, std::make_shared<ASTTablesInSelectQuery>());
+            new_select->setExpression(ASTSelectQuery::Expression::TABLES, make_intrusive<ASTTablesInSelectQuery>());
 
             auto tables_elem = addASTChildren<ASTTablesInSelectQueryElement>(*new_select->tables());
             auto sub_table_expr = addASTChildrenTo<ASTTableExpression>(*tables_elem, tables_elem->table_expression);
@@ -239,13 +248,13 @@ StoragePtr JoinedTables::getLeftTableStorage()
 bool JoinedTables::resolveTables()
 {
     const auto & settings = context->getSettingsRef();
-    bool include_alias_cols = include_all_columns || settings.asterisk_include_alias_columns;
-    bool include_materialized_cols = include_all_columns || settings.asterisk_include_materialized_columns;
+    bool include_alias_cols = include_all_columns || settings[Setting::asterisk_include_alias_columns];
+    bool include_materialized_cols = include_all_columns || settings[Setting::asterisk_include_materialized_columns];
     tables_with_columns = getDatabaseAndTablesWithColumns(table_expressions, context, include_alias_cols, include_materialized_cols, is_create_parameterized_view);
     if (tables_with_columns.size() != table_expressions.size())
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Unexpected tables count");
 
-    if (settings.joined_subquery_requires_alias && tables_with_columns.size() > 1)
+    if (settings[Setting::joined_subquery_requires_alias] && tables_with_columns.size() > 1)
     {
         for (size_t i = 0; i < tables_with_columns.size(); ++i)
         {
@@ -307,10 +316,10 @@ std::shared_ptr<TableJoin> JoinedTables::makeTableJoin(const ASTSelectQuery & se
     if (tables_with_columns.size() < 2)
         return {};
 
-    auto settings = context->getSettingsRef();
-    MultiEnum<JoinAlgorithm> join_algorithm = settings.join_algorithm;
+    const auto & settings = context->getSettingsRef();
+    MultiEnum<JoinAlgorithm> join_algorithm = settings[Setting::join_algorithm];
     bool try_use_direct_join = join_algorithm.isSet(JoinAlgorithm::DIRECT) || join_algorithm.isSet(JoinAlgorithm::DEFAULT);
-    auto table_join = std::make_shared<TableJoin>(settings, context->getGlobalTemporaryVolume());
+    auto table_join = std::make_shared<TableJoin>(settings, context->getGlobalTemporaryVolume(), context->getTempDataOnDisk());
 
     const ASTTablesInSelectQueryElement * ast_join = select_query_.join();
     const auto & table_to_join = ast_join->table_expression->as<ASTTableExpression &>();
@@ -356,8 +365,7 @@ std::shared_ptr<TableJoin> JoinedTables::makeTableJoin(const ASTSelectQuery & se
         }
     }
 
-    if (!table_join->isSpecialStorage() &&
-        settings.enable_optimize_predicate_expression)
+    if (!table_join->isSpecialStorage() && settings[Setting::enable_optimize_predicate_expression])
         replaceJoinedTable(select_query_);
 
     return table_join;

@@ -3,13 +3,12 @@
 #include <thread>
 #include <utility>
 #include <vector>
-#include <iostream>
-#include <chrono>
 
 #include <Poco/Net/PollSet.h>
 #include <Poco/Net/SocketAddress.h>
 #include <Poco/Net/StreamSocket.h>
 
+#include <Daemon/BaseDaemon.h>
 #include <Interpreters/Context.h>
 
 
@@ -24,6 +23,12 @@ static char * host = s_host.data();
 static int64_t port = 9000;
 
 using namespace std::chrono_literals;
+
+void on_exit()
+{
+    BaseDaemon::terminate();
+    main_app.wait();
+}
 
 extern "C"
 int LLVMFuzzerInitialize(int * argc, char ***argv)
@@ -60,6 +65,8 @@ int LLVMFuzzerInitialize(int * argc, char ***argv)
             exit(-1);
     }
 
+    atexit(on_exit);
+
     return 0;
 }
 
@@ -74,7 +81,7 @@ int LLVMFuzzerTestOneInput(const uint8_t * data, size_t size)
         if (size == 0)
             return -1;
 
-        Poco::Net::SocketAddress address(host, port);
+        Poco::Net::SocketAddress address(host, static_cast<uint16_t>(port));
         Poco::Net::StreamSocket socket;
 
         socket.connectNB(address);

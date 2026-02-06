@@ -25,7 +25,7 @@ bool ParserRefreshStrategy::parseImpl(Pos & pos, ASTPtr & node, Expected & expec
     ParserKeyword s_depends_on{Keyword::DEPENDS_ON};
     ParserKeyword s_settings{Keyword::SETTINGS};
 
-    auto refresh = std::make_shared<ASTRefreshStrategy>();
+    auto refresh = make_intrusive<ASTRefreshStrategy>();
 
     if (s_after.ignore(pos, expected))
     {
@@ -96,6 +96,10 @@ bool ParserRefreshStrategy::parseImpl(Pos & pos, ASTPtr & node, Expected & expec
             return false;
         refresh->set(refresh->settings, settings);
     }
+
+    if (ParserKeyword{Keyword::APPEND}.ignore(pos, expected))
+        refresh->append = true;
+
     node = refresh;
     return true;
 }

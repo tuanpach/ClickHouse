@@ -1,11 +1,13 @@
 #include <Interpreters/ExternalDictionariesLoader.h>
 #include <Interpreters/DatabaseCatalog.h>
 #include <Interpreters/Context.h>
+#include <IO/WriteHelpers.h>
 #include <Dictionaries/DictionaryFactory.h>
 #include <Dictionaries/DictionaryStructure.h>
 #include <Databases/IDatabase.h>
 #include <Storages/IStorage.h>
 #include <Common/Config/AbstractConfigurationComparison.h>
+#include <Core/Settings.h>
 
 #include "config.h"
 
@@ -13,8 +15,13 @@
 #   include <mysqlxx/PoolFactory.h>
 #endif
 
+
 namespace DB
 {
+namespace Setting
+{
+    extern const SettingsBool log_queries;
+}
 
 namespace ErrorCodes
 {
@@ -77,21 +84,23 @@ void ExternalDictionariesLoader::updateObjectFromConfigWithoutReloading(IExterna
 ExternalDictionariesLoader::DictPtr ExternalDictionariesLoader::getDictionary(const std::string & dictionary_name, ContextPtr local_context) const
 {
     std::string resolved_dictionary_name = resolveDictionaryName(dictionary_name, local_context->getCurrentDatabase());
+    auto dictionary = std::static_pointer_cast<const IDictionary>(load(resolved_dictionary_name));
 
-    if (local_context->hasQueryContext() && local_context->getSettingsRef().log_queries)
-        local_context->addQueryFactoriesInfo(Context::QueryLogFactories::Dictionary, resolved_dictionary_name);
+    if (local_context->hasQueryContext() && local_context->getSettingsRef()[Setting::log_queries])
+        local_context->getQueryContext()->addQueryFactoriesInfo(Context::QueryLogFactories::Dictionary, dictionary->getQualifiedName());
 
-    return std::static_pointer_cast<const IDictionary>(load(resolved_dictionary_name));
+    return dictionary;
 }
 
 ExternalDictionariesLoader::DictPtr ExternalDictionariesLoader::tryGetDictionary(const std::string & dictionary_name, ContextPtr local_context) const
 {
     std::string resolved_dictionary_name = resolveDictionaryName(dictionary_name, local_context->getCurrentDatabase());
+    auto dictionary = std::static_pointer_cast<const IDictionary>(tryLoad(resolved_dictionary_name));
 
-    if (local_context->hasQueryContext() && local_context->getSettingsRef().log_queries)
-        local_context->addQueryFactoriesInfo(Context::QueryLogFactories::Dictionary, resolved_dictionary_name);
+    if (local_context->hasQueryContext() && local_context->getSettingsRef()[Setting::log_queries] && dictionary)
+        local_context->getQueryContext()->addQueryFactoriesInfo(Context::QueryLogFactories::Dictionary, dictionary->getQualifiedName());
 
-    return std::static_pointer_cast<const IDictionary>(tryLoad(resolved_dictionary_name));
+    return dictionary;
 }
 
 

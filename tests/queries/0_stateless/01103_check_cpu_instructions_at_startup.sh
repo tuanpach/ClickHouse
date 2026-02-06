@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tags: no-tsan, no-asan, no-ubsan, no-msan, no-debug, no-fasttest, no-cpu-aarch64
-# Tag no-fasttest: avoid dependency on qemu -- invonvenient when running locally
+# Tag no-fasttest: avoid dependency on qemu -- inconvenient when running locally
 
 CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=../shell_config.sh
@@ -19,7 +19,8 @@ fi
 
 function run_with_cpu()
 {
-    qemu-x86_64-static -cpu "$@" "$command" --query "SELECT 1" 2>&1 | \
+    # Limit memory to 1 GB to fail fast if a sanitized binary is run under QEMU
+    prlimit -m1000000 qemu-x86_64-static -cpu "$@" "$command" --query "SELECT 1" 2>&1 | \
       grep -v -F "warning: TCG doesn't support requested feature" | \
       grep -v -F 'Unknown host IFA type' ||:
 }

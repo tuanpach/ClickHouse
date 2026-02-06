@@ -4,8 +4,9 @@
 
 #if USE_MYSQL
 
+#include <Processors/Sources/MySQLSource.h>
+#include <Processors/QueryPlan/ISourceStep.h>
 #include <Storages/IStorage.h>
-#include <Storages/MySQL/MySQLSettings.h>
 #include <mysqlxx/PoolWithFailover.h>
 
 namespace Poco
@@ -16,6 +17,7 @@ class Logger;
 namespace DB
 {
 
+struct MySQLSettings;
 class NamedCollection;
 
 /** Implements storage in the MySQL database.
@@ -39,14 +41,17 @@ public:
 
     std::string getName() const override { return "MySQL"; }
 
-    Pipe read(
+    bool isExternalDatabase() const override { return true; }
+
+    void read(
+        QueryPlan & query_plan,
         const Names & column_names,
         const StorageSnapshotPtr & storage_snapshot,
         SelectQueryInfo & query_info,
         ContextPtr context,
-        QueryProcessingStage::Enum processed_stage,
-        size_t max_block_size,
-        size_t num_streams) override;
+        QueryProcessingStage::Enum /*processed_stage*/,
+        size_t /*max_block_size*/,
+        size_t /*num_streams*/) override;
 
     SinkToStoragePtr write(const ASTPtr & query, const StorageMetadataPtr & /*metadata_snapshot*/, ContextPtr context, bool async_insert) override;
 
@@ -60,6 +65,10 @@ public:
         String password;
         String database;
         String table;
+
+        String ssl_ca;
+        String ssl_cert;
+        String ssl_key;
 
         bool replace_query = false;
         String on_duplicate_clause;
@@ -88,11 +97,39 @@ private:
     bool replace_query;
     std::string on_duplicate_clause;
 
-    MySQLSettings mysql_settings;
+    std::unique_ptr<MySQLSettings> mysql_settings;
 
     mysqlxx::PoolWithFailoverPtr pool;
 
     LoggerPtr log;
+};
+
+class ReadFromMySQLStep final : public ISourceStep
+{
+public:
+    ReadFromMySQLStep(
+        const Block & sample_block_,
+        mysqlxx::PoolWithFailoverPtr pool_,
+        const std::string & query_str_,
+        const StreamSettings & mysql_input_stream_settings_
+    );
+
+    ReadFromMySQLStep(const ReadFromMySQLStep &) = default;
+    ReadFromMySQLStep(ReadFromMySQLStep &&) = default;
+
+    String getName() const override { return "ReadFromMySQL"; }
+
+    QueryPlanStepPtr clone() const override
+    {
+        return std::make_unique<ReadFromMySQLStep>(*this);
+    }
+
+    void initializePipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings & settings) override;
+
+private:
+    mysqlxx::PoolWithFailoverPtr pool;
+    String query_str;
+    const StreamSettings mysql_input_stream_settings;
 };
 
 }

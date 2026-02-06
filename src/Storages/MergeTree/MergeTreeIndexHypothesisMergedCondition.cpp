@@ -23,7 +23,7 @@ MergeTreeIndexhypothesisMergedCondition::MergeTreeIndexhypothesisMergedCondition
     const auto & select = query.query->as<ASTSelectQuery &>();
 
     if (select.where() && select.prewhere())
-        expression_ast = makeASTFunction(
+        expression_ast = makeASTOperator(
             "and",
             select.where()->clone(),
             select.prewhere()->clone());
@@ -33,7 +33,7 @@ MergeTreeIndexhypothesisMergedCondition::MergeTreeIndexhypothesisMergedCondition
         expression_ast = select.prewhere()->clone();
 
     expression_cnf = std::make_unique<CNFQuery>(
-        expression_ast ? TreeCNFConverter::toCNF(expression_ast) : CNFQuery::AndGroup{});
+        expression_ast ? TreeCNFConverter::toCNF(expression_ast.get()) : CNFQuery::AndGroup{});
 
     addConstraints(constraints);
 }
@@ -52,15 +52,15 @@ void MergeTreeIndexhypothesisMergedCondition::addIndex(const MergeTreeIndexPtr &
     // TODO: move to index hypothesis
     std::vector<ASTPtr> compare_hypotheses_data;
     std::vector<CNFQuery::OrGroup> hypotheses_data;
-    const auto cnf = TreeCNFConverter::toCNF(hypothesis_index->index.expression_list_ast->children.front()).pullNotOutFunctions();
+    const auto cnf = TreeCNFConverter::toCNF(hypothesis_index->index.expression_list_ast->children.front().get()).pullNotOutFunctions();
 
     for (const auto & group : cnf.getStatements())
     {
         if (group.size() == 1)
         {
             hypotheses_data.push_back(group);
-            CNFQuery::AtomicFormula atomic_formula = *group.begin();
-            CNFQuery::AtomicFormula atom{atomic_formula.negative, atomic_formula.ast->clone()};
+            CNFQueryAtomicFormula atomic_formula = *group.begin();
+            CNFQueryAtomicFormula atom{atomic_formula.negative, atomic_formula.ast->clone()};
             pushNotIn(atom);
             assert(!atom.negative);
 
@@ -79,7 +79,7 @@ void MergeTreeIndexhypothesisMergedCondition::addConstraints(const ConstraintsDe
     auto atomic_constraints_data = constraints_description.getAtomicConstraintData();
     for (const auto & atomic_formula : atomic_constraints_data)
     {
-        CNFQuery::AtomicFormula atom{atomic_formula.negative, atomic_formula.ast->clone()};
+        CNFQueryAtomicFormula atom{atomic_formula.negative, atomic_formula.ast->clone()};
         pushNotIn(atom);
         atomic_constraints.push_back(atom.ast);
     }
@@ -116,7 +116,7 @@ bool MergeTreeIndexhypothesisMergedCondition::alwaysUnknownOrTrue() const
         {
             for (const auto & atomic_formula : or_group)
             {
-                CNFQuery::AtomicFormula atom{atomic_formula.negative, atomic_formula.ast->clone()};
+                CNFQueryAtomicFormula atom{atomic_formula.negative, atomic_formula.ast->clone()};
                 pushNotIn(atom);
 
                 const auto * func = atom.ast->as<ASTFunction>();
@@ -165,7 +165,7 @@ bool MergeTreeIndexhypothesisMergedCondition::mayBeTrueOnGranule(const MergeTree
 
             for (const auto & atomic_formula : or_group)
             {
-                CNFQuery::AtomicFormula atom{atomic_formula.negative, atomic_formula.ast->clone()};
+                CNFQueryAtomicFormula atom{atomic_formula.negative, atomic_formula.ast->clone()};
                 pushNotIn(atom);
                 const auto * func = atom.ast->as<ASTFunction>();
                 if (func && func->arguments->children.size() == 2)

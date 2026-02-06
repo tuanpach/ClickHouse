@@ -1,8 +1,5 @@
-#include "DateLUTImpl.h"
-
-#include <cctz/civil_time.h>
-#include <cctz/time_zone.h>
-#include <cctz/zone_info_source.h>
+#include <Core/DecimalFunctions.h>
+#include <Common/DateLUTImpl.h>
 #include <Common/Exception.h>
 
 #include <algorithm>
@@ -10,6 +7,13 @@
 #include <chrono>
 #include <cstring>
 #include <memory>
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wimplicit-int-conversion"
+#include <cctz/civil_time.h>
+#include <cctz/time_zone.h>
+#include <cctz/zone_info_source.h>
+#pragma clang diagnostic pop
 
 
 namespace DB
@@ -21,7 +25,7 @@ namespace ErrorCodes
 }
 
 /// Embedded timezones.
-std::string_view getTimeZone(const char * name);
+std::string_view getTimeZone(const char * name);  /// NOLINT(misc-use-internal-linkage)
 
 
 namespace
@@ -40,7 +44,6 @@ UInt8 getDayOfWeek(const cctz::civil_day & date)
         case cctz::weekday::saturday:   return 6;
         case cctz::weekday::sunday:     return 7;
     }
-    UNREACHABLE();
 }
 
 inline cctz::time_point<cctz::seconds> lookupTz(const cctz::time_zone & cctz_time_zone, const cctz::civil_day & date)
@@ -64,7 +67,7 @@ inline cctz::time_point<cctz::seconds> lookupTz(const cctz::time_zone & cctz_tim
 
 __attribute__((__weak__)) extern bool inside_main;
 
-DateLUTImpl::DateLUTImpl(const std::string & time_zone_)
+DateLUTImpl::DateLUTImpl(std::string_view time_zone_)
     : time_zone(time_zone_)
 {
     /// DateLUT should not be initialized in global constructors for the following reasons:
@@ -115,8 +118,8 @@ DateLUTImpl::DateLUTImpl(const std::string & time_zone_)
                 && (cctz::civil_day(transition.from) == date || cctz::civil_day(transition.to) == date)
                 && transition.from != transition.to)
             {
-                values.time_at_offset_change_value = (transition.from - cctz::civil_second(date)) / Values::OffsetChangeFactor;
-                values.amount_of_offset_change_value = (transition.to - transition.from) / Values::OffsetChangeFactor;
+                values.time_at_offset_change_value = static_cast<UInt8>((transition.from - cctz::civil_second(date)) / Values::OffsetChangeFactor);
+                values.amount_of_offset_change_value = static_cast<Int8>((transition.to - transition.from) / Values::OffsetChangeFactor);
 
                 /// We don't support too large changes.
                 if (values.amount_of_offset_change_value > 24 * 4)
@@ -135,9 +138,9 @@ DateLUTImpl::DateLUTImpl(const std::string & time_zone_)
 
         start_of_day = std::chrono::system_clock::to_time_t(start_of_day_time_point_if_no_transitions);
 
-        values.year = date.year();
-        values.month = date.month();
-        values.day_of_month = date.day();
+        values.year = static_cast<UInt16>(date.year());
+        values.month = static_cast<UInt8>(date.month());
+        values.day_of_month = static_cast<UInt8>(date.day());
         values.day_of_week = getDayOfWeek(date);
         values.date = start_of_day;
 
@@ -149,7 +152,7 @@ DateLUTImpl::DateLUTImpl(const std::string & time_zone_)
         if (values.day_of_month == 1)
         {
             cctz::civil_month month(date);
-            values.days_in_month = cctz::civil_day(month + 1) - cctz::civil_day(month);
+            values.days_in_month = static_cast<UInt8>(cctz::civil_day(month + 1) - cctz::civil_day(month));
         }
         else
             values.days_in_month = i != 0 ? lut[i - 1].days_in_month : 31;
@@ -214,6 +217,29 @@ DateLUTImpl::DateLUTImpl(const std::string & time_zone_)
     }
 }
 
+unsigned int DateLUTImpl::toMillisecond(const DB::DateTime64 & datetime, Int64 scale_multiplier) const
+{
+    constexpr Int64 millisecond_multiplier = 1'000;
+    constexpr Int64 microsecond_multiplier = 1'000 * millisecond_multiplier;
+    constexpr Int64 divider = microsecond_multiplier / millisecond_multiplier;
+
+    auto components = DB::DecimalUtils::splitWithScaleMultiplier(datetime, scale_multiplier);
+
+    if (datetime.value < 0 && components.fractional)
+    {
+        components.fractional = scale_multiplier + (components.whole ? Int64(-1) : Int64(1)) * components.fractional;
+        --components.whole;
+    }
+    Int64 fractional = components.fractional;
+    if (scale_multiplier > microsecond_multiplier)
+        fractional = fractional / (scale_multiplier / microsecond_multiplier);
+    else if (scale_multiplier < microsecond_multiplier)
+        fractional = fractional * (microsecond_multiplier / scale_multiplier);
+
+    UInt16 millisecond = static_cast<UInt16>(fractional / divider);
+    return millisecond;
+}
+
 
 /// Prefer to load timezones from blobs linked to the binary.
 /// The blobs are provided by "tzdata" library.
@@ -229,8 +255,7 @@ namespace cctz_extension
 
             size_t Read(void * buf, size_t bytes) override
             {
-                if (bytes > size)
-                    bytes = size;
+                bytes = std::min(bytes, size);
                 memcpy(buf, data, bytes);
                 data += bytes;
                 size -= bytes;
@@ -245,11 +270,9 @@ namespace cctz_extension
                     size -= offset;
                     return 0;
                 }
-                else
-                {
-                    errno = EINVAL;
-                    return -1;
-                }
+
+                errno = EINVAL;
+                return -1;
             }
         private:
             const char * data;

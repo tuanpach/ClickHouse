@@ -1,4 +1,4 @@
-#include "SQLiteSource.h"
+#include <Processors/Sources/SQLiteSource.h>
 
 #if USE_SQLITE
 #include <base/range.h>
@@ -12,6 +12,8 @@
 #include <Columns/ColumnsNumber.h>
 
 #include <DataTypes/DataTypeNullable.h>
+
+#include <IO/ReadHelpers.h>
 
 
 namespace DB
@@ -27,7 +29,7 @@ SQLiteSource::SQLiteSource(
     const String & query_str_,
     const Block & sample_block,
     const UInt64 max_block_size_)
-    : ISource(sample_block.cloneEmpty())
+    : ISource(std::make_shared<const Block>(sample_block.cloneEmpty()))
     , query_str(query_str_)
     , max_block_size(max_block_size_)
     , sqlite_db(std::move(sqlite_db_))
@@ -65,16 +67,19 @@ Chunk SQLiteSource::generate()
         {
             continue;
         }
-        else if (status == SQLITE_DONE)
+        if (status == SQLITE_DONE)
         {
             compiled_statement.reset();
             break;
         }
-        else if (status != SQLITE_ROW)
+        if (status != SQLITE_ROW)
         {
-            throw Exception(ErrorCodes::SQLITE_ENGINE_ERROR,
+            throw Exception(
+                ErrorCodes::SQLITE_ENGINE_ERROR,
                 "Expected SQLITE_ROW status, but got status {}. Error: {}, Message: {}",
-                status, sqlite3_errstr(status), sqlite3_errmsg(sqlite_db.get()));
+                status,
+                sqlite3_errstr(status),
+                sqlite3_errmsg(sqlite_db.get()));
         }
 
         int column_count = sqlite3_column_count(compiled_statement.get());
@@ -92,7 +97,7 @@ Chunk SQLiteSource::generate()
             {
                 ColumnNullable & column_nullable = assert_cast<ColumnNullable &>(*columns[column_index]);
                 insertValue(column_nullable.getNestedColumn(), type, column_index);
-                column_nullable.getNullMapData().emplace_back(0);
+                column_nullable.getNullMapData().emplace_back(false);
             }
             else
             {
@@ -118,10 +123,10 @@ void SQLiteSource::insertValue(IColumn & column, ExternalResultDescription::Valu
     switch (type)
     {
         case ValueType::vtUInt8:
-            assert_cast<ColumnUInt8 &>(column).insertValue(sqlite3_column_int(compiled_statement.get(), idx));
+            assert_cast<ColumnUInt8 &>(column).insertValue(static_cast<UInt8>(sqlite3_column_int(compiled_statement.get(), idx)));
             break;
         case ValueType::vtUInt16:
-            assert_cast<ColumnUInt16 &>(column).insertValue(sqlite3_column_int(compiled_statement.get(), idx));
+            assert_cast<ColumnUInt16 &>(column).insertValue(static_cast<UInt16>(sqlite3_column_int(compiled_statement.get(), idx)));
             break;
         case ValueType::vtUInt32:
             assert_cast<ColumnUInt32 &>(column).insertValue(static_cast<UInt32>(sqlite3_column_int64(compiled_statement.get(), idx)));
@@ -131,10 +136,10 @@ void SQLiteSource::insertValue(IColumn & column, ExternalResultDescription::Valu
             assert_cast<ColumnUInt64 &>(column).insertValue(sqlite3_column_int64(compiled_statement.get(), idx));
             break;
         case ValueType::vtInt8:
-            assert_cast<ColumnInt8 &>(column).insertValue(sqlite3_column_int(compiled_statement.get(), idx));
+            assert_cast<ColumnInt8 &>(column).insertValue(static_cast<Int8>(sqlite3_column_int(compiled_statement.get(), idx)));
             break;
         case ValueType::vtInt16:
-            assert_cast<ColumnInt16 &>(column).insertValue(sqlite3_column_int(compiled_statement.get(), idx));
+            assert_cast<ColumnInt16 &>(column).insertValue(static_cast<Int16>(sqlite3_column_int(compiled_statement.get(), idx)));
             break;
         case ValueType::vtInt32:
             assert_cast<ColumnInt32 &>(column).insertValue(sqlite3_column_int(compiled_statement.get(), idx));
@@ -148,11 +153,22 @@ void SQLiteSource::insertValue(IColumn & column, ExternalResultDescription::Valu
         case ValueType::vtFloat64:
             assert_cast<ColumnFloat64 &>(column).insertValue(sqlite3_column_double(compiled_statement.get(), idx));
             break;
-        default:
+        case ValueType::vtUUID:
+        {
+            const char * data = reinterpret_cast<const char *>(sqlite3_column_text(compiled_statement.get(), idx));
+            int len = sqlite3_column_bytes(compiled_statement.get(), idx);
+            assert_cast<ColumnUUID &>(column).insert(parse<UUID>(data, len));
+            break;
+        }
+        case ValueType::vtString:
+        {
             const char * data = reinterpret_cast<const char *>(sqlite3_column_text(compiled_statement.get(), idx));
             int len = sqlite3_column_bytes(compiled_statement.get(), idx);
             assert_cast<ColumnString &>(column).insertData(data, len);
             break;
+        }
+        default:
+            throw Exception(ErrorCodes::SQLITE_ENGINE_ERROR, "Unsupported type for SQLite column");
     }
 }
 

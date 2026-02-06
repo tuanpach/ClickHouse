@@ -1,10 +1,16 @@
 #pragma once
+
 #include <IO/ReadBuffer.h>
 #include <IO/BufferWithOwnMemory.h>
 #include <stack>
 
 namespace DB
 {
+
+namespace ErrorCodes
+{
+    extern const int LOGICAL_ERROR;
+}
 
 /// Also allows to set checkpoint at some position in stream and come back to this position later.
 /// When next() is called, saves data between checkpoint and current position to own memory and loads next data to sub-buffer
@@ -25,6 +31,9 @@ public:
     /// Sets checkpoint at current position
     ALWAYS_INLINE inline void setCheckpoint()
     {
+        if (canceled)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Attempt to set a checkpoint on a canceled buffer");
+
         if (checkpoint)
         {
             /// Recursive checkpoints. We just remember offset from the
@@ -83,9 +92,9 @@ private:
 
     bool peekNext();
 
-    inline bool useSubbufferOnly() const { return !peeked_size; }
-    inline bool currentlyReadFromOwnMemory() const { return working_buffer.begin() != sub_buf->buffer().begin(); }
-    inline bool checkpointInOwnMemory() const { return checkpoint_in_own_memory; }
+    bool useSubbufferOnly() const { return !peeked_size; }
+    bool currentlyReadFromOwnMemory() const { return working_buffer.begin() != sub_buf->buffer().begin(); }
+    bool checkpointInOwnMemory() const { return checkpoint_in_own_memory; }
 
     void checkStateCorrect() const;
 

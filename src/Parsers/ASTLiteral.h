@@ -1,11 +1,9 @@
 #pragma once
 
 #include <Core/Field.h>
+#include <DataTypes/IDataType.h>
 #include <Parsers/ASTWithAlias.h>
-#include <Parsers/TokenIterator.h>
 #include <Common/FieldVisitorDump.h>
-
-#include <optional>
 
 
 namespace DB
@@ -15,13 +13,20 @@ namespace DB
 class ASTLiteral : public ASTWithAlias
 {
 public:
-    explicit ASTLiteral(Field value_) : value(std::move(value_)) {}
+    explicit ASTLiteral(Field value_)
+        : value(std::move(value_))
+    {
+    }
+
+    // This methond and the custom_type are only used for Apache Gluten,
+    explicit ASTLiteral(Field value_, DataTypePtr & type_)
+        : value(std::move(value_))
+    {
+        custom_type = type_;
+    }
 
     Field value;
-
-    /// For ConstantExpressionTemplate
-    std::optional<TokenIterator> begin;
-    std::optional<TokenIterator> end;
+    DataTypePtr custom_type;
 
     /*
      * The name of the column corresponding to this literal. Only used to
@@ -44,7 +49,7 @@ public:
     void updateTreeHashImpl(SipHash & hash_state, bool ignore_aliases) const override;
 
 protected:
-    void formatImplWithoutAlias(const FormatSettings & settings, FormatState &, FormatStateStacked) const override;
+    void formatImplWithoutAlias(WriteBuffer & ostr, const FormatSettings & settings, FormatState &, FormatStateStacked) const override;
 
     void appendColumnNameImpl(WriteBuffer & ostr) const override;
 

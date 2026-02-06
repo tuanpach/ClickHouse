@@ -9,7 +9,7 @@
 #include <IO/ReadBufferFromFileBase.h>
 #include <Interpreters/FilesystemCacheLog.h>
 #include <Interpreters/Cache/FileSegment.h>
-#include <Interpreters/Cache/UserInfo.h>
+#include <Interpreters/Cache/FileCacheOriginInfo.h>
 
 
 namespace CurrentMetrics
@@ -29,7 +29,7 @@ public:
         const String & source_file_path_,
         const FileCacheKey & cache_key_,
         FileCachePtr cache_,
-        const FileCacheUserInfo & user_,
+        const FileCacheOriginInfo & origin_,
         ImplementationBufferCreator implementation_buffer_creator_,
         const ReadSettings & settings_,
         const String & query_id_,
@@ -40,6 +40,8 @@ public:
         std::shared_ptr<FilesystemCacheLog> cache_log_);
 
     ~CachedOnDiskReadBufferFromFile() override;
+
+    bool isCached() const override { return true; }
 
     bool nextImpl() override;
 
@@ -57,7 +59,7 @@ public:
 
     String getFileName() const override { return source_file_path; }
 
-    enum class ReadType
+    enum class ReadType : uint8_t
     {
         CACHED,
         REMOTE_FS_READ_BYPASS_CACHE,
@@ -67,6 +69,10 @@ public:
     bool isSeekCheap() override;
 
     bool isContentCached(size_t offset, size_t size) override;
+
+    std::optional<size_t> tryGetFileSize() override;
+
+    size_t getFileSize();
 
 private:
     using ImplementationBufferPtr = std::shared_ptr<ReadBufferFromFileBase>;
@@ -89,7 +95,7 @@ private:
 
     bool updateImplementationBufferIfNeeded();
 
-    void predownload(FileSegment & file_segment);
+    bool predownload(FileSegment & file_segment);
 
     bool nextImplStep();
 
@@ -129,19 +135,7 @@ private:
 
     ReadType read_type = ReadType::REMOTE_FS_READ_BYPASS_CACHE;
 
-    static String toString(ReadType type)
-    {
-        switch (type)
-        {
-            case ReadType::CACHED:
-                return "CACHED";
-            case ReadType::REMOTE_FS_READ_BYPASS_CACHE:
-                return "REMOTE_FS_READ_BYPASS_CACHE";
-            case ReadType::REMOTE_FS_READ_AND_PUT_IN_CACHE:
-                return "REMOTE_FS_READ_AND_PUT_IN_CACHE";
-        }
-        UNREACHABLE();
-    }
+    static String toString(ReadType type);
 
     size_t first_offset = 0;
     String nextimpl_step_log_info;
@@ -149,12 +143,11 @@ private:
 
     String query_id;
     String current_buffer_id;
-    FileCacheUserInfo user;
+    FileCacheOriginInfo origin;
 
     bool allow_seeks_after_first_read;
-    [[maybe_unused]]bool use_external_buffer;
+    bool use_external_buffer;
     CurrentMetrics::Increment metric_increment{CurrentMetrics::FilesystemCacheReadBuffers};
-    ProfileEvents::Counters current_file_segment_counters;
 
     FileCacheQueryLimit::QueryContextHolderPtr query_context_holder;
 

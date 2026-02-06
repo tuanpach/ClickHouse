@@ -1,17 +1,17 @@
+#include <Access/Common/AccessRightsElement.h>
 #include <Backups/BackupUtils.h>
 #include <Backups/DDLAdjustingForBackupVisitor.h>
-#include <Access/Common/AccessRightsElement.h>
 #include <Databases/DDLRenamingVisitor.h>
-#include <Parsers/ASTCreateQuery.h>
-#include <Parsers/formatAST.h>
 #include <Interpreters/DatabaseCatalog.h>
-#include <Common/setThreadName.h>
+#include <Parsers/ASTCreateQuery.h>
+#include <Storages/StorageMaterializedView.h>
+#include <Common/typeid_cast.h>
 
 
-namespace DB
+namespace DB::BackupUtils
 {
 
-DDLRenamingMap makeRenamingMapFromBackupQuery(const ASTBackupQuery::Elements & elements)
+DDLRenamingMap makeRenamingMap(const ASTBackupQuery::Elements & elements)
 {
     DDLRenamingMap map;
 
@@ -103,16 +103,16 @@ bool compareRestoredTableDef(const IAST & restored_table_create_query, const IAS
     auto adjust_before_comparison = [&](const IAST & query) -> ASTPtr
     {
         auto new_query = query.clone();
-        adjustCreateQueryForBackup(new_query, global_context, nullptr);
+        adjustCreateQueryForBackup(new_query, global_context);
         ASTCreateQuery & create = typeid_cast<ASTCreateQuery &>(*new_query);
-        create.setUUID({});
+        create.resetUUIDs();
         create.if_not_exists = false;
         return new_query;
     };
 
     ASTPtr query1 = adjust_before_comparison(restored_table_create_query);
     ASTPtr query2 = adjust_before_comparison(create_query_from_backup);
-    return serializeAST(*query1) == serializeAST(*query2);
+    return query1->formatWithSecretsOneLine() == query2->formatWithSecretsOneLine();
 }
 
 bool compareRestoredDatabaseDef(const IAST & restored_database_create_query, const IAST & create_query_from_backup, const ContextPtr & global_context)
@@ -120,4 +120,31 @@ bool compareRestoredDatabaseDef(const IAST & restored_database_create_query, con
     return compareRestoredTableDef(restored_database_create_query, create_query_from_backup, global_context);
 }
 
+bool isInnerTable(const QualifiedTableName & table_name)
+{
+    return isInnerTable(table_name.database, table_name.table);
+}
+
+bool isInnerTable(const String & /* database_name */, const String & table_name)
+{
+    /// We skip inner tables of materialized views. They're backed up by StorageMaterializedView.
+    return table_name.starts_with(".inner.") || table_name.starts_with(".inner_id.") || table_name.starts_with(".tmp.inner.") || table_name.starts_with(".tmp.inner_id.");
+}
+
+bool isTargetForReplaceRefreshableMaterializedView(const StorageID & storage_id, const ContextPtr & context)
+{
+    auto dependents = DatabaseCatalog::instance().getReferentialDependents(storage_id);
+
+    auto is_rmv_targeting_table = [&](const StorageID & mv_candidate, const StorageID & target_id) -> bool
+    {
+        auto table = DatabaseCatalog::instance().tryGetTable(mv_candidate, context);
+        if (!table || table->getName() != "MaterializedView")
+            return false;
+
+        const auto * mv = typeid_cast<const StorageMaterializedView *>(table.get());
+        return mv && mv->isRefreshable() && !mv->isAppendRefreshStrategy() && mv->getTargetTableId() == target_id;
+    };
+    return std::any_of(
+        dependents.begin(), dependents.end(), [&](const auto & dependent) { return is_rmv_targeting_table(dependent, storage_id); });
+}
 }

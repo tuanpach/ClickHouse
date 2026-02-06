@@ -15,18 +15,23 @@
 #include <Columns/ColumnNullable.h>
 
 #include <Common/ArenaAllocator.h>
+#include <Common/ContainersWithMemoryTracking.h>
 #include <Common/assert_cast.h>
 
 #include <AggregateFunctions/IAggregateFunction.h>
+#include <base/range.h>
 
 #include <bitset>
 
 
 namespace DB
 {
+namespace Setting
+{
+    extern const SettingsBool allow_experimental_funnel_functions;
+}
 
 constexpr size_t max_events_size = 64;
-
 constexpr size_t min_required_args = 3;
 
 namespace ErrorCodes
@@ -41,13 +46,13 @@ namespace ErrorCodes
 namespace
 {
 
-enum class SequenceDirection
+enum class SequenceDirection : uint8_t
 {
     Forward,
     Backward,
 };
 
-enum SequenceBase
+enum SequenceBase : uint8_t
 {
     Head,
     Tail,
@@ -118,11 +123,11 @@ struct NodeString : public NodeBase<NodeString<MaxEventsSize>, MaxEventsSize>
 
     static Node * allocate(const IColumn & column, size_t row_num, Arena * arena)
     {
-        StringRef string = assert_cast<const ColumnString &>(column).getDataAt(row_num);
+        auto string = assert_cast<const ColumnString &>(column).getDataAt(row_num);
 
-        Node * node = reinterpret_cast<Node *>(arena->alignedAlloc(sizeof(Node) + string.size, alignof(Node)));
-        node->size = string.size;
-        memcpy(node->data(), string.data, string.size);
+        Node * node = reinterpret_cast<Node *>(arena->alignedAlloc(sizeof(Node) + string.size(), alignof(Node)));
+        node->size = string.size();
+        memcpy(node->data(), string.data(), string.size());
 
         return node;
     }
@@ -175,7 +180,7 @@ class SequenceNextNodeImpl final
     using Self = SequenceNextNodeImpl<T, Node>;
 
     using Data = SequenceNextNodeGeneralData<Node>;
-    static Data & data(AggregateDataPtr __restrict place) { return *reinterpret_cast<Data *>(place); }
+    static Data & data(AggregateDataPtr __restrict place) { return *reinterpret_cast<Data *>(place); }  /// NOLINT(readability-non-const-parameter)
     static const Data & data(ConstAggregateDataPtr __restrict place) { return *reinterpret_cast<const Data *>(place); }
 
     static constexpr size_t base_cond_column_idx = 2;
@@ -202,7 +207,7 @@ public:
         , seq_direction(seq_direction_)
         , min_required_args(min_required_args_)
         , data_type(this->argument_types[0])
-        , events_size(arguments.size() - min_required_args)
+        , events_size(static_cast<UInt8>(arguments.size() - min_required_args))
         , max_elems(max_elems_)
     {
     }
@@ -341,7 +346,7 @@ public:
             value[i] = Node::read(buf, arena);
     }
 
-    inline std::optional<size_t> getBaseIndex(Data & data) const
+    std::optional<size_t> getBaseIndex(Data & data) const
     {
         if (data.value.size() == 0)
             return {};
@@ -414,7 +419,6 @@ public:
                         break;
                 return (i == events_size) ? base - i : unmatched_idx;
         }
-        UNREACHABLE();
     }
 
     void insertResultInto(AggregateDataPtr __restrict place, IColumn & to, Arena *) const override
@@ -426,7 +430,7 @@ public:
         {
             ColumnNullable & to_concrete = assert_cast<ColumnNullable &>(to);
             value[event_idx]->insertInto(to_concrete.getNestedColumn());
-            to_concrete.getNullMapData().push_back(0);
+            to_concrete.getNullMapData().push_back(false);
         }
         else
         {
@@ -449,7 +453,7 @@ inline AggregateFunctionPtr createAggregateFunctionSequenceNodeImpl(
 AggregateFunctionPtr
 createAggregateFunctionSequenceNode(const std::string & name, const DataTypes & argument_types, const Array & parameters, const Settings * settings)
 {
-    if (settings == nullptr || !settings->allow_experimental_funnel_functions)
+    if (settings == nullptr || !(*settings)[Setting::allow_experimental_funnel_functions])
     {
         throw Exception(ErrorCodes::UNKNOWN_AGGREGATE_FUNCTION, "Aggregate function {} is experimental. "
             "Set `allow_experimental_funnel_functions` setting to enable it", name);
@@ -463,7 +467,7 @@ createAggregateFunctionSequenceNode(const std::string & name, const DataTypes & 
         throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Aggregate function '{}' requires 'String' parameters", name);
 
     String param_dir = parameters.at(0).safeGet<String>();
-    std::unordered_map<std::string, SequenceDirection> seq_dir_mapping{
+    UnorderedMapWithMemoryTracking<std::string, SequenceDirection> seq_dir_mapping{
         {"forward", SequenceDirection::Forward},
         {"backward", SequenceDirection::Backward},
     };
@@ -472,7 +476,7 @@ createAggregateFunctionSequenceNode(const std::string & name, const DataTypes & 
     SequenceDirection direction = seq_dir_mapping[param_dir];
 
     String param_base = parameters.at(1).safeGet<String>();
-    std::unordered_map<std::string, SequenceBase> seq_base_mapping{
+    UnorderedMapWithMemoryTracking<std::string, SequenceBase> seq_base_mapping{
         {"head", SequenceBase::Head},
         {"tail", SequenceBase::Tail},
         {"first_match", SequenceBase::FirstMatch},

@@ -21,9 +21,10 @@
 using namespace DB;
 
 template <typename T>
-void checkColumn(
+void checkColumnImpl(
     const WeakHash32::Container & hash,
-    const PaddedPODArray<T> & eq_class)
+    const PaddedPODArray<T> & eq_class,
+    UInt32 scale = 0)
 {
     ASSERT_EQ(hash.size(), eq_class.size());
 
@@ -41,12 +42,34 @@ void checkColumn(
             else
             {
                 if (it->second != hash[i])
-                    std::cout << "Different hashes for the same equivalent class (" << toString(val) << ")\n";
+                {
+                    if constexpr (is_decimal<T>)
+                        std::cout << "Different hashes for the same equivalent class (" << toString(val, scale) << ")\n";
+                    else
+                        std::cout << "Different hashes for the same equivalent class (" << toString(val) << ")\n";
+                }
 
                 ASSERT_EQ(it->second, hash[i]);
             }
         }
     }
+}
+
+template <typename T>
+void checkColumn(
+    const WeakHash32::Container & hash,
+    const PaddedPODArray<T> & eq_class)
+{
+    checkColumnImpl(hash, eq_class);
+}
+
+template <is_decimal T>
+void checkColumn(
+    const WeakHash32::Container & hash,
+    const PaddedPODArray<T> & eq_class,
+    UInt32 scale)
+{
+    checkColumnImpl(hash, eq_class, scale);
 }
 
 TEST(WeakHash32, ColumnVectorU8)
@@ -57,11 +80,10 @@ TEST(WeakHash32, ColumnVectorU8)
     for (int idx [[maybe_unused]] : {1, 2})
     {
         for (size_t i = 0; i < 265; ++i)
-            data.push_back(i);
+            data.push_back(static_cast<UInt8>(i));
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), col->getData());
 }
@@ -74,11 +96,10 @@ TEST(WeakHash32, ColumnVectorI8)
     for (int idx [[maybe_unused]] : {1, 2})
     {
         for (int i = -128; i < 128; ++i)
-            data.push_back(i);
+            data.push_back(static_cast<Int8>(i));
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), col->getData());
 }
@@ -91,11 +112,10 @@ TEST(WeakHash32, ColumnVectorU16)
     for (int idx [[maybe_unused]] : {1, 2})
     {
         for (size_t i = 0; i < 65536; ++i)
-            data.push_back(i);
+            data.push_back(static_cast<UInt16>(i));
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), col->getData());
 }
@@ -108,11 +128,10 @@ TEST(WeakHash32, ColumnVectorI16)
     for (int idx [[maybe_unused]] : {1, 2})
     {
         for (int i = -32768; i < 32768; ++i)
-            data.push_back(i);
+            data.push_back(static_cast<Int16>(i));
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), col->getData());
 }
@@ -128,8 +147,7 @@ TEST(WeakHash32, ColumnVectorU32)
             data.push_back(i << 16u);
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), col->getData());
 }
@@ -145,8 +163,7 @@ TEST(WeakHash32, ColumnVectorI32)
             data.push_back(i << 16);
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), col->getData());
 }
@@ -162,8 +179,7 @@ TEST(WeakHash32, ColumnVectorU64)
             data.push_back(i << 32u);
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), col->getData());
 }
@@ -179,8 +195,7 @@ TEST(WeakHash32, ColumnVectorI64)
             data.push_back(i << 32);
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), col->getData());
 }
@@ -204,8 +219,7 @@ TEST(WeakHash32, ColumnVectorU128)
         }
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), eq_data);
 }
@@ -221,8 +235,7 @@ TEST(WeakHash32, ColumnVectorI128)
             data.push_back(i << 32);
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), col->getData());
 }
@@ -238,10 +251,9 @@ TEST(WeakHash32, ColumnDecimal32)
             data.push_back(i << 16);
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
-    checkColumn(hash.getData(), col->getData());
+    checkColumn(hash.getData(), col->getData(), col->getScale());
 }
 
 TEST(WeakHash32, ColumnDecimal64)
@@ -255,10 +267,9 @@ TEST(WeakHash32, ColumnDecimal64)
             data.push_back(i << 32);
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
-    checkColumn(hash.getData(), col->getData());
+    checkColumn(hash.getData(), col->getData(), col->getScale());
 }
 
 TEST(WeakHash32, ColumnDecimal128)
@@ -272,10 +283,9 @@ TEST(WeakHash32, ColumnDecimal128)
             data.push_back(i << 32);
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
-    checkColumn(hash.getData(), col->getData());
+    checkColumn(hash.getData(), col->getData(), col->getScale());
 }
 
 TEST(WeakHash32, ColumnString1)
@@ -294,8 +304,7 @@ TEST(WeakHash32, ColumnString1)
         }
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), data);
 }
@@ -331,8 +340,7 @@ TEST(WeakHash32, ColumnString2)
         }
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), data);
 }
@@ -369,8 +377,7 @@ TEST(WeakHash32, ColumnString3)
         }
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), data);
 }
@@ -397,8 +404,7 @@ TEST(WeakHash32, ColumnFixedString)
         }
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), data);
 }
@@ -444,8 +450,7 @@ TEST(WeakHash32, ColumnArray)
 
     auto col_arr = ColumnArray::create(std::move(val), std::move(off));
 
-    WeakHash32 hash(col_arr->size());
-    col_arr->updateWeakHash32(hash);
+    WeakHash32 hash = col_arr->getWeakHash32();
 
     checkColumn(hash.getData(), eq_data);
 }
@@ -479,8 +484,7 @@ TEST(WeakHash32, ColumnArray2)
 
     auto col_arr = ColumnArray::create(std::move(val), std::move(off));
 
-    WeakHash32 hash(col_arr->size());
-    col_arr->updateWeakHash32(hash);
+    WeakHash32 hash = col_arr->getWeakHash32();
 
     checkColumn(hash.getData(), eq_data);
 }
@@ -536,8 +540,7 @@ TEST(WeakHash32, ColumnArrayArray)
     auto col_arr = ColumnArray::create(std::move(val), std::move(off));
     auto col_arr_arr = ColumnArray::create(std::move(col_arr), std::move(off2));
 
-    WeakHash32 hash(col_arr_arr->size());
-    col_arr_arr->updateWeakHash32(hash);
+    WeakHash32 hash = col_arr_arr->getWeakHash32();
 
     checkColumn(hash.getData(), eq_data);
 }
@@ -551,12 +554,11 @@ TEST(WeakHash32, ColumnConst)
     auto & data = cls->getData();
 
     for (size_t i = 0; i < 256; ++i)
-        data.push_back(0);
+        data.push_back(static_cast<UInt8>(0));
 
     auto col_const = ColumnConst::create(std::move(inner_col), 256);
 
-    WeakHash32 hash(col_const->size());
-    col_const->updateWeakHash32(hash);
+    WeakHash32 hash = col_const->getWeakHash32();
 
     checkColumn(hash.getData(), data);
 }
@@ -571,13 +573,12 @@ TEST(WeakHash32, ColumnLowcardinality)
     {
         for (size_t i = 0; i < 65536; ++i)
         {
-            data.push_back(i);
+            data.push_back(static_cast<UInt8>(i));
             col->insert(i);
         }
     }
 
-    WeakHash32 hash(col->size());
-    col->updateWeakHash32(hash);
+    WeakHash32 hash = col->getWeakHash32();
 
     checkColumn(hash.getData(), data);
 }
@@ -595,15 +596,14 @@ TEST(WeakHash32, ColumnNullable)
         for (uint64_t i = 0; i < 65536; ++i)
         {
             data.push_back(i << 32u);
-            mask_data.push_back(i % 7 == 0 ? 1 : 0);
+            mask_data.push_back(static_cast<UInt8>(i % 7 == 0 ? 1 : 0));
             eq.push_back(i % 7 == 0 ? -1 : (i << 32u));
         }
     }
 
     auto col_null = ColumnNullable::create(std::move(col), std::move(mask));
 
-    WeakHash32 hash(col_null->size());
-    col_null->updateWeakHash32(hash);
+    WeakHash32 hash = col_null->getWeakHash32();
 
     checkColumn(hash.getData(), eq);
 }
@@ -633,8 +633,7 @@ TEST(WeakHash32, ColumnTupleUInt64UInt64)
     columns.emplace_back(std::move(col2));
     auto col_tuple = ColumnTuple::create(std::move(columns));
 
-    WeakHash32 hash(col_tuple->size());
-    col_tuple->updateWeakHash32(hash);
+    WeakHash32 hash = col_tuple->getWeakHash32();
 
     checkColumn(hash.getData(), eq);
 }
@@ -671,8 +670,7 @@ TEST(WeakHash32, ColumnTupleUInt64String)
     columns.emplace_back(std::move(col2));
     auto col_tuple = ColumnTuple::create(std::move(columns));
 
-    WeakHash32 hash(col_tuple->size());
-    col_tuple->updateWeakHash32(hash);
+    WeakHash32 hash = col_tuple->getWeakHash32();
 
     checkColumn(hash.getData(), eq);
 }
@@ -709,8 +707,7 @@ TEST(WeakHash32, ColumnTupleUInt64FixedString)
     columns.emplace_back(std::move(col2));
     auto col_tuple = ColumnTuple::create(std::move(columns));
 
-    WeakHash32 hash(col_tuple->size());
-    col_tuple->updateWeakHash32(hash);
+    WeakHash32 hash = col_tuple->getWeakHash32();
 
     checkColumn(hash.getData(), eq);
 }
@@ -756,8 +753,7 @@ TEST(WeakHash32, ColumnTupleUInt64Array)
     columns.emplace_back(ColumnArray::create(std::move(val), std::move(off)));
     auto col_tuple = ColumnTuple::create(std::move(columns));
 
-    WeakHash32 hash(col_tuple->size());
-    col_tuple->updateWeakHash32(hash);
+    WeakHash32 hash = col_tuple->getWeakHash32();
 
     checkColumn(hash.getData(), eq_data);
 }

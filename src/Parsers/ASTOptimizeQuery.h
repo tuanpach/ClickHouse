@@ -31,7 +31,7 @@ public:
 
     ASTPtr clone() const override
     {
-        auto res = std::make_shared<ASTOptimizeQuery>(*this);
+        auto res = make_intrusive<ASTOptimizeQuery>(*this);
         res->children.clear();
 
         if (partition)
@@ -49,7 +49,7 @@ public:
         return res;
     }
 
-    void formatQueryImpl(const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override;
+    void formatQueryImpl(WriteBuffer & ostr, const FormatSettings & settings, FormatState & state, FormatStateStacked frame) const override;
 
     ASTPtr getRewrittenASTWithoutOnCluster(const WithoutOnClusterASTRewriteParams & params) const override
     {

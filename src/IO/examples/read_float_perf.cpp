@@ -55,7 +55,7 @@ void NO_INLINE loop(ReadBuffer & in, WriteBuffer & out)
 
     watch.stop();
     out << "Read in " << watch.elapsedSeconds() << " sec, "
-        << formatReadableSizeWithBinarySuffix(in.count() / watch.elapsedSeconds()) << "/sec, result = " << sum << "\n";
+        << formatReadableSizeWithBinarySuffix(static_cast<double>(in.count()) / watch.elapsedSeconds()) << "/sec, result = " << sum << "\n";
 }
 
 
@@ -74,6 +74,8 @@ try
     if (method == 1) loop<T, readFloatTextPrecise>(in, out);
     if (method == 2) loop<T, readFloatTextFast>(in, out);
     if (method == 3) loop<T, readFloatTextSimple>(in, out);
+
+    out.finalize();
 
     return 0;
 }

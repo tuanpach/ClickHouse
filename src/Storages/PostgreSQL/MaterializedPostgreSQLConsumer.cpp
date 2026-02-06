@@ -1,7 +1,8 @@
-#include "MaterializedPostgreSQLConsumer.h"
+#include <Storages/PostgreSQL/MaterializedPostgreSQLConsumer.h>
 
-#include "StorageMaterializedPostgreSQL.h"
+#include <Storages/PostgreSQL/StorageMaterializedPostgreSQL.h>
 #include <Columns/ColumnNullable.h>
+#include <Common/logger_useful.h>
 #include <base/hex.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <Interpreters/Context.h>
@@ -135,7 +136,7 @@ MaterializedPostgreSQLConsumer::StorageData::Buffer::Buffer(
     columns = sample_block.cloneEmptyColumns();
 
     for (const auto & name : sample_block.getNames())
-        columns_ast.children.emplace_back(std::make_shared<ASTIdentifier>(name));
+        columns_ast.children.emplace_back(make_intrusive<ASTIdentifier>(name));
 }
 
 MaterializedPostgreSQLConsumer::StorageData::Buffer & MaterializedPostgreSQLConsumer::StorageData::getLastBuffer()
@@ -203,7 +204,7 @@ void MaterializedPostgreSQLConsumer::insertValue(StorageData & storage_data, con
                     column_nullable.getNestedColumn(), value, type_description.first,
                     data_type.getNestedType(), storage_data.array_info, column_idx_in_table);
 
-            column_nullable.getNullMapData().emplace_back(0);
+            column_nullable.getNullMapData().emplace_back(false);
         }
         else
         {
@@ -344,7 +345,7 @@ void MaterializedPostgreSQLConsumer::readTupleData(
     };
 
     std::exception_ptr error;
-    for (int column_idx = 0; column_idx < num_columns; ++column_idx)
+    for (Int16 column_idx = 0; column_idx < num_columns; ++column_idx)
     {
         try
         {
@@ -526,7 +527,8 @@ void MaterializedPostgreSQLConsumer::processReplicationMessage(const char * repl
         {
             Int32 relation_id = readInt32(replication_message, pos, size);
 
-            String relation_namespace, relation_name;
+            String relation_namespace;
+            String relation_name;
             readString(replication_message, pos, size, relation_namespace);
             readString(replication_message, pos, size, relation_name);
 
@@ -691,16 +693,23 @@ void MaterializedPostgreSQLConsumer::syncTables()
                     auto storage = storage_data.storage;
 
                     auto insert_context = Context::createCopy(context);
+                    insert_context->makeQueryContext();
                     insert_context->setInternalQuery(true);
 
-                    auto insert = std::make_shared<ASTInsertQuery>();
+                    auto insert = make_intrusive<ASTInsertQuery>();
                     insert->table_id = storage->getStorageID();
-                    insert->columns = std::make_shared<ASTExpressionList>(buffer->columns_ast);
+                    insert->columns = make_intrusive<ASTExpressionList>(buffer->columns_ast);
 
-                    InterpreterInsertQuery interpreter(insert, insert_context, true);
+                    InterpreterInsertQuery interpreter(
+                        insert,
+                        insert_context,
+                        /* allow_materialized */ true,
+                        /* no_squash */ false,
+                        /* no_destination */ false,
+                        /* async_isnert */ false);
                     auto io = interpreter.execute();
                     auto input = std::make_shared<SourceFromSingleChunk>(
-                        result_rows.cloneEmpty(), Chunk(result_rows.getColumns(), result_rows.rows()));
+                        std::make_shared<const Block>(result_rows.cloneEmpty()), Chunk(result_rows.getColumns(), result_rows.rows()));
 
                     assertBlocksHaveEqualStructure(input->getPort().getHeader(), io.pipeline.getHeader(), "postgresql replica table sync");
                     io.pipeline.complete(Pipe(std::move(input)));
@@ -719,7 +728,7 @@ void MaterializedPostgreSQLConsumer::syncTables()
             }
         }
 
-        tables_to_sync.erase(tables_to_sync.begin());
+        tables_to_sync.erase(table_name);
     }
 
     LOG_DEBUG(log, "Table sync end for {} tables, last lsn: {} = {}, (attempted lsn {})",
@@ -937,7 +946,7 @@ bool MaterializedPostgreSQLConsumer::consume()
         /// https://github.com/postgres/postgres/blob/master/src/backend/replication/pgoutput/pgoutput.c#L1128
         /// So at some point will get out of limit and then they will be cleaned.
         std::string error_message = e.what();
-        if (error_message.find("out of relcache_callback_list slots") == std::string::npos)
+        if (!error_message.contains("out of relcache_callback_list slots"))
             tryLogCurrentException(__PRETTY_FUNCTION__);
 
         connection->tryUpdateConnection();

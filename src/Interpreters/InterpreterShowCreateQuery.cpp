@@ -1,9 +1,7 @@
 #include <Storages/IStorage.h>
 #include <Parsers/TablePropertiesQueriesASTs.h>
-#include <Parsers/formatAST.h>
 #include <Processors/Sources/SourceFromSingleChunk.h>
 #include <QueryPipeline/BlockIO.h>
-#include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeString.h>
 #include <Columns/ColumnString.h>
 #include <Common/typeid_cast.h>
@@ -14,9 +12,14 @@
 #include <Interpreters/InterpreterFactory.h>
 #include <Interpreters/InterpreterShowCreateQuery.h>
 #include <Parsers/ASTCreateQuery.h>
+#include <Core/Settings.h>
 
 namespace DB
 {
+namespace Setting
+{
+    extern const SettingsBool show_table_uuid_in_table_create_query_if_not_nil;
+}
 
 namespace ErrorCodes
 {
@@ -50,7 +53,7 @@ QueryPipeline InterpreterShowCreateQuery::executeImpl()
         (show_query = query_ptr->as<ASTShowCreateViewQuery>()) ||
         (show_query = query_ptr->as<ASTShowCreateDictionaryQuery>()))
     {
-        auto resolve_table_type = show_query->temporary ? Context::ResolveExternal : Context::ResolveOrdinary;
+        auto resolve_table_type = show_query->isTemporary() ? Context::ResolveExternal : Context::ResolveOrdinary;
         auto table_id = getContext()->resolveStorageID(*show_query, resolve_table_type);
 
         bool is_dictionary = static_cast<bool>(query_ptr->as<ASTShowCreateDictionaryQuery>());
@@ -78,7 +81,7 @@ QueryPipeline InterpreterShowCreateQuery::executeImpl()
     }
     else if ((show_query = query_ptr->as<ASTShowCreateDatabaseQuery>()))
     {
-        if (show_query->temporary)
+        if (show_query->isTemporary())
             throw Exception(ErrorCodes::SYNTAX_ERROR, "Temporary databases are not possible.");
         show_query->setDatabase(getContext()->resolveDatabase(show_query->getDatabase()));
         getContext()->checkAccess(AccessType::SHOW_DATABASES, show_query->getDatabase());
@@ -90,20 +93,26 @@ QueryPipeline InterpreterShowCreateQuery::executeImpl()
                         "Unable to show the create query of {}. Maybe it was created by the system.",
                         show_query->getTable());
 
-    if (!getContext()->getSettingsRef().show_table_uuid_in_table_create_query_if_not_nil)
+    if (!getContext()->getSettingsRef()[Setting::show_table_uuid_in_table_create_query_if_not_nil])
     {
         auto & create = create_query->as<ASTCreateQuery &>();
         create.uuid = UUIDHelpers::Nil;
-        create.to_inner_uuid = UUIDHelpers::Nil;
+        if (create.targets)
+            create.targets->resetInnerUUIDs();
     }
 
     MutableColumnPtr column = ColumnString::create();
-    column->insert(format({.ctx = getContext(), .query = *create_query, .one_line = false}));
+    column->insert(format(
+    {
+        .ctx = getContext(),
+        .query = *create_query,
+        .one_line = false
+    }));
 
-    return QueryPipeline(std::make_shared<SourceFromSingleChunk>(Block{{
+    return QueryPipeline(std::make_shared<SourceFromSingleChunk>(std::make_shared<const Block>(Block{{
         std::move(column),
         std::make_shared<DataTypeString>(),
-        "statement"}}));
+        "statement"}})));
 }
 
 void registerInterpreterShowCreateQuery(InterpreterFactory & factory)

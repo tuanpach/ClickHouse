@@ -1,4 +1,4 @@
-#include "NetlinkMetricsProvider.h"
+#include <Common/NetlinkMetricsProvider.h>
 #include <Common/Exception.h>
 #include <base/defines.h>
 #include <base/types.h>
@@ -7,7 +7,7 @@
 
 #if defined(OS_LINUX)
 
-#include "hasLinuxCapability.h"
+#include <Common/hasLinuxCapability.h>
 #include <base/unaligned.h>
 #include <base/getThreadId.h>
 #include <Common/logger_useful.h>
@@ -112,10 +112,9 @@ struct NetlinkMessage
 
             if (bytes_sent <= 0)
             {
-                if (errno == EAGAIN)
+                if (bytes_sent < 0 && errno == EAGAIN)
                     continue;
-                else
-                    throw ErrnoException(ErrorCodes::NETLINK_ERROR, "Can't send a Netlink command");
+                throw ErrnoException(ErrorCodes::NETLINK_ERROR, "Can't send a Netlink command");
             }
 
             if (bytes_sent > request_size)
@@ -163,7 +162,7 @@ NetlinkMessage query(
     request.generic_header.version = 1;
 
     request.payload.attribute.header.nla_type = attribute_type;
-    request.payload.attribute.header.nla_len = attribute_size + NLA_HDRLEN;
+    request.payload.attribute.header.nla_len = static_cast<__u16>(attribute_size + NLA_HDRLEN);
 
     memcpy(&request.payload.attribute.payload, attribute_data, attribute_size);
 
@@ -283,7 +282,7 @@ NetlinkMetricsProvider::NetlinkMetricsProvider()
     {
         if (netlink_socket_fd >= 0)
         {
-            int err = close(netlink_socket_fd);
+            [[maybe_unused]] int err = close(netlink_socket_fd);
             chassert(!err || errno == EINTR);
         }
         throw;
@@ -320,7 +319,7 @@ NetlinkMetricsProvider::~NetlinkMetricsProvider()
 {
     if (netlink_socket_fd >= 0)
     {
-        int err = close(netlink_socket_fd);
+        [[maybe_unused]] int err = close(netlink_socket_fd);
         chassert(!err || errno == EINTR);
     }
 }

@@ -3,11 +3,11 @@
 SET compile_expressions = 1;
 SET min_count_to_compile_expression = 0;
 
-SYSTEM DROP COMPILED EXPRESSION CACHE;
+SYSTEM CLEAR COMPILED EXPRESSION CACHE;
 
 SELECT number + number + number FROM numbers(1);
 
-SYSTEM FLUSH LOGS;
+SYSTEM FLUSH LOGS query_log;
 
 SELECT ProfileEvents['CompileFunction'] FROM system.query_log WHERE
     current_database = currentDatabase()
@@ -21,7 +21,7 @@ SET min_count_to_compile_aggregate_expression = 0;
 
 SELECT avg(number), avg(number + 1), avg(number + 2) FROM numbers(1) GROUP BY number;
 
-SYSTEM FLUSH LOGS;
+SYSTEM FLUSH LOGS query_log;
 
 SELECT ProfileEvents['CompileFunction'] FROM system.query_log WHERE
     current_database = currentDatabase()

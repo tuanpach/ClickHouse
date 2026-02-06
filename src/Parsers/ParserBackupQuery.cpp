@@ -9,12 +9,17 @@
 #include <Parsers/ParserPartition.h>
 #include <Parsers/ParserSetQuery.h>
 #include <Parsers/parseDatabaseAndTableName.h>
+#include <Common/Exception.h>
 #include <Common/assert_cast.h>
-#include <boost/range/algorithm_ext/erase.hpp>
 
 
 namespace DB
 {
+
+namespace ErrorCodes
+{
+    extern const int SYNTAX_ERROR;
+}
 
 namespace
 {
@@ -78,19 +83,20 @@ namespace
             auto parse_list_element = [&]
             {
                 DatabaseAndTableName table_name;
-                if (database_name)
-                {
-                    ASTPtr ast;
-                    if (!ParserIdentifier{}.parse(pos, ast, expected))
-                        return false;
+
+                if (!parseDatabaseAndTableName(pos, expected, table_name.first, table_name.second))
+                    return false;
+
+                if (database_name && table_name.first.empty())
                     table_name.first = *database_name;
-                    table_name.second = getIdentifierName(ast);
-                }
-                else
-                {
-                    if (!parseDatabaseAndTableName(pos, expected, table_name.first, table_name.second))
-                        return false;
-                }
+
+                if (database_name && table_name.first != *database_name)
+                    throw Exception(
+                        ErrorCodes::SYNTAX_ERROR,
+                        "Database name in EXCEPT TABLES clause doesn't match the database name in DATABASE clause: {} != {}",
+                        table_name.first,
+                        *database_name
+                    );
 
                 result.emplace(std::move(table_name));
                 return true;
@@ -211,7 +217,7 @@ namespace
         if (!ParserIdentifierWithOptionalParameters{}.parse(pos, backup_name, expected))
             return false;
 
-        backup_name->as<ASTFunction &>().kind = ASTFunction::Kind::BACKUP_NAME;
+        backup_name->as<ASTFunction &>().setKind(ASTFunction::Kind::BACKUP_NAME);
         return true;
     }
 
@@ -275,7 +281,7 @@ namespace
             ASTPtr res_settings;
             if (!settings_changes.empty())
             {
-                auto settings_changes_ast = std::make_shared<ASTSetQuery>();
+                auto settings_changes_ast = make_intrusive<ASTSetQuery>();
                 settings_changes_ast->changes = std::move(settings_changes);
                 settings_changes_ast->is_standalone = false;
                 res_settings = settings_changes_ast;
@@ -304,10 +310,10 @@ namespace
             changes = assert_cast<ASTSetQuery *>(settings.get())->changes;
         }
 
-        boost::remove_erase_if(changes, [](const SettingChange & change) { return change.name == "async"; });
+        std::erase_if(changes, [](const SettingChange & change) { return change.name == "async"; }); // NOLINT
         changes.emplace_back("async", async);
 
-        auto new_settings = std::make_shared<ASTSetQuery>();
+        auto new_settings = make_intrusive<ASTSetQuery>();
         new_settings->changes = std::move(changes);
         new_settings->is_standalone = false;
         settings = new_settings;
@@ -354,7 +360,7 @@ bool ParserBackupQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expected)
     parseSettings(pos, expected, settings, base_backup_name, cluster_host_ids);
     parseSyncOrAsync(pos, expected, settings);
 
-    auto query = std::make_shared<ASTBackupQuery>();
+    auto query = make_intrusive<ASTBackupQuery>();
     node = query;
 
     query->kind = kind;

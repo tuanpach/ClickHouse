@@ -5,7 +5,10 @@
 #include <IO/ReadBufferFromFileBase.h>
 #include <Common/quoteString.h>
 #include <base/errnoToString.h>
+
 #include <unzip.h>
+#include <zip.h>
+#include <mz.h>
 
 
 namespace DB
@@ -200,7 +203,7 @@ private:
             file_info.emplace();
             file_info->uncompressed_size = finfo.uncompressed_size;
             file_info->compressed_size = finfo.compressed_size;
-            file_info->compression_method = finfo.compression_method;
+            file_info->compression_method = static_cast<int>(finfo.compression_method);
             file_info->is_encrypted = (finfo.flag & MZ_ZIP_FLAG_ENCRYPTED);
         }
         if (!file_name)
@@ -317,7 +320,7 @@ public:
 
     String getFileName() const override { return handle.getFileName(); }
 
-    size_t getFileSize() override { return handle.getFileInfo().uncompressed_size; }
+    std::optional<size_t> tryGetFileSize() override { return handle.getFileInfo().uncompressed_size; }
 
     /// Releases owned handle to pass it to an enumerator.
     HandleHolder releaseHandle() &&

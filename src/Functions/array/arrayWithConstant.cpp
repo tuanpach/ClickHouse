@@ -1,9 +1,9 @@
 #include <Functions/IFunction.h>
-#include <Functions/FunctionHelpers.h>
 #include <Functions/FunctionFactory.h>
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Columns/ColumnArray.h>
+#include <base/arithmeticOverflow.h>
 
 
 namespace DB
@@ -13,9 +13,11 @@ namespace ErrorCodes
 {
     extern const int ILLEGAL_TYPE_OF_ARGUMENT;
     extern const int TOO_LARGE_ARRAY_SIZE;
+    extern const int LOGICAL_ERROR;
 }
 
-/// Reasonable threshold.
+/// Reasonable thresholds.
+static constexpr Int64 max_array_size_in_columns_bytes = 1000000000;
 static constexpr size_t max_arrays_size_in_columns = 1000000000;
 
 
@@ -55,7 +57,19 @@ public:
 
         auto offsets_col = ColumnArray::ColumnOffsets::create();
         ColumnArray::Offsets & offsets = offsets_col->getData();
+        if (num_rows == 0)
+            return ColumnArray::create(col_value->replicate(offsets)->convertToFullColumnIfConst(), std::move(offsets_col));
+
         offsets.reserve(num_rows);
+        auto element_size = col_value->byteSizeAt(0);
+        if (!isColumnConst(*col_value) && (col_value->byteSize() != element_size * col_value->size()))
+            throw Exception(
+                ErrorCodes::LOGICAL_ERROR,
+                "Unexpected variable size of data for type {}. Column size {}. Element size {}. Number of elements {}",
+                arguments[1].type->getPrettyName(),
+                col_value->byteSize(),
+                element_size,
+                col_value->size());
 
         ColumnArray::Offset offset = 0;
         for (size_t i = 0; i < num_rows; ++i)
@@ -63,12 +77,19 @@ public:
             auto array_size = col_num->getInt(i);
 
             if (unlikely(array_size < 0))
-                throw Exception(ErrorCodes::TOO_LARGE_ARRAY_SIZE, "Array size cannot be negative: while executing function {}", getName());
+                throw Exception(ErrorCodes::TOO_LARGE_ARRAY_SIZE, "Array size {} cannot be negative: while executing function {}", array_size, getName());
+
+            Int64 estimated_size = 0;
+            if (unlikely(common::mulOverflow(array_size, element_size, estimated_size)))
+                throw Exception(ErrorCodes::TOO_LARGE_ARRAY_SIZE, "Array size {} with element size {} bytes is too large: while executing function {}", array_size, element_size, getName());
+
+            if (unlikely(estimated_size > max_array_size_in_columns_bytes))
+                throw Exception(ErrorCodes::TOO_LARGE_ARRAY_SIZE, "Array size {} with element size {} bytes is too large: while executing function {}", array_size, element_size, getName());
 
             offset += array_size;
 
             if (unlikely(offset > max_arrays_size_in_columns))
-                throw Exception(ErrorCodes::TOO_LARGE_ARRAY_SIZE, "Too large array size while executing function {}", getName());
+                throw Exception(ErrorCodes::TOO_LARGE_ARRAY_SIZE, "Too large array size {} (will generate at least {} elements) while executing function {}", array_size, offset, getName());
 
             offsets.push_back(offset);
         }
@@ -79,7 +100,21 @@ public:
 
 REGISTER_FUNCTION(ArrayWithConstant)
 {
-    factory.registerFunction<FunctionArrayWithConstant>();
+    FunctionDocumentation::Description description = R"(
+Creates an array of length `length` filled with the constant `x`.
+    )";
+    FunctionDocumentation::Syntax syntax = "arrayWithConstant(N, x)";
+    FunctionDocumentation::Arguments arguments = {
+        {"length", "Number of elements in the array.", {"(U)Int*"}},
+        {"x", "The value of the `N` elements in the array, of any type."},
+    };
+    FunctionDocumentation::ReturnedValue returned_value = {"Returns an Array with `N` elements of value `x`.", {"Array(T)"}};
+    FunctionDocumentation::Examples example = {{"Usage example", "SELECT arrayWithConstant(3, 1)", "[1, 1, 1]"}};
+    FunctionDocumentation::IntroducedIn introduced_in = {20, 1};
+    FunctionDocumentation::Category category = FunctionDocumentation::Category::Array;
+    FunctionDocumentation documentation = {description, syntax, arguments, {}, returned_value, example, introduced_in, category};
+
+    factory.registerFunction<FunctionArrayWithConstant>(documentation);
 }
 
 }

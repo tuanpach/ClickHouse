@@ -100,6 +100,10 @@ void PeekableReadBuffer::rollbackToCheckpoint(bool drop)
 
     assert(checkpoint);
 
+    /// Reset canceled flag since the purpose of rollback is to retry reading from the beginning.
+    /// This is important for schema detection where we try multiple formats and expect some to fail.
+    canceled = false;
+
     if (recursive_checkpoints_offsets.empty())
     {
         if (checkpointInOwnMemory() == currentlyReadFromOwnMemory())
@@ -283,9 +287,7 @@ void PeekableReadBuffer::resizeOwnMemoryIfNecessary(size_t bytes_to_append)
         {
             size_t pos_offset = pos - memory.data();
 
-            size_t new_size_amortized = memory.size() * 2;
-            if (new_size_amortized < new_size)
-                new_size_amortized = new_size;
+            size_t new_size_amortized = std::max(memory.size() * 2, new_size);
             memory.resize(new_size_amortized);
 
             if (need_update_checkpoint)
