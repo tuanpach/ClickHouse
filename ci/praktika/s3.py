@@ -146,7 +146,10 @@ class S3:
             if tags:
                 bucket = s3_full_path.split("/")[0]
                 key = "/".join(s3_full_path.split("/")[1:])
-                tag_cmd = f'aws s3api put-object-tagging --bucket {bucket} --key {key} --tagging "TagSet=[{",".join([f"{{Key={k},Value={v}}}" for k, v in tags.items()])}]"'
+                # Use JSON format for tagging to ensure correct syntax
+                tag_set = [{"Key": k, "Value": v} for k, v in tags.items()]
+                tagging_json = json.dumps({"TagSet": tag_set})
+                tag_cmd = f"aws s3api put-object-tagging --bucket {bucket} --key {key} --tagging '{tagging_json}'"
                 cls.run_command_with_retries(tag_cmd, no_strict=True)
 
         # Common cleanup and return for both paths

@@ -1,13 +1,6 @@
 from praktika import Workflow
 
-from ci.defs.defs import (
-    BASE_BRANCH,
-    DOCKERS,
-    SECRETS,
-    ArtifactConfigs,
-    ArtifactNames,
-    JobNames,
-)
+from ci.defs.defs import BASE_BRANCH, DOCKERS, SECRETS, ArtifactConfigs, JobNames
 from ci.defs.job_configs import JobConfigs
 from ci.jobs.scripts.workflow_hooks.filter_job import should_skip_job
 from ci.jobs.scripts.workflow_hooks.trusted import can_be_trusted
@@ -39,14 +32,6 @@ REGULAR_BUILD_NAMES = [job.name for job in JobConfigs.build_jobs]
 PLAIN_FUNCTIONAL_TEST_JOB = [
     j for j in JobConfigs.functional_tests_jobs if "amd_debug, parallel" in j.name
 ][0]
-
-
-# Add long retention tags to specific artifacts
-clickhouse_binaries_with_tags = []
-for artifact in ArtifactConfigs.clickhouse_binaries:
-    if artifact.name in (ArtifactNames.CH_ARM_RELEASE, ArtifactNames.CH_AMD_DEBUG):
-        artifact = artifact.add_tags({"retention": "long"})
-    clickhouse_binaries_with_tags.append(artifact)
 
 workflow = Workflow.Config(
     name="PR",
@@ -136,8 +121,7 @@ workflow = Workflow.Config(
     ],
     artifacts=[
         *ArtifactConfigs.unittests_binaries,
-        # *ArtifactConfigs.clickhouse_binaries,
-        *clickhouse_binaries_with_tags,
+        *ArtifactConfigs.clickhouse_binaries,
         *ArtifactConfigs.clickhouse_debians,
         *ArtifactConfigs.clickhouse_rpms,
         *ArtifactConfigs.clickhouse_tgzs,
