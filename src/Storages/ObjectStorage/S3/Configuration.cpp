@@ -165,11 +165,24 @@ ObjectStoragePtr StorageS3Configuration::createObjectStorage(ContextPtr context,
     }
 
     auto client = getClient(url, *s3_settings, context, /* for_disk_s3 */false);
-    auto client_refresher = [refresh_credentials_callback, this, context] ()
+    
+    // Only create refresher callback if refresh_credentials_callback is provided and callable
+    S3ObjectStorage::S3CredentialsRefreshCallback client_refresher;
+    if (refresh_credentials_callback)
     {
-        auto new_client = getClient(url, *s3_settings, context, /* for_disk_s3 */false, /*opt_disk_name*/ {}, refresh_credentials_callback);
-        return new_client;
-    };
+        // Capture by value to avoid circular references
+        auto url_copy = url;
+        auto s3_settings_copy = std::make_unique<S3Settings>(*s3_settings);
+        ContextWeakPtr context_weak = context;
+        client_refresher = [refresh_credentials_callback, url_copy, s3_settings_copy = std::move(s3_settings_copy), context_weak] () mutable
+        {
+            auto context_locked = context_weak.lock();
+            if (!context_locked)
+                return std::unique_ptr<const S3::Client>();
+            auto new_client = getClient(url_copy, *s3_settings_copy, context_locked, /* for_disk_s3 */false, /*opt_disk_name*/ {}, refresh_credentials_callback);
+            return std::unique_ptr<const S3::Client>(new_client.release());
+        };
+    }
     return std::make_shared<S3ObjectStorage>(
         std::move(client),
         std::make_unique<S3Settings>(*s3_settings),
