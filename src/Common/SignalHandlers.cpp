@@ -173,13 +173,6 @@ static void signalHandler(int sig, siginfo_t * info, void * context)
         {
             throw;
         }
-        catch (const Exception & e)
-        {
-            const auto & frame_pointers = e.getStackFramePointers();
-            terminate_current_exception_trace_size = std::min(frame_pointers.size(), FRAMEPOINTER_CAPACITY);
-            for (size_t i = 0; i < terminate_current_exception_trace_size; ++i)
-                terminate_current_exception_trace[i] = frame_pointers[i];
-        }
         catch (const std::exception & e)
         {
             const auto * stack_trace_frames = e.get_stack_trace_frames();
