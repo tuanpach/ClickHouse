@@ -214,12 +214,16 @@ void MetadataStorageFromPlainObjectStorageTransaction::unlinkFile(const std::str
 
     auto object_key = getKeyForPath(object_storage->getCommonKeyPrefix(), path);
     metadata_storage.object_storage->removeObjectIfExists(StoredObject(object_key.serialize()));
+    objects_to_remove.push_back(StoredObject(object_key.serialize()));
 }
 
 void MetadataStorageFromPlainObjectStorageTransaction::removeDirectory(const std::string & path)
 {
     for (auto it = metadata_storage.iterateDirectory(path); it->isValid(); it->next())
+    {
         metadata_storage.object_storage->removeObjectIfExists(StoredObject(it->path()));
+        objects_to_remove.push_back(StoredObject(it->path()));
+    }
 }
 
 void MetadataStorageFromPlainObjectStorageTransaction::removeRecursive(const std::string & path, const ShouldRemoveObjectsPredicate & /*should_remove_objects*/)
@@ -231,6 +235,11 @@ void MetadataStorageFromPlainObjectStorageTransaction::removeRecursive(const std
 ObjectStorageKey MetadataStorageFromPlainObjectStorageTransaction::generateObjectKeyForPath(const std::string & path)
 {
     return getKeyForPath(object_storage->getCommonKeyPrefix(), path);
+}
+
+StoredObjects MetadataStorageFromPlainObjectStorageTransaction::getSubmittedForRemovalBlobs()
+{
+    return objects_to_remove;
 }
 
 }

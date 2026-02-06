@@ -143,6 +143,7 @@ public:
     void truncateFile(const std::string & src_path, size_t target_size) override;
 
     ObjectStorageKey generateObjectKeyForPath(const std::string & path) override;
+    StoredObjects getSubmittedForRemovalBlobs() override;
 };
 
 }

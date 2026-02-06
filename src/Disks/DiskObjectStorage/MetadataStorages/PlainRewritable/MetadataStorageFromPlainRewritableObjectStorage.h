@@ -99,6 +99,7 @@ protected:
     /// to extrace remote path of directory during nested file creation in the same transaction.
     std::shared_ptr<InMemoryDirectoryTree> uncommitted_fs_tree;
     MetadataOperationsHolder operations;
+    StoredObjects removed_objects;
 
 public:
     explicit MetadataStorageFromPlainRewritableObjectStorageTransaction(MetadataStorageFromPlainRewritableObjectStorage & metadata_storage_);
@@ -125,6 +126,7 @@ public:
     void replaceFile(const std::string & path_from, const std::string & path_to) override;
 
     ObjectStorageKey generateObjectKeyForPath(const std::string & path) override;
+    StoredObjects getSubmittedForRemovalBlobs() override;
 };
 
 }

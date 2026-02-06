@@ -473,7 +473,8 @@ void MetadataStorageFromPlainRewritableObjectStorageTransaction::unlinkFile(cons
         metadata_storage.object_storage,
         metadata_storage.fs_tree,
         metadata_storage.layout,
-        metadata_storage.metrics));
+        metadata_storage.metrics,
+        removed_objects));
 }
 
 void MetadataStorageFromPlainRewritableObjectStorageTransaction::removeDirectory(const std::string & path)
@@ -501,7 +502,8 @@ void MetadataStorageFromPlainRewritableObjectStorageTransaction::removeRecursive
         metadata_storage.object_storage,
         metadata_storage.fs_tree,
         metadata_storage.layout,
-        metadata_storage.metrics));
+        metadata_storage.metrics,
+        removed_objects));
 }
 
 void MetadataStorageFromPlainRewritableObjectStorageTransaction::createHardLink(const std::string & path_from, const std::string & path_to)
@@ -524,7 +526,8 @@ void MetadataStorageFromPlainRewritableObjectStorageTransaction::moveFile(const 
         metadata_storage.object_storage,
         metadata_storage.fs_tree,
         metadata_storage.layout,
-        metadata_storage.metrics));
+        metadata_storage.metrics,
+        removed_objects));
 }
 
 void MetadataStorageFromPlainRewritableObjectStorageTransaction::replaceFile(const std::string & path_from, const std::string & path_to)
@@ -536,7 +539,8 @@ void MetadataStorageFromPlainRewritableObjectStorageTransaction::replaceFile(con
         metadata_storage.object_storage,
         metadata_storage.fs_tree,
         metadata_storage.layout,
-        metadata_storage.metrics));
+        metadata_storage.metrics,
+        removed_objects));
 }
 
 ObjectStorageKey MetadataStorageFromPlainRewritableObjectStorageTransaction::generateObjectKeyForPath(const std::string & path)
@@ -557,6 +561,11 @@ ObjectStorageKey MetadataStorageFromPlainRewritableObjectStorageTransaction::gen
         return ObjectStorageKey::createAsAbsolute(metadata_storage.layout->constructFileObjectKey(directory_remote_info->remote_path, normalized_path.filename()));
 
     throw Exception(ErrorCodes::LOGICAL_ERROR, "Directory '{}' does not exist", parent_path.string());
+}
+
+StoredObjects MetadataStorageFromPlainRewritableObjectStorageTransaction::getSubmittedForRemovalBlobs()
+{
+    return removed_objects;
 }
 
 }

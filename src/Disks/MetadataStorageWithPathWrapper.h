@@ -149,6 +149,7 @@ public:
 
     ObjectStorageKey generateObjectKeyForPath(const std::string & path) override { return delegate->generateObjectKeyForPath(path); }
     void recordBlobsReplication(const StoredObject & blob, const Locations & missing_locations) override { delegate->recordBlobsReplication(blob, missing_locations); }
+    StoredObjects getSubmittedForRemovalBlobs() override { return delegate->getSubmittedForRemovalBlobs(); }
 };
 
 class MetadataStorageWithPathWrapper final : public IMetadataStorage

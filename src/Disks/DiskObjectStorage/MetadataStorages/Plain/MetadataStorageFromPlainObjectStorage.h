@@ -96,10 +96,12 @@ public:
     void removeRecursive(const std::string & path, const ShouldRemoveObjectsPredicate & should_remove_objects) override;
 
     ObjectStorageKey generateObjectKeyForPath(const std::string & path) override;
+    StoredObjects getSubmittedForRemovalBlobs() override;
 
 private:
     MetadataStorageFromPlainObjectStorage & metadata_storage;
     ObjectStoragePtr object_storage;
+    StoredObjects objects_to_remove;
 };
 
 }

@@ -297,4 +297,9 @@ ObjectStorageKey MetadataStorageFromDiskTransaction::generateObjectKeyForPath(co
     return metadata_storage.key_generator->generate();
 }
 
+StoredObjects MetadataStorageFromDiskTransaction::getSubmittedForRemovalBlobs()
+{
+    return objects_to_remove;
+}
+
 }

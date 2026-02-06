@@ -1,4 +1,6 @@
+#include <Disks/DiskObjectStorage/MetadataStorages/Cache/MetadataStorageFromCacheObjectStorage.h>
 #include <Disks/DiskObjectStorage/ObjectStorages/Cached/CachedObjectStorage.h>
+#include <Disks/DiskObjectStorage/Replication/ClusterConfiguration.h>
 #include <Disks/DiskObjectStorage/Replication/ObjectStorageRouter.h>
 #include <Disks/DiskObjectStorage/DiskObjectStorage.h>
 
@@ -17,9 +19,9 @@ DiskObjectStoragePtr DiskObjectStorage::wrapWithCache(FileCachePtr cache, const 
     registry[local_location] = std::make_shared<CachedObjectStorage>(registry[local_location], cache, cache_settings, layer_name);
 
     return std::make_shared<DiskObjectStorage>(
-        layer_name,
-        cluster,
-        metadata_storage,
+        getName(),
+        std::make_shared<ClusterConfiguration>(cluster->getConfiguration()),
+        std::make_shared<MetadataStorageFromCacheObjectStorage>(metadata_storage),
         std::make_shared<ObjectStorageRouter>(std::move(registry)),
         Context::getGlobalContextInstance()->getConfigRef(),
         "storage_configuration.disks." + name,

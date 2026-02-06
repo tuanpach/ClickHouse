@@ -125,6 +125,7 @@ public:
         if (!missing_locations.empty())
             throwNotImplemented();
     }
+    virtual StoredObjects getSubmittedForRemovalBlobs() = 0;
 
     /// Create metadata file on paths with content consisting of objects
     virtual void createMetadataFile(const std::string & path, const StoredObjects & objects) = 0;
