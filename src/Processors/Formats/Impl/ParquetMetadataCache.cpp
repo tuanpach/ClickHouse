@@ -61,7 +61,7 @@ ParquetMetadataCacheKey ParquetMetadataCache::createKey(const String & file_path
 }
 void ParquetMetadataCache::onEntryRemoval(const size_t weight_loss, const MappedPtr &)
 {
-    LOG_DEBUG(log, "cache eviction");
+    LOG_TRACE(log, "cache eviction");
     ProfileEvents::increment(ProfileEvents::ParquetMetadataCacheWeightLost, weight_loss);
 }
 }

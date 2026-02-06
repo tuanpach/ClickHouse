@@ -72,18 +72,18 @@ public:
         auto load_fn_wrapper = [&]()
         {
             auto metadata = load_fn();
-            LOG_DEBUG(log, "got metadata from cache {} | {}", key.file_path, key.etag);
+            LOG_TRACE(log, "got metadata from cache {} | {}", key.file_path, key.etag);
             return std::make_shared<ParquetMetadataCacheCell>(std::move(metadata));
         };
         auto result = Base::getOrSet(key, load_fn_wrapper);
         if (result.second)
         {
-            LOG_DEBUG(log, "cache miss {} | {}", key.file_path, key.etag);
+            LOG_TRACE(log, "cache miss {} | {}", key.file_path, key.etag);
             ProfileEvents::increment(ProfileEvents::ParquetMetadataCacheMisses);
         }
         else
         {
-            LOG_DEBUG(log, "cache hit {} | {}", key.file_path, key.etag);
+            LOG_TRACE(log, "cache hit {} | {}", key.file_path, key.etag);
             ProfileEvents::increment(ProfileEvents::ParquetMetadataCacheHits);
         }
         return result.first->metadata;

@@ -1413,7 +1413,6 @@ void registerInputFormatParquet(FormatFactory & factory)
             return std::make_shared<ParquetFileBucketInfo>();
         }
     );
-    LOG_DEBUG(log, "beginning registerRandomAccessInputFormatWithMetadata");
     factory.registerRandomAccessInputFormatWithMetadata(
         "Parquet",
         [](ReadBuffer & buf,
@@ -1430,7 +1429,7 @@ void registerInputFormatParquet(FormatFactory & factory)
                 = is_remote_fs ? read_settings.remote_read_min_bytes_for_seek : settings.parquet.local_read_min_bytes_for_seek;
             if (settings.parquet.use_native_reader_v3)
             {
-                LOG_DEBUG(lambda_logger, "using native reader v3 in ParquetBlockInputFormat with metadata cache");
+                LOG_TRACE(lambda_logger, "using native reader v3 in ParquetBlockInputFormat with metadata cache");
                 ParquetMetadataCachePtr metadata_cache = CurrentThread::getQueryContext()->getParquetMetadataCache();
                 return std::make_shared<ParquetV3BlockInputFormat>(
                     buf,
@@ -1447,7 +1446,6 @@ void registerInputFormatParquet(FormatFactory & factory)
                 ErrorCodes::LOGICAL_ERROR,
                 "Previous implementation of ParquetBlockInputFormat didn't require blob metadata for initialization");
         });
-    LOG_DEBUG(log, "beginning registerRandomAccessInputFormat");
     factory.registerRandomAccessInputFormat(
         "Parquet",
         [](ReadBuffer & buf,
@@ -1463,7 +1461,7 @@ void registerInputFormatParquet(FormatFactory & factory)
             = is_remote_fs ? read_settings.remote_read_min_bytes_for_seek : settings.parquet.local_read_min_bytes_for_seek;
         if (settings.parquet.use_native_reader_v3)
         {
-            LOG_DEBUG(lambda_logger, "using native reader v3 in ParquetBlockInputFormat with no metadata cache");
+            LOG_TRACE(lambda_logger, "using native reader v3 in ParquetBlockInputFormat with no metadata cache");
             return std::make_shared<ParquetV3BlockInputFormat>(
                 buf,
                 std::make_shared<const Block>(sample),
@@ -1477,7 +1475,7 @@ void registerInputFormatParquet(FormatFactory & factory)
         }
         else
         {
-            LOG_DEBUG(lambda_logger, "using arrow reader in ParquetBlockInputFormat without metadata cache");
+            LOG_TRACE(lambda_logger, "using arrow reader in ParquetBlockInputFormat without metadata cache");
             return std::make_shared<ParquetBlockInputFormat>(
                 buf,
                     std::make_shared<const Block>(sample),
@@ -1497,7 +1495,6 @@ void registerInputFormatParquet(FormatFactory & factory)
 
 void registerParquetSchemaReader(FormatFactory & factory)
 {
-    auto log = getLogger("ParquetMetadataCache");
     factory.registerSplitter("Parquet", []
         {
             return std::make_shared<ParquetBucketSplitter>();
@@ -1506,14 +1503,14 @@ void registerParquetSchemaReader(FormatFactory & factory)
         "Parquet", [](ReadBuffer & buf, const FormatSettings & settings) -> SchemaReaderPtr
         {
             auto lambda_logger = getLogger("ParquetMetadataCache");
-            LOG_DEBUG(lambda_logger, "checking for v3 reader setting in registerSchemaReader");
             if (settings.parquet.use_native_reader_v3)
             {
-                LOG_DEBUG(lambda_logger, "using native reader v3 in ParquetSchemaReader");
+                LOG_TRACE(lambda_logger, "using native reader v3 in ParquetSchemaReader");
                 return std::make_shared<NativeParquetSchemaReader>(buf, settings);
             }
             else
             {
+                LOG_TRACE(lambda_logger, "using arrow reader in ParquetSchemaReader");
                 return std::make_shared<ArrowParquetSchemaReader>(buf, settings);
             }
         }
