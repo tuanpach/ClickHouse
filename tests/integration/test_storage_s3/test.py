@@ -1312,6 +1312,7 @@ def test_check_parquet_schema(started_cluster):
     instance.query("DROP TABLE IF EXISTS test_check_parquet_schema")
     instance.query_and_get_error(f"CREATE TABLE test_check_parquet_schema (a Int32, b String, c Int32) ENGINE = S3('{file_path}')")
     instance.query_and_get_error(f"CREATE TABLE test_check_parquet_schema (d Int32, b String) ENGINE = S3('{file_path}')")
+    instance.query(f"CREATE TABLE test_check_parquet_schema (a Int32) ENGINE = S3('{file_path}')")
 
 
 # At the time of writing the actual read bytes are respectively 148 and 169, so -10% to not be flaky

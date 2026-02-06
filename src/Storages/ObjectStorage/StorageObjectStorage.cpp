@@ -274,7 +274,7 @@ StorageObjectStorage::StorageObjectStorage(
     }
     if (!configuration->isDataLakeConfiguration() && !columns_in_table_or_function_definition.empty())
     {
-        String sample_path_schema;   
+        String sample_path_schema;
         std::optional<ColumnsDescription> schema_file;
         try
         {
@@ -286,10 +286,8 @@ StorageObjectStorage::StorageObjectStorage(
         }
         if (schema_file)
         {
-            if (schema_file->size() != columns_in_table_or_function_definition.size())
-                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Number of columns mismatch in schema and file {} {}", schema_file->size(), columns_in_table_or_function_definition.size());
-            for (const auto & column : *schema_file)
-                if (!columns_in_table_or_function_definition.tryGet(column.name))
+            for (const auto & column : columns_in_table_or_function_definition)
+                if (!schema_file->tryGet(column.name))
                     throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cannot find column in schema {}", column.name);
         }
     }
