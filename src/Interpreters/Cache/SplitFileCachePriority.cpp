@@ -195,13 +195,12 @@ EvictionInfoPtr SplitFileCachePriority::collectEvictionInfo(
     size_t elements,
     IFileCachePriority::Iterator * reservee,
     bool is_total_space_cleanup,
-    bool is_dynamic_resize,
     const IFileCachePriority::OriginInfo & origin_info,
     const CacheStateGuard::Lock & lock)
 {
     const auto type = getPriorityType(origin_info.segment_type);
     return priorities_holder.at(type)->collectEvictionInfo(
-        size, elements, reservee, is_total_space_cleanup, is_dynamic_resize,
+        size, elements, reservee, is_total_space_cleanup,
         origin_info, lock);
 }
 

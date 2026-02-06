@@ -179,7 +179,6 @@ EvictionInfoPtr SLRUFileCachePriority::collectEvictionInfo(
     size_t elements,
     IFileCachePriority::Iterator * reservee,
     bool is_total_space_cleanup,
-    bool is_dynamic_resize,
     const OriginInfo & origin_info,
     const CacheStateGuard::Lock & lock)
 {
@@ -203,7 +202,6 @@ EvictionInfoPtr SLRUFileCachePriority::collectEvictionInfo(
             evict_elements_from_probationary,
             reservee,
             is_total_space_cleanup,
-            is_dynamic_resize,
             origin_info,
             lock);
 
@@ -216,30 +214,8 @@ EvictionInfoPtr SLRUFileCachePriority::collectEvictionInfo(
                 evict_elements_from_protected,
                 reservee,
                 is_total_space_cleanup,
-                is_dynamic_resize,
                 origin_info,
                 lock));
-        return info;
-    }
-
-    if (is_dynamic_resize)
-    {
-        auto info = protected_queue.collectEvictionInfo(
-            getRatio(size, size_ratio, /* ceil */true),
-            getRatio(elements, size_ratio, /* ceil */true),
-            /* reservee */nullptr,
-            is_total_space_cleanup,
-            is_dynamic_resize,
-            origin_info,
-            lock);
-        info->add(probationary_queue.collectEvictionInfo(
-            getRatio(size, 1 - size_ratio, /* ceil */true),
-            getRatio(elements, 1 - size_ratio, /* ceil */true),
-            /* reservee */nullptr,
-            is_total_space_cleanup,
-            is_dynamic_resize,
-            origin_info,
-            lock));
         return info;
     }
 
@@ -263,11 +239,11 @@ EvictionInfoPtr SLRUFileCachePriority::collectEvictionInfo(
         /// But we cannot do it here, as we do not know in advance the exact size to downgrade.
         /// So we will do it in collectCandidatesForEviction.
         return protected_queue.collectEvictionInfo(
-            size, elements, reservee, is_total_space_cleanup, is_dynamic_resize, origin_info, lock);
+            size, elements, reservee, is_total_space_cleanup, origin_info, lock);
     }
 
     return probationary_queue.collectEvictionInfo(
-        size, elements, reservee, is_total_space_cleanup, is_dynamic_resize, origin_info, lock);
+        size, elements, reservee, is_total_space_cleanup, origin_info, lock);
 }
 
 bool SLRUFileCachePriority::collectCandidatesForEviction(
@@ -432,7 +408,6 @@ bool SLRUFileCachePriority::collectCandidatesForEvictionInProtected(
         downgrade_stat.total_stat.releasable_count,
         /* reservee */nullptr,
         /* is_total_space_cleanup */false,
-        /* is_dynamic_resize */false,
         origin_info,
         state_guard.lock());
 
@@ -636,7 +611,6 @@ bool SLRUFileCachePriority::tryIncreasePriority(
             /* elements */1,
             /* reservee */nullptr,
             /* is_total_space_cleanup */false,
-            /* is_dynamic_resize */false,
             FileCache::getInternalOrigin(),
             lock);
 
@@ -793,38 +767,19 @@ EvictionInfoPtr SLRUFileCachePriority::collectEvictionInfoForResize(
     const IFileCachePriority::OriginInfo & origin_info,
     const CacheStateGuard::Lock & lock)
 {
-    /// Compute per-sub-queue eviction based on each sub-queue's
-    /// current size vs. its new limit (derived from the desired total and ratio).
+    /// Delegate to each sub-queue's collectEvictionInfoForResize with per-sub-queue
+    /// desired limits derived from the desired total and ratio.
     /// This is needed because the total cache size might be under the desired total,
     /// but one sub-queue (e.g. protected) might exceed its new sub-limit.
 
-    size_t new_prot_size_limit = getRatio(desired_max_size, size_ratio);
-    size_t new_prob_size_limit = getRatio(desired_max_size, 1 - size_ratio);
-    size_t new_prot_elem_limit = getRatio(desired_max_elements, size_ratio);
-    size_t new_prob_elem_limit = getRatio(desired_max_elements, 1 - size_ratio);
-
-    size_t prot_size = protected_queue.getSize(lock);
-    size_t prob_size = probationary_queue.getSize(lock);
-    size_t prot_elems = protected_queue.getElementsCount(lock);
-    size_t prob_elems = probationary_queue.getElementsCount(lock);
-
-    size_t prot_size_evict = prot_size > new_prot_size_limit ? prot_size - new_prot_size_limit : 0;
-    size_t prob_size_evict = prob_size > new_prob_size_limit ? prob_size - new_prob_size_limit : 0;
-    size_t prot_elem_evict = prot_elems > new_prot_elem_limit ? prot_elems - new_prot_elem_limit : 0;
-    size_t prob_elem_evict = prob_elems > new_prob_elem_limit ? prob_elems - new_prob_elem_limit : 0;
-
-    auto info = protected_queue.collectEvictionInfo(
-        prot_size_evict, prot_elem_evict,
-        /* reservee */ nullptr,
-        /* is_total_space_cleanup */ false,
-        /* is_dynamic_resize */ true,
+    auto info = protected_queue.collectEvictionInfoForResize(
+        getRatio(desired_max_size, size_ratio),
+        getRatio(desired_max_elements, size_ratio),
         origin_info, lock);
 
-    info->add(probationary_queue.collectEvictionInfo(
-        prob_size_evict, prob_elem_evict,
-        /* reservee */ nullptr,
-        /* is_total_space_cleanup */ false,
-        /* is_dynamic_resize */ true,
+    info->add(probationary_queue.collectEvictionInfoForResize(
+        getRatio(desired_max_size, 1 - size_ratio),
+        getRatio(desired_max_elements, 1 - size_ratio),
         origin_info, lock));
 
     return info;

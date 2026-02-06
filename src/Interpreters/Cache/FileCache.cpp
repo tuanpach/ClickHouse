@@ -1144,7 +1144,6 @@ bool FileCache::doTryReserve(
                     required_elements_num,
                     main_priority_iterator.get(),
                     /* is_total_space_cleanup */false,
-                    /* is_dynamic_resize */false,
                     origin_info,
                     lock);
             }
@@ -1156,7 +1155,6 @@ bool FileCache::doTryReserve(
             required_elements_num,
             main_priority_iterator.get(),
             /* is_total_space_cleanup */false,
-            /* is_dynamic_resize */false,
             origin_info,
             lock);
 
@@ -1441,7 +1439,6 @@ void FileCache::freeSpaceRatioKeepingThreadFunc()
             elements_to_evict,
             /* reservee */nullptr,
             /* is_total_space_cleanup */true,
-            /* is_dynamic_resize */false,
             getInternalOrigin(),
             lock);
     }

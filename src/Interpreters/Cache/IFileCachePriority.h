@@ -190,7 +190,6 @@ public:
         size_t elements,
         IFileCachePriority::Iterator * reservee,
         bool is_total_space_cleanup,
-        bool is_dynamic_resize,
         const IFileCachePriority::OriginInfo & origin,
         const CacheStateGuard::Lock &) = 0;
 
@@ -286,7 +285,7 @@ public:
         size_t desired_max_size,
         size_t desired_max_elements,
         const OriginInfo & origin_info,
-        const CacheStateGuard::Lock & lock);
+        const CacheStateGuard::Lock & lock) = 0;
 
     virtual void resetEvictionPos() = 0;
 
