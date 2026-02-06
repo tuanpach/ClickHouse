@@ -1,4 +1,5 @@
 #pragma once
+#include <optional>
 #include <Core/Types.h>
 #include <Core/NamesAndTypes.h>
 #include <Core/SettingsEnums.h>
@@ -131,7 +132,7 @@ class ICatalog
 {
 public:
     using Namespaces = std::vector<std::string>;
-    using CredentialsRefreshCallback = std::function<std::shared_ptr<DataLake::IStorageCredentials>()>;
+    using CredentialsRefreshCallback = std::optional<std::function<std::shared_ptr<DataLake::IStorageCredentials>()>>;
 
     explicit ICatalog(const std::string & warehouse_) : warehouse(warehouse_) {}
 
@@ -185,10 +186,7 @@ public:
 
     virtual CredentialsRefreshCallback getCredentialsConfigurationCallback(const DB::StorageID & /*storage_id*/)
     {
-        return [] () -> std::shared_ptr<DataLake::IStorageCredentials>
-        {
-            return nullptr;
-        };
+        return std::nullopt;
     }
 
 protected:

@@ -302,7 +302,7 @@ StorageObjectStorageQueue::StorageObjectStorageQueue(
     const bool is_attach = mode > LoadingStrictnessLevel::CREATE;
     validateSettings(*queue_settings_, is_attach);
 
-    object_storage = configuration->createObjectStorage(context_, /* is_readonly */true, [] { return nullptr; });
+    object_storage = configuration->createObjectStorage(context_, /* is_readonly */true, std::nullopt);
     FormatFactory::instance().checkFormatName(configuration->format);
     configuration->check(context_);
 

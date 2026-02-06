@@ -298,11 +298,14 @@ bool ReadBufferFromS3::processException(size_t read_offset, size_t attempt) cons
 
     if (auto * s3_exception = current_exception_cast<S3Exception *>())
     {
-        if (s3_exception->isAccessTokenExpiredError())
+        if (s3_exception->isAccessTokenExpiredError() && credentials_refresh_callback)
         {
             auto new_client = credentials_refresh_callback();
-            client_ptr = std::move(new_client);
-            return true;
+            if (new_client)
+            {
+                client_ptr = std::move(new_client);
+                return true;
+            }
         }
 
         /// It doesn't make sense to retry Access Denied or No Such Key

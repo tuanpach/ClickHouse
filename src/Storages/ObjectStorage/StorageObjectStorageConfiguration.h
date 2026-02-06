@@ -57,7 +57,7 @@ struct StorageObjectStorageQuerySettings
 class StorageObjectStorageConfiguration
 {
 public:
-    using CredentialsConfigurationCallback = std::function<std::shared_ptr<DataLake::IStorageCredentials>()>;
+    using CredentialsConfigurationCallback = std::optional<std::function<std::shared_ptr<DataLake::IStorageCredentials>()>>;
 
     StorageObjectStorageConfiguration() = default;
     virtual ~StorageObjectStorageConfiguration() = default;

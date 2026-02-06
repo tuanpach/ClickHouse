@@ -465,11 +465,24 @@ ObjectMetadata S3ObjectStorage::getObjectMetadata(const std::string & path, bool
     {
         object_info = S3::getObjectInfo(*client.get(), uri.bucket, path, /*version_id=*/ {}, /*with_metadata=*/ true, /*with_tags=*/ with_tags);
     }
-    catch (const DB::Exception &)
+    catch (DB::Exception & e)
     {
-        auto new_client = credentials_refresh_callback();
-        client.set(std::move(new_client));
-        object_info = S3::getObjectInfo(*client.get(), uri.bucket, path, /*version_id=*/ {}, /*with_metadata=*/ true, /*with_tags=*/ with_tags);
+        bool updated = false;
+        if (credentials_refresh_callback)
+        {
+            auto new_client = credentials_refresh_callback();
+            if (new_client)
+            {
+                client.set(std::move(new_client));
+                object_info = S3::getObjectInfo(*client.get(), uri.bucket, path, /*version_id=*/ {}, /*with_metadata=*/ true, /*with_tags=*/ with_tags);
+                updated = true;
+            }
+        }
+        if (!updated)
+        {
+            e.addMessage("while reading " + path);
+            throw;
+        }
     }
 
     ObjectMetadata result;
@@ -525,8 +538,18 @@ void S3ObjectStorage::copyObjectToAnotherObjectStorage( // NOLINT
                 throw;
             else
             {
-                auto new_client = credentials_refresh_callback();
-                client.set(std::move(new_client));
+                bool updated = false;
+                if (credentials_refresh_callback)
+                {
+                    auto new_client = credentials_refresh_callback();
+                    if (new_client)
+                    {
+                        updated = true;
+                        client.set(std::move(new_client));
+                    }
+                }
+                if (!updated)
+                    throw;
             }
             LOG_WARNING(getLogger("S3ObjectStorage"),
                 "S3-server-side copy object from the disk {} to the disk {} can not be performed: {}\n",
