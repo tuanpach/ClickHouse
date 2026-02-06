@@ -1243,26 +1243,17 @@ namespace
 {
 
 template <typename Type>
-std::optional<Type> tryCastAs(const Field & field)
-{
-    auto expected_type = Field::TypeToEnum<Type>::value;
-    return expected_type == field.getType() ? std::make_optional(field.safeGet<Type>()) : std::nullopt;
-}
-
-template <typename Type>
 Type castAs(const Field & field, std::string_view argument_name)
 {
-    auto result = tryCastAs<Type>(field);
-
-    if (!result.has_value())
+    auto expected_type = Field::TypeToEnum<Type>::value;
+    if (expected_type != field.getType())
     {
         throw Exception(
             ErrorCodes::BAD_ARGUMENTS,
             "Text index argument '{}' expected to be {}, but got {}",
             argument_name, fieldTypeToString(Field::TypeToEnum<Type>::value), field.getTypeName());
     }
-
-    return result.value();
+    return field.safeGet<Type>();
 }
 
 template <typename Type>

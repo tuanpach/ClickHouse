@@ -144,7 +144,6 @@ std::unique_ptr<ITokenExtractor> TokenizerFactory::get(
 
 void registerTokenizers(TokenizerFactory & factory)
 {
-    /// Ngrams tokenizer
     auto ngrams_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {
         assertParamsCount(args.size(), 1, NgramsTokenExtractor::getExternalName());
@@ -160,19 +159,19 @@ void registerTokenizers(TokenizerFactory & factory)
 
         return std::make_unique<NgramsTokenExtractor>(ngram_size);
     };
+
     factory.registerTokenizer(NgramsTokenExtractor::getName(), ITokenExtractor::Type::Ngrams, ngrams_creator);
     factory.registerTokenizer(NgramsTokenExtractor::getExternalName(), ITokenExtractor::Type::Ngrams, ngrams_creator);
 
-    /// SplitByNonAlpha tokenizer
     auto split_by_non_alpha_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {
         assertParamsCount(args.size(), 0, SplitByNonAlphaTokenExtractor::getExternalName());
         return std::make_unique<SplitByNonAlphaTokenExtractor>();
     };
+
     factory.registerTokenizer(SplitByNonAlphaTokenExtractor::getName(), ITokenExtractor::Type::SplitByNonAlpha, split_by_non_alpha_creator);
     factory.registerTokenizer(SplitByNonAlphaTokenExtractor::getExternalName(), ITokenExtractor::Type::SplitByNonAlpha, split_by_non_alpha_creator);
 
-    /// SplitByString tokenizer
     auto split_by_string_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {
         assertParamsCount(args.size(), 1, SplitByStringTokenExtractor::getExternalName());
@@ -192,19 +191,17 @@ void registerTokenizers(TokenizerFactory & factory)
 
         return std::make_unique<SplitByStringTokenExtractor>(values);
     };
-    /// SplitByString has the same getName and getExternalName, register only once
+
     factory.registerTokenizer(SplitByStringTokenExtractor::getName(), ITokenExtractor::Type::SplitByString, split_by_string_creator);
 
-    /// Array tokenizer
     auto array_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {
         assertParamsCount(args.size(), 0, ArrayTokenExtractor::getExternalName());
         return std::make_unique<ArrayTokenExtractor>();
     };
-    /// Array has the same getName and getExternalName, register only once
+
     factory.registerTokenizer(ArrayTokenExtractor::getName(), ITokenExtractor::Type::Array, array_creator);
 
-    /// SparseGrams tokenizer
     auto sparse_grams_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {
         const auto * tokenizer_name = SparseGramsTokenExtractor::getExternalName();
@@ -255,7 +252,7 @@ void registerTokenizers(TokenizerFactory & factory)
 
         return std::make_unique<SparseGramsTokenExtractor>(min_length, max_length, min_cutoff_length);
     };
-    /// SparseGrams has the same getName and getExternalName, register once + bloom filter index name
+
     factory.registerTokenizer(SparseGramsTokenExtractor::getName(), ITokenExtractor::Type::SparseGrams, sparse_grams_creator);
     factory.registerTokenizer(SparseGramsTokenExtractor::getBloomFilterIndexName(), ITokenExtractor::Type::SparseGrams, sparse_grams_creator);
 }

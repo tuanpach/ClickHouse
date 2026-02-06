@@ -776,7 +776,7 @@ MergeTreeIndexConditionPtr MergeTreeIndexBloomFilterText::createIndexCondition(
 
 MergeTreeIndexPtr bloomFilterIndexTextCreator(const IndexDescription & index)
 {
-    static std::set<ITokenExtractor::Type> allowed_types =
+    static std::set<ITokenExtractor::Type> allowed_tokenizers =
     {
         ITokenExtractor::Type::Ngrams,
         ITokenExtractor::Type::SplitByNonAlpha,
@@ -800,7 +800,7 @@ MergeTreeIndexPtr bloomFilterIndexTextCreator(const IndexDescription & index)
     }
 
     FieldVector tokenizer_args(args.begin(), args.begin() + num_tokenizer_params);
-    auto tokenizer = TokenizerFactory::instance().get(index.type, tokenizer_args, allowed_types);
+    auto tokenizer = TokenizerFactory::instance().get(index.type, tokenizer_args, allowed_tokenizers);
 
     size_t first_bf_param_idx = num_tokenizer_params;
     BloomFilterParameters params(
