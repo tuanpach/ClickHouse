@@ -1323,7 +1323,7 @@ std::unordered_map<String, ASTPtr> convertArgumentsToOptionsMap(const ASTPtr & a
         const auto * ast_equal_function = child->as<ASTFunction>();
         auto [key, ast] = parseNamedArgument(ast_equal_function);
 
-        if (options.emplace(key, ast).second)
+        if (!options.emplace(key, ast).second)
             throw Exception(ErrorCodes::BAD_ARGUMENTS, "Text index '{}' argument is specified more than once", key);
     }
     return options;
