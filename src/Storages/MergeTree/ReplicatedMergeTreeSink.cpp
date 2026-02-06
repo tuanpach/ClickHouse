@@ -418,7 +418,7 @@ void ReplicatedMergeTreeSink::finishDelayed(const ZooKeeperWithFaultInjectionPtr
 
             /// reset the cache version to zero for every partition write.
             /// Version zero allows to avoid wait on first iteration
-            deduplication_asyn_inserts_cache_version = 0;
+            deduplication_async_inserts_cache_version = 0;
             size_t retry_times = 0;
             while (true)
             {
@@ -643,10 +643,10 @@ std::vector<DeduplicationHash> ReplicatedMergeTreeSink::detectConflictsInAsyncBl
 {
     if (insert_deduplication_version != InsertDeduplicationVersions::NEW_UNIFIED_HASHES)
     {
-        auto conflict_block_ids = storage.async_block_ids_cache.detectConflicts(deduplication_hashes, deduplication_asyn_inserts_cache_version);
+        auto conflict_block_ids = storage.async_block_ids_cache.detectConflicts(deduplication_hashes, deduplication_async_inserts_cache_version);
         if (!conflict_block_ids.empty())
         {
-            deduplication_asyn_inserts_cache_version = 0;
+            deduplication_async_inserts_cache_version = 0;
             return conflict_block_ids;
         }
     }
@@ -721,7 +721,7 @@ std::vector<DeduplicationHash> ReplicatedMergeTreeSink::commitPart(
 
         /// This block was already written to some replica. Get the part name for it.
         /// Note: race condition with DROP PARTITION operation is possible. User will get "No node" exception and it is Ok.
-        auto response = zookeeper->tryGet(getDeduplicationPathes(storage.zookeeper_path, retry_context.conflict_deduplication_hashes));
+        auto response = zookeeper->tryGet(getDeduplicationPaths(storage.zookeeper_path, retry_context.conflict_deduplication_hashes));
         for (size_t i = 0; i < retry_context.conflict_deduplication_hashes.size(); ++i)
         {
             auto & deduplication_hash = retry_context.conflict_deduplication_hashes[i];
@@ -874,7 +874,7 @@ std::vector<DeduplicationHash> ReplicatedMergeTreeSink::commitPart(
 
         /// Allocate new block number and check for duplicates
         auto block_data = serializeCommittingBlockOpToString(CommittingBlock::Op::NewPart);
-        auto block_id_pathes = getDeduplicationPathes(storage.zookeeper_path, deduplication_hashes);
+        auto block_id_pathes = getDeduplicationPaths(storage.zookeeper_path, deduplication_hashes);
         auto block_number_lock = storage.allocateBlockNumber(part->info.getPartitionId(), zookeeper, block_id_pathes, "", block_data); /// 1 RTT
 
         ThreadFuzzer::maybeInjectSleep();

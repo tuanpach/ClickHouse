@@ -136,7 +136,7 @@ protected:
     size_t max_parts_per_block;
 
     UInt64 deduplication_cache_version = 0;
-    UInt64 deduplication_asyn_inserts_cache_version = 0;
+    UInt64 deduplication_async_inserts_cache_version = 0;
 
     bool is_attach = false;
     bool allow_attach_while_readonly = false;

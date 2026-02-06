@@ -125,7 +125,7 @@ std::vector<std::string> getDeduplicationBlockIds(const std::vector<Deduplicatio
 }
 
 
-std::vector<std::string> getDeduplicationPathes(std::string storage_path, const std::vector<DeduplicationHash> & deduplication_hashes)
+std::vector<std::string> getDeduplicationPaths(std::string storage_path, const std::vector<DeduplicationHash> & deduplication_hashes)
 {
     std::vector<std::string> result;
     result.reserve(deduplication_hashes.size());
@@ -339,6 +339,7 @@ UInt128 DeduplicationInfo::calculateDataHash(size_t offset) const
             col->updateHashWithValue(j, hash);
     }
 
+    /// be careful, hash.get128() method is not const because of caching of calculated hash in token, so it can return different results on multiple calls
     tokens[offset].data_hash = hash.get128();
     return tokens[offset].data_hash.value();
 }
@@ -1139,7 +1140,7 @@ std::string DeduplicationInfo::TokenDefinition::debug() const
     if (!by_user.empty())
         str = fmt::format("user<{}>", by_user);
     else if (by_part_writer.has_value())
-        str = fmt::format("data-hash<{}_{}>",by_part_writer->items[0], by_part_writer->items[1]);
+        str = fmt::format("data-hash<{}_{}>", by_part_writer->items[0], by_part_writer->items[1]);
     else
         str = "-";
 

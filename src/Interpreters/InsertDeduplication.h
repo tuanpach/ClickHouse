@@ -57,7 +57,7 @@ struct DeduplicationHash
 
 
 std::vector<std::string> getDeduplicationBlockIds(const std::vector<DeduplicationHash> & deduplication_hashes);
-std::vector<std::string> getDeduplicationPathes(std::string storage_path, const std::vector<DeduplicationHash> & deduplication_hashes);
+std::vector<std::string> getDeduplicationPaths(std::string storage_path, const std::vector<DeduplicationHash> & deduplication_hashes);
 
 
 class DeduplicationInfo : public ChunkInfo
