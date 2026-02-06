@@ -532,21 +532,12 @@ protected:
             new_grower.increaseSize();
 
         /// Expand the space.
-        if (empty())
-        {
-            size_t old_buffer_size = getBufferSizeInBytes();
-            auto old_buf = buf;
-            buf = reinterpret_cast<Cell *>(Allocator::alloc(allocCheckOverflow(new_grower.bufSize())));
-            Allocator::free(old_buf, old_buffer_size);
-            grower = new_grower;
-        }
-        else
-        {
-            size_t old_buffer_size = getBufferSizeInBytes();
-            buf = reinterpret_cast<Cell *>(Allocator::realloc(buf, old_buffer_size, allocCheckOverflow(new_grower.bufSize())));
+        size_t old_buffer_size = getBufferSizeInBytes();
+        buf = reinterpret_cast<Cell *>(Allocator::realloc(buf, old_buffer_size, allocCheckOverflow(new_grower.bufSize())));
+        grower = new_grower;
 
-            grower = new_grower;
-
+        if (!empty())
+        {
             /** Now some items may need to be moved to a new location.
               * The element can stay in place, or move to a new location "on the right",
               *  or move to the left of the collision resolution chain, because the elements to the left of it have been moved to the new "right" location.
