@@ -452,7 +452,7 @@ class Result(MetaClasses.Serializable):
                 test_result.results.append(
                     Result(
                         name="Timeout",
-                        status=Result.Status.ERROR,
+                        status=Result.StatusExtended.FAIL,
                         info=test_result.info,
                     )
                 )
