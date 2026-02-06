@@ -46,6 +46,7 @@ namespace {
      __attribute__((always_inline))
      inline bool cpu_has_fma()
      {
+#if defined(__x86_64__)
          int status = g_fma_status;
          if (__builtin_expect(status != 0, 1))
              return status == 2;
@@ -53,6 +54,9 @@ namespace {
          bool has_fma = detect_fma_support();
          g_fma_status = has_fma ? 2 : 1;
          return has_fma;
+#elif defined(__aarch64__)
+         return true;
+#endif
      }
 }
 
