@@ -91,7 +91,7 @@ public:
     LogSource(
         size_t block_size_,
         const NamesAndTypesList & columns_,
-        std::shared_ptr<const StorageLog> storage_holder_,
+        std::shared_ptr<const StorageLog> storage_,
         size_t rows_limit_,
         const std::vector<size_t> & offsets_,
         const std::vector<size_t> & file_sizes_,
@@ -100,8 +100,7 @@ public:
         : ISource(std::make_shared<const Block>(getHeader(columns_)))
         , block_size(block_size_)
         , columns(columns_)
-        , storage_holder(std::move(storage_holder_))
-        , storage(*storage_holder)
+        , storage(std::move(storage_))
         , rows_limit(rows_limit_)
         , offsets(offsets_)
         , file_sizes(file_sizes_)
@@ -120,8 +119,7 @@ private:
 
     const size_t block_size;
     const NamesAndTypesList columns;
-    const std::shared_ptr<const StorageLog> storage_holder;
-    const StorageLog & storage;
+    const std::shared_ptr<const StorageLog> storage;
     const size_t rows_limit;      /// The maximum number of rows that can be read
     size_t rows_read = 0;
     bool is_finished = false;
@@ -167,7 +165,7 @@ private:
 
 NameAndTypePair LogSource::getColumnOnDisk(const NameAndTypePair & column) const
 {
-    const auto & storage_columns = storage.columns_with_collected_nested;
+    const auto & storage_columns = storage->columns_with_collected_nested;
 
     /// A special case when we read subcolumn of shared offsets of Nested.
     /// E.g. instead of requested column "n.arr1.size0" we must read column "n.size0" from disk.
@@ -219,7 +217,7 @@ Chunk LogSource::generate()
         }
         catch (Exception & e)
         {
-            e.addMessage("while reading column " + name_type_on_disk.name + " at " + fullPath(storage.disk, storage.table_path));
+            e.addMessage("while reading column " + name_type_on_disk.name + " at " + fullPath(storage->disk, storage->table_path));
             throw;
         }
 
@@ -260,15 +258,15 @@ void LogSource::readPrefix(const NameAndTypePair & name_and_type, ISerialization
 
         String data_file_name = ISerialization::getFileNameForStream(name_and_type, path, {});
 
-        const auto & data_file_it = storage.data_files_by_names.find(data_file_name);
-        if (data_file_it == storage.data_files_by_names.end())
+        const auto & data_file_it = storage->data_files_by_names.find(data_file_name);
+        if (data_file_it == storage->data_files_by_names.end())
             throw Exception(ErrorCodes::LOGICAL_ERROR, "No information about file {} in StorageLog", data_file_name);
         const auto & data_file = *data_file_it->second;
 
         size_t offset = 0;
         size_t file_size = file_sizes[data_file.index];
 
-        auto it = streams.try_emplace(data_file_name, storage.disk, data_file.path, offset, file_size, limited_by_file_sizes, read_settings).first;
+        auto it = streams.try_emplace(data_file_name, storage->disk, data_file.path, offset, file_size, limited_by_file_sizes, read_settings).first;
         return &it->second.compressed.value();
     };
 
@@ -289,15 +287,15 @@ void LogSource::readData(const NameAndTypePair & name_and_type, ColumnPtr & colu
 
         String data_file_name = ISerialization::getFileNameForStream(name_and_type, path, {});
 
-        const auto & data_file_it = storage.data_files_by_names.find(data_file_name);
-        if (data_file_it == storage.data_files_by_names.end())
+        const auto & data_file_it = storage->data_files_by_names.find(data_file_name);
+        if (data_file_it == storage->data_files_by_names.end())
             throw Exception(ErrorCodes::LOGICAL_ERROR, "No information about file {} in StorageLog", data_file_name);
         const auto & data_file = *data_file_it->second;
 
         size_t offset = offsets[data_file.index];
         size_t file_size = file_sizes[data_file.index];
 
-        auto it = streams.try_emplace(data_file_name, storage.disk, data_file.path, offset, file_size, limited_by_file_sizes, read_settings).first;
+        auto it = streams.try_emplace(data_file_name, storage->disk, data_file.path, offset, file_size, limited_by_file_sizes, read_settings).first;
         return &it->second.compressed.value();
     };
 
@@ -307,7 +305,7 @@ void LogSource::readData(const NameAndTypePair & name_and_type, ColumnPtr & colu
             ErrorCodes::LOGICAL_ERROR,
             "Unexpected return type when reading column '{}' from {}. Expected {}. Got {}",
             name_and_type.name,
-            storage.getStorageID().getFullTableName(),
+            storage->getStorageID().getFullTableName(),
             name_and_type.type->getColumnType(),
             column->getDataType());
 }
