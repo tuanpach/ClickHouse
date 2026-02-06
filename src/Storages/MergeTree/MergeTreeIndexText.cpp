@@ -1194,7 +1194,7 @@ MergeTreeIndexText::MergeTreeIndexText(
     , params(std::move(params_))
     , token_extractor(std::move(token_extractor_))
     , posting_list_codec(std::move(posting_list_codec_))
-    , preprocessor(std::make_shared<MergeTreeIndexTextPreprocessor>(params.preprocessor, index_))
+    , preprocessor(MergeTreeIndexTextPreprocessor::create(index_, params.preprocessor))
 {
 }
 
@@ -1405,12 +1405,14 @@ void textIndexValidator(const IndexDescription & index, bool /*attach*/)
         /// enough.  But if this redundant construction represents an issue we could simple build the "intermediate" ASTPtr and use it for
         /// validation. That way we skip the ActionsDAG and ExpressionActions constructions.
         ExpressionActions expression = MergeTreeIndexTextPreprocessor::createExpressionActions(index, preprocessor_ast);
+        const auto required_columns = expression.getSourceColumns();
 
-        const Names required_columns = expression.getRequiredColumns();
+        if (required_columns.size() != 1)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Text index preprocessor expression must contain a single text index column, but got {}", required_columns.size());
 
         /// This is expected that never happen because the `validatePreprocessorASTExpression` already checks that we have a single identifier.
         /// But once again, with user inputs: Don't trust, validate!
-        if (required_columns.size() != 1 || required_columns.front() != index.column_names.front())
+        if (required_columns.front().name != index.column_names.front() || required_columns.front().type != index.data_types.front())
             throw Exception(ErrorCodes::LOGICAL_ERROR, "Text index preprocessor expression must depend only of column: {}", index.column_names.front());
     }
 }

@@ -105,13 +105,14 @@ MergeTreeIndexTextPreprocessor::MergeTreeIndexTextPreprocessor(ASTPtr expression
 
 std::pair<ColumnPtr,size_t> MergeTreeIndexTextPreprocessor::processColumn(const ColumnWithTypeAndName & column, size_t start_row, size_t n_rows) const
 {
-    chassert(column.name == column_name);
-
     ColumnPtr index_column = column.column;
-    chassert(index_column->getDataType() == column.type->getTypeId());
-
-    if (expression.getActions().empty())
+    if (expression_actions.getActions().empty())
         return {index_column, start_row};
+
+    const auto & [source_column_name, source_column_type] = source_columns.front();
+
+    chassert(column.name == source_column_name);
+    chassert(index_column->getDataType() == column.type->getTypeId());
 
     /// Only copy if needed
     if (start_row != 0 || n_rows != index_column->size())
@@ -125,7 +126,7 @@ std::pair<ColumnPtr,size_t> MergeTreeIndexTextPreprocessor::processColumn(const 
         const ColumnPtr array_data = column_array->getDataPtr();
         const ColumnPtr array_offsets = column_array->getOffsetsPtr();
 
-        ColumnWithTypeAndName array_data_column(array_data, nested_type, column_name);
+        ColumnWithTypeAndName array_data_column(array_data, nested_type, source_column_name);
 
         auto [processed_column, _] = processColumn(array_data_column, 0, array_data_column.column->size());
 
@@ -135,25 +136,27 @@ std::pair<ColumnPtr,size_t> MergeTreeIndexTextPreprocessor::processColumn(const 
     }
     else
     {
-        Block block({ColumnWithTypeAndName(index_column, column.type, column_name)});
-        expression.execute(block, n_rows);
+        Block block({ColumnWithTypeAndName(index_column, column.type, source_column_name)});
+        expression_actions.execute(block, n_rows);
         return {block.safeGetByPosition(0).column, 0};
     }
 }
 
 String MergeTreeIndexTextPreprocessor::process(const String & input) const
 {
-    if (expression.getActions().empty())
+    if (expression_actions.getActions().empty())
         return input;
 
+    const auto & [source_column_name, source_column_type] = source_columns.front();
+
     Field input_field(input);
-    ColumnWithTypeAndName input_entry(inner_type->createColumnConst(1, input_field), inner_type, column_name);
+    ColumnWithTypeAndName input_entry(source_column_type->createColumnConst(1, input_field), source_column_type, source_column_name);
 
     Block input_block;
     input_block.insert(input_entry);
 
     size_t nrows = 1;
-    expression.execute(input_block, nrows);
+    expression_actions.execute(input_block, nrows);
 
     return String{input_block.safeGetByPosition(0).column->getDataAt(0)};
 }
@@ -227,8 +230,9 @@ ExpressionActions MergeTreeIndexTextPreprocessor::createExpressionActions(const 
     if (actions.hasNonDeterministic())
         throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor expression must not contain non-deterministic functions");
 
-    /// FINALLY! Lets build the ExpressionActions.
-    return ExpressionActions(std::move(actions));
+    /// FINALLY! Lets initialize a MergeTreeIndexTextPreprocessor.
+    return std::shared_ptr<MergeTreeIndexTextPreprocessor>(new MergeTreeIndexTextPreprocessor(
+        std::move(expression_ast), std::move(source_columns), ExpressionActions(std::move(actions))));
 }
 
 }

@@ -30,9 +30,16 @@ public:
     /// ParserExpression(String) => AST; ActionsVisitor(AST) => ActionsDAG; ExpressionActions(ActionsDAG)
     static ExpressionActions createExpressionActions(const IndexDescription & index, ASTPtr expression_ast);
 private:
-    ExpressionActions expression;
-    DataTypePtr inner_type; /// For String columns: String. For Array(String) columns: String
-    String column_name;
+    MergeTreeIndexTextPreprocessor(ASTPtr ast_, NamesAndTypesList source_columns_, ExpressionActions expression_actions_)
+        : ast(std::move(ast_))
+        , source_columns(std::move(source_columns_))
+        , expression_actions(std::move(expression_actions_))
+    {
+    }
+
+    ASTPtr ast;
+    NamesAndTypesList source_columns;
+    ExpressionActions expression_actions;
 };
 
 }

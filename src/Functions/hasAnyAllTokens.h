@@ -33,28 +33,87 @@ struct HasAllTokensTraits
 using TokensWithPosition = absl::flat_hash_map<String, UInt64>;
 
 template <class HasTokensTraits>
-class FunctionHasAnyAllTokens : public IFunction
+class ExecutableFunctionHasAnyAllTokens : public IExecutableFunction
 {
 public:
     static constexpr auto name = HasTokensTraits::name;
 
-    static FunctionPtr create(ContextPtr context);
-    explicit FunctionHasAnyAllTokens<HasTokensTraits>(ContextPtr context);
+    explicit ExecutableFunctionHasAnyAllTokens(
+        std::shared_ptr<const ITokenExtractor> token_extractor_, const TokensWithPosition & search_tokens_from_args_)
+        : token_extractor(std::move(token_extractor_))
+        , search_tokens_args(std::move(search_tokens_from_args_))
+    {
+    }
 
     String getName() const override { return name; }
-    size_t getNumberOfArguments() const override { return 2; }
     bool useDefaultImplementationForConstants() const override { return true; }
-    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
 
     void setTokenExtractor(std::unique_ptr<ITokenExtractor> new_token_extractor);
     void setSearchTokens(const std::vector<String> & new_search_tokens);
 
-    DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const override;
     ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const override;
 
 private:
+    std::shared_ptr<const ITokenExtractor> token_extractor;
+    const TokensWithPosition & search_tokens_args;
+    std::optional<TokensWithPosition> search_tokens_from_index;
+};
+
+template <class HasTokensTraits>
+class FunctionBaseHasAnyAllTokens : public IFunctionBase
+{
+public:
+    static constexpr auto name = HasTokensTraits::name;
+
+    FunctionBaseHasAnyAllTokens(
+        std::shared_ptr<const ITokenExtractor> token_extractor_,
+        TokensWithPosition search_tokens_,
+        DataTypes argument_types_,
+        DataTypePtr result_type_)
+        : token_extractor(std::move(token_extractor_))
+        , search_tokens(std::move(search_tokens_))
+        , argument_types(std::move(argument_types_))
+        , result_type(std::move(result_type_))
+    {
+    }
+
+    String getName() const override { return name; }
+    const DataTypes & getArgumentTypes() const override { return argument_types; }
+    const DataTypePtr & getResultType() const override { return result_type; }
+    bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo &) const override { return true; }
+
+    ExecutableFunctionPtr prepare(const ColumnsWithTypeAndName &) const override;
+
+private:
+    std::shared_ptr<const ITokenExtractor> token_extractor;
+    TokensWithPosition search_tokens;
+    DataTypes argument_types;
+    DataTypePtr result_type;
+};
+
+template <class HasTokensTraits>
+class FunctionHasAnyAllTokensOverloadResolver : public IFunctionOverloadResolver
+{
+public:
+    static constexpr auto name = HasTokensTraits::name;
+
+    static FunctionOverloadResolverPtr create(ContextPtr context)
+    {
+        return std::make_unique<FunctionHasAnyAllTokensOverloadResolver<HasTokensTraits>>(context);
+    }
+
+    explicit FunctionHasAnyAllTokensOverloadResolver(ContextPtr context);
+
+    String getName() const override { return name; }
+    size_t getNumberOfArguments() const override { return 0; }
+    bool isVariadic() const override { return true; }
+    ColumnNumbers getArgumentsThatAreAlwaysConstant() const override { return {3, 4, 5, 6}; }
+
+    DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const override;
+
+    FunctionBasePtr buildImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr & return_type) const override;
+
+private:
     const bool enable_full_text_index;
-    std::unique_ptr<ITokenExtractor> token_extractor;
-    std::optional<TokensWithPosition> search_tokens;
 };
 }

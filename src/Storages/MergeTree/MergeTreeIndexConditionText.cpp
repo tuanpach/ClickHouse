@@ -129,24 +129,33 @@ TextSearchMode MergeTreeIndexConditionText::getTextSearchMode(const RPNElement &
     return TextSearchMode::Any;
 }
 
-bool MergeTreeIndexConditionText::isSupportedFunction(const String & function_name)
+bool MergeTreeIndexConditionText::isSupportedColumnFunction(const String & function_name)
 {
     return function_name == "hasToken"
         || function_name == "hasAnyTokens"
         || function_name == "hasAllTokens"
         || function_name == "equals"
         || function_name == "notEquals"
-        || function_name == "mapContainsKey"
-        || function_name == "mapContainsKeyLike"
-        || function_name == "mapContainsValue"
-        || function_name == "mapContainsValueLike"
-        || function_name == "has"
         || function_name == "like"
         || function_name == "notLike"
         || function_name == "hasTokenOrNull"
         || function_name == "startsWith"
         || function_name == "endsWith"
         || function_name == "match";
+}
+
+bool MergeTreeIndexConditionText::isSupportedArrayOrMapFunction(const String & function_name)
+{
+    return function_name == "mapContainsKey"
+        || function_name == "mapContainsKeyLike"
+        || function_name == "mapContainsValue"
+        || function_name == "mapContainsValueLike"
+        || function_name == "has";
+}
+
+bool MergeTreeIndexConditionText::isSupportedFunction(const String & function_name)
+{
+    return isSupportedColumnFunction(function_name) || isSupportedArrayOrMapFunction(function_name);
 }
 
 TextIndexDirectReadMode MergeTreeIndexConditionText::getHintOrNoneMode() const
@@ -584,28 +593,25 @@ bool MergeTreeIndexConditionText::traverseFunctionNode(
 
         /// TODO(ahmadov): move this block to another place, e.g. optimizations or query tree re-write.
         const auto * function_dag_node = function_node.getDAGNode();
-        chassert(function_dag_node != nullptr && function_dag_node->function_base != nullptr);
-
-        const auto * adaptor = typeid_cast<const FunctionToFunctionBaseAdaptor *>(function_dag_node->function_base.get());
-        chassert(adaptor != nullptr);
+        chassert(function_dag_node != nullptr && function_dag_node->function != nullptr);
 
         if (function_name == "hasAnyTokens")
         {
             out.function = RPNElement::FUNCTION_HAS_ANY_TOKENS;
             out.text_search_queries.emplace_back(std::make_shared<TextSearchQuery>(function_name, TextSearchMode::Any, direct_read_mode, search_tokens));
 
-            auto & search_function = typeid_cast<FunctionHasAnyAllTokens<traits::HasAnyTokensTraits> &>(*adaptor->getFunction());
-            search_function.setTokenExtractor(token_extractor->clone());
-            search_function.setSearchTokens(search_tokens);
+            auto * search_function = typeid_cast<ExecutableFunctionHasAnyAllTokens<traits::HasAnyTokensTraits> *>(function_dag_node->function.get());
+            search_function->setTokenExtractor(token_extractor->clone());
+            search_function->setSearchTokens(search_tokens);
         }
         else
         {
             out.function = RPNElement::FUNCTION_HAS_ALL_TOKENS;
             out.text_search_queries.emplace_back(std::make_shared<TextSearchQuery>(function_name, TextSearchMode::All, direct_read_mode, search_tokens));
 
-            auto & search_function = typeid_cast<FunctionHasAnyAllTokens<traits::HasAllTokensTraits> &>(*adaptor->getFunction());
-            search_function.setTokenExtractor(token_extractor->clone());
-            search_function.setSearchTokens(search_tokens);
+            auto * search_function = typeid_cast<ExecutableFunctionHasAnyAllTokens<traits::HasAllTokensTraits> *>(function_dag_node->function.get());
+            search_function->setTokenExtractor(token_extractor->clone());
+            search_function->setSearchTokens(search_tokens);
         }
 
         return true;
