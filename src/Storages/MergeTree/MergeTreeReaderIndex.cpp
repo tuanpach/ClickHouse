@@ -60,14 +60,13 @@ size_t MergeTreeReaderIndex::readRows(
     if (!continue_reading && lazy_materializing_rows)
         next_lazy_row_it = std::lower_bound(lazy_materializing_rows->begin(), lazy_materializing_rows->end(), starting_row);
 
-    /// Clamp max_rows_to_read.
-    /// Use min of getTotalRows() and getRowCount() because getTotalRows() from index granularity
-    /// can overestimate the last granule when use_const_adaptive_granularity=1 and index_granularity_bytes=0
-    /// (adjustLastMark is not called in that configuration, so the last mark reports full granularity
-    /// instead of the actual remaining rows).
-    size_t total_rows = std::min(
-        data_part_info_for_read->getIndexGranularity().getTotalRows(),
-        data_part_info_for_read->getRowCount());
+    /// Clamp max_rows_to_read to the actual number of remaining rows in the part.
+    /// We use getRowCount() (from part metadata) rather than getTotalRows() (from index granularity)
+    /// because for constant granularity parts with non-adaptive marks, getTotalRows() can overestimate
+    /// the last granule size (the mark file does not store per-granule row counts, so the last mark
+    /// is assumed to have full granularity).
+    size_t total_rows = data_part_info_for_read->getRowCount();
+    chassert(starting_row <= total_rows);
     if (starting_row < total_rows)
         max_rows_to_read = std::min(max_rows_to_read, total_rows - starting_row);
     else
