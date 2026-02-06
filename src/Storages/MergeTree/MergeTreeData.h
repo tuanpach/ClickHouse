@@ -1480,6 +1480,10 @@ protected:
     /// On updates shared_parts_list/shared_ranges_in_parts should be reset (will be updated in getPossiblySharedVisibleDataPartsRanges())
     mutable DB::SharedMutex data_parts_mutex;
 
+    /// Notified when parts transition out of PreActive state (via Transaction::commit or rollback).
+    /// Used by waitForPreActivePartsInRange to avoid a race between INSERT and DROP_RANGE.
+    mutable std::condition_variable_any preactive_parts_cv;
+
     DataPartsIndexes data_parts_indexes;
     DataPartsIndexes::index<TagByInfo>::type & data_parts_by_info;
     DataPartsIndexes::index<TagByStateAndInfo>::type & data_parts_by_state_and_info;

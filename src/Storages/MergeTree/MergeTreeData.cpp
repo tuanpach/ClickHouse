@@ -8132,6 +8132,8 @@ void MergeTreeData::Transaction::rollback(DataPartsLock & lock)
     }
 
     clear();
+
+    data.preactive_parts_cv.notify_all();
 }
 
 void MergeTreeData::Transaction::clear()
@@ -8265,6 +8267,8 @@ MergeTreeData::DataPartsVector MergeTreeData::Transaction::commit(DataPartsLock 
     }
 
     clear();
+
+    data.preactive_parts_cv.notify_all();
 
     return total_covered_parts;
 }
