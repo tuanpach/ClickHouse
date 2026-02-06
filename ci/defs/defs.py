@@ -33,7 +33,6 @@ class RunnerLabels:
     STYLE_CHECK_ARM = ["self-hosted", "style-checker-aarch64"]
     # GitHub-hosted macOS runners for native smoke tests
     MACOS_ARM = ["macos-14"]  # Apple Silicon (M1/M2/M3)
-    MACOS_AMD = ["macos-13"]  # Intel x86_64
 
 
 class CIFiles:

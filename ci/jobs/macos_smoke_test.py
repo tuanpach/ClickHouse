@@ -33,9 +33,6 @@ def download_binary():
     if "arm_darwin" in job_name:
         artifact_name = "CH_ARM_DARWIN_BIN"
         build_job_name = "Build (arm_darwin)"
-    elif "amd_darwin" in job_name:
-        artifact_name = "CH_AMD_DARWIN_BIN"
-        build_job_name = "Build (amd_darwin)"
     else:
         raise RuntimeError(f"Cannot determine build type from job name: {job_name}")
 

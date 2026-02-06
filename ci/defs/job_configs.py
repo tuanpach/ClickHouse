@@ -1184,8 +1184,4 @@ class JobConfigs:
             parameter="arm_darwin",
             runs_on=RunnerLabels.MACOS_ARM,
         ),
-        Job.ParamSet(
-            parameter="amd_darwin",
-            runs_on=RunnerLabels.MACOS_AMD,
-        ),
     )
