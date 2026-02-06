@@ -6,6 +6,8 @@
 #include <Parsers/ASTLiteral.h>
 
 #include <Common/Exception.h>
+#include <Parsers/ExpressionListParsers.h>
+#include <Parsers/parseQuery.h>
 #include <Storages/IndicesDescription.h>
 
 namespace DB
@@ -69,11 +71,43 @@ void TokenizerFactory::registerTokenizer(const String & name, ITokenExtractor::T
         throw Exception(ErrorCodes::LOGICAL_ERROR, "TokenizerFactory: tokenizer '{}' is already registered", name);
 }
 
+std::unique_ptr<ITokenExtractor> TokenizerFactory::get(std::string_view full_name) const
+{
+    auto try_parse = [&](auto & parser) -> ASTPtr
+    {
+        std::string out_err;
+        const char * start = full_name.data();
+        return tryParseQuery(
+            parser,
+            start,
+            start + full_name.size(),
+            out_err,
+            /*hilite=*/ false,
+            "tokenizer",
+            /*allow_multi_statements=*/ false,
+            DBMS_DEFAULT_MAX_QUERY_SIZE,
+            DBMS_DEFAULT_MAX_PARSER_DEPTH,
+            DBMS_DEFAULT_MAX_PARSER_BACKTRACKS,
+            /*skip_insignificant=*/ true);
+    };
+
+    ParserFunction parser_function;
+    if (auto ast = try_parse(parser_function))
+        return get(ast);
+
+    ParserIdentifier parser_identifier;
+    if (auto ast = try_parse(parser_identifier))
+        return get(ast);
+
+    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid tokenizer definition: '{}'", full_name);
+}
+
 std::unique_ptr<ITokenExtractor> TokenizerFactory::get(const ASTPtr & ast) const
 {
+    FieldVector args;
     if (const auto * identifier = ast->as<ASTIdentifier>())
     {
-        return get(identifier->name());
+        return get(identifier->name(), args);
     }
 
     if (const auto * literal = ast->as<ASTLiteral>())
@@ -81,12 +115,12 @@ std::unique_ptr<ITokenExtractor> TokenizerFactory::get(const ASTPtr & ast) const
         if (literal->value.getType() != Field::Types::String)
             throw Exception(ErrorCodes::BAD_ARGUMENTS, "Tokenizer name must be a string, got: {}", literal->value.getTypeName());
 
-        return get(literal->value.safeGet<String>());
+        return get(literal->value.safeGet<String>(), args);
     }
 
     if (const auto * function = ast->as<ASTFunction>())
     {
-        auto args = getFieldsFromIndexArgumentsAST(function->arguments);
+        args = getFieldsFromIndexArgumentsAST(function->arguments);
         return get(function->name, args);
     }
 

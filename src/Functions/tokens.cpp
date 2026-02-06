@@ -27,9 +27,12 @@ constexpr size_t arg_tokenizer = 1;
 
 std::unique_ptr<ITokenExtractor> createTokenizer(const ColumnsWithTypeAndName & arguments, std::string_view function_name)
 {
-    const auto tokenizer = arguments.size() < 2 || !arguments[arg_tokenizer].column
+    const auto tokenizer_str = arguments.size() < 2 || !arguments[arg_tokenizer].column
         ? SplitByNonAlphaTokenExtractor::getExternalName()
         : arguments[arg_tokenizer].column->getDataAt(0);
+
+    if (arguments.size() <= 2)
+        return TokenizerFactory::instance().get(tokenizer_str);
 
     FieldVector params;
     for (size_t i = 2; i < arguments.size(); ++i)
@@ -63,7 +66,7 @@ std::unique_ptr<ITokenExtractor> createTokenizer(const ColumnsWithTypeAndName & 
         }
     }
 
-    return TokenizerFactory::instance().get(tokenizer, params);
+    return TokenizerFactory::instance().get(tokenizer_str, params);
 }
 
 class ExecutableFunctionTokens : public IExecutableFunction
