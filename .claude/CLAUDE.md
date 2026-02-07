@@ -41,6 +41,8 @@ When writing tests, do not add "no-*" tags (like "no-parallel") unless strictly 
 
 When writing tests in tests/queries, prefer adding a new test instead of extending existing ones.
 
+If I provided a URL with the CI report, logs, or examples, include it in the commit message.
+
 Always load and apply the following skills:
 
 - .claude/skills/install-skills
