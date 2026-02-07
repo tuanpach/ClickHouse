@@ -55,9 +55,6 @@
 
     GLOBAL IN engine set not supported (Method read is not supported by storage Set. (NOT_IMPLEMENTED) (version 25.1.1.1927 (official build)) (from [::1]:42612) (comment: 01231_operator_null_in.sql) (in query: SELECT count() == 1 FROM null_in WHERE i global in test_set)
 01231_operator_null_in
-    Alter (Method read is not supported by storage Set)
-    https://fiddle.clickhouse.com/6237cbe7-242e-4ae5-95d2-754a8284072c
-02581_share_big_sets_between_mutation_tasks_with_storage_set
 
     https://github.com/ClickHouse/ClickHouse/issues/74366
     Cannot convert type UInt8 to Variant(String, UInt64)
