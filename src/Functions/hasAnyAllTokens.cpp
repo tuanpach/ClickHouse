@@ -35,8 +35,11 @@ constexpr size_t arg_tokenizer = 2;
 template <typename ColumnType>
 const ColumnType * getTypedColumn(const IColumn & column)
 {
-    if (const auto * column_const_typed = checkAndGetColumnConstData<ColumnType>(&column))
-        return column_const_typed;
+    if (const auto * column_const = checkAndGetColumn<ColumnConst>(&column))
+        return getTypedColumn<ColumnType>(*column_const->getDataColumnPtr());
+
+    if (const auto * column_nullable = checkAndGetColumn<ColumnNullable>(&column))
+        return getTypedColumn<ColumnType>(*column_nullable->getNestedColumnPtr());
 
     return checkAndGetColumn<ColumnType>(&column);
 }
@@ -59,7 +62,7 @@ TokensWithPosition extractTokensFromString(const ITokenExtractor & tokenizer, st
 TokensWithPosition initializeSearchTokens(const ColumnsWithTypeAndName & arguments, const ITokenExtractor & tokenizer, std::string_view function_name)
 {
     TokensWithPosition search_tokens;
-    const ColumnPtr col_needles = arguments[arg_needles].column;
+    const ColumnPtr col_needles = removeNullable(arguments[arg_needles].column);
 
     if (const ColumnString * column_needles_string = getTypedColumn<ColumnString>(*col_needles))
     {
@@ -81,7 +84,7 @@ TokensWithPosition initializeSearchTokens(const ColumnsWithTypeAndName & argumen
     }
     else
     {
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Needles argument for function '{}' has unsupported type", function_name);
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Needles argument for function '{}' has unsupported type of column: {}", function_name, col_needles->getName());
     }
 
     return search_tokens;

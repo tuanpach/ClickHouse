@@ -476,7 +476,7 @@ std::vector<String> SparseGramsTokenExtractor::compactTokens(const std::vector<S
 
 String SparseGramsTokenExtractor::getDescription() const
 {
-    String result = fmt::format("{}({}, {})", getName(), min_gram_length, max_gram_length);
+    String result = fmt::format("{}({}, {}", getName(), min_gram_length, max_gram_length);
     if (min_cutoff_length.has_value())
         result += fmt::format(", {}", *min_cutoff_length);
     return result + ")";

@@ -11,6 +11,7 @@
 #include <Processors/QueryPlan/QueryPlan.h>
 #include <Processors/QueryPlan/ReadFromMergeTree.h>
 #include <Storages/MergeTree/MergeTreeIndexConditionText.h>
+#include <Common/quoteString.h>
 #include <Common/FieldVisitorToString.h>
 #include <Common/logger_useful.h>
 #include <Functions/FunctionFactory.h>
@@ -29,7 +30,9 @@ using NodesReplacementMap = absl::flat_hash_map<const ActionsDAG::Node *, const 
 String getNameWithoutAliases(const ActionsDAG::Node * node)
 {
     while (node->type == ActionsDAG::ActionType::ALIAS)
+    {
         node = node->children[0];
+    }
 
     if (node->type == ActionsDAG::ActionType::FUNCTION)
     {
@@ -248,12 +251,10 @@ public:
             if (replaced.has_value())
             {
                 replacements[&node] = replaced->node;
+                auto default_expression = convertNodeToAST(node);
 
-                for (const auto & [index_name, added_virtual_column] : replaced->added_virtual_columns)
-                    result.added_columns[index_name].emplace_back(
-                        added_virtual_column.column_name,
-                        std::make_shared<DataTypeUInt8>(),
-                        added_virtual_column.default_expression);
+                for (const auto & [index_name, virtual_column_name] : replaced->added_virtual_columns)
+                    result.added_columns[index_name].emplace_back(virtual_column_name, std::make_shared<DataTypeUInt8>(), default_expression);
             }
         }
 
@@ -287,14 +288,8 @@ public:
 private:
     struct NodeReplacement
     {
-        struct VirtualColumn
-        {
-            String column_name;
-            ASTPtr default_expression;
-        };
-
         const ActionsDAG::Node * node;
-        std::unordered_map<String, VirtualColumn> added_virtual_columns;
+        std::unordered_map<String, String> added_virtual_columns;
     };
 
     ActionsDAG & actions_dag;
@@ -306,7 +301,6 @@ private:
         TextSearchQueryPtr search_query;
         String index_name;
         String virtual_column_name;
-        ASTPtr default_expression;
         const MergeTreeIndexConditionText * condition = nullptr;
     };
 
@@ -339,11 +333,7 @@ private:
             if (!virtual_column_name)
                 continue;
 
-            ASTPtr default_expression = nullptr;
-            if (!info.is_fully_materialied)
-                default_expression = convertNodeToAST(function_node);
-
-            selected_conditions.push_back({search_query, index_name, *virtual_column_name, std::move(default_expression), &text_index_condition});
+            selected_conditions.emplace_back(search_query, index_name, *virtual_column_name, &text_index_condition);
             used_index_columns.insert(index_header.begin()->name);
         }
 
@@ -399,11 +389,15 @@ private:
         const auto & arg_haystack = new_children[0];
         const auto & arg_needles = new_children[1];
 
-        String needles;
         if (arg_needles->type != ActionsDAG::ActionType::COLUMN || !arg_needles->column)
             return;
 
-        needles = arg_needles->column->getDataAt(0);
+        String needles;
+        if (isStringOrFixedString(removeNullable(arg_needles->result_type))
+            && !arg_needles->column->empty()
+            && !arg_needles->column->isNullAt(0))
+            needles = arg_needles->column->getDataAt(0);
+
         const auto & condition = selected_conditions.front();
         auto preprocessor = condition.condition->preProcessor();
         const auto * tokenizer = condition.condition->tokenExtractor();
@@ -420,30 +414,53 @@ private:
             if (preprocessor_output_name == haystack_name)
             {
                 /// TODO: replace DAG...
-                // function_node.children[0] = ...
-                needles = preprocessor->process(needles);
+                // new_children[0] = ...
+
+                if (!needles.empty())
+                    needles = preprocessor->process(needles);
             }
         }
 
-        std::vector<String> needles_array;
-        tokenizer->stringToTokens(needles.data(), needles.size(), needles_array);
-        Field needles_field = Array(needles_array.begin(), needles_array.end());
-
         ColumnWithTypeAndName arg;
         arg.type = std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>());
-        arg.column = arg.type->createColumnConst(1, needles_field);
-        arg.name = applyVisitor(FieldVisitorToString(), needles_field);
+
+        if (needles.empty())
+        {
+            arg.column = IColumn::mutate(arg_needles->column);
+            arg.name = arg_needles->result_name;
+        }
+        else
+        {
+            std::vector<String> needles_array;
+            tokenizer->stringToTokens(needles.data(), needles.size(), needles_array);
+            Field needles_field = Array(needles_array.begin(), needles_array.end());
+
+            arg.column = arg.type->createColumnConst(1, needles_field);
+            arg.name = applyVisitor(FieldVisitorToString(), needles_field);
+        }
+
         new_children[1] = &actions_dag.addColumn(std::move(arg));
 
         auto tokenizer_description = tokenizer->getDescription();
         arg.type = std::make_shared<DataTypeString>();
         arg.column = arg.type->createColumnConst(1, Field(tokenizer_description));
-        arg.name = tokenizer_description;
+        arg.name = quoteString(tokenizer_description);
         new_children.push_back(&actions_dag.addColumn(std::move(arg)));
 
         auto new_function_base = FunctionFactory::instance().get(function_node.function_base->getName(), context);
-        const auto & new_function_node = actions_dag.addFunction(new_function_base, new_children, "");
-        function_node = actions_dag.addAlias(new_function_node, function_node.result_name);
+        const auto * new_function_node = &actions_dag.addFunction(new_function_base, new_children, "");
+
+        if (!new_function_node->result_type->equals(*function_node.result_type))
+            new_function_node = &actions_dag.addCast(*new_function_node, function_node.result_type, "", context);
+
+        /// Convert function node to ALIAS in-place to avoid adding a duplicate node to the DAG.
+        function_node.type = ActionsDAG::ActionType::ALIAS;
+        function_node.children = {new_function_node};
+        function_node.result_type = new_function_node->result_type;
+        function_node.column.reset();
+        function_node.function_base.reset();
+        function_node.function.reset();
+        function_node.is_function_compiled = false;
     }
 
     std::optional<NodeReplacement> tryReplaceFunctionNode(
@@ -461,7 +478,7 @@ private:
             if (inserted)
             {
                 it->second = &actions_dag.addInput(condition.virtual_column_name, std::make_shared<DataTypeUInt8>());
-                replacement.added_virtual_columns.emplace(condition.index_name, NodeReplacement::VirtualColumn{condition.virtual_column_name, condition.default_expression});
+                replacement.added_virtual_columns.emplace(condition.index_name, condition.virtual_column_name);
             }
 
             return it->second;
@@ -492,13 +509,11 @@ private:
             replacement.node = &actions_dag.addFunction(function_builder, children, "");
         }
 
-        /// If the original function returns Nullable type and replacement doesn't,
-        /// wrap the replacement with toNullable to match the expected type.
-        if (function_node.result_type->isNullable() && !replacement.node->result_type->isNullable())
-        {
-            auto to_nullable = FunctionFactory::instance().get("toNullable", context);
-            replacement.node = &actions_dag.addFunction(to_nullable, {replacement.node}, "");
-        }
+        /// If the type of original function does not match the type of replacement,
+        /// add a cast to the replacement to match the expected type.
+        /// For example, it can happen when the original function returns Nullable or LowCardinality type and replacement doesn't.
+        if (!function_node.result_type->equals(*replacement.node->result_type))
+            replacement.node = &actions_dag.addCast(*replacement.node, function_node.result_type, "", context);
 
         return replacement;
     }

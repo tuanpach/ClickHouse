@@ -6,6 +6,7 @@ SET enable_full_text_index = 1;
 SET use_skip_indexes = 1;
 SET use_skip_indexes_on_data_read = 1;
 SET query_plan_direct_read_from_text_index = 1;
+SET enable_analyzer  = 0;
 
 SELECT 'Fully materialized';
 
@@ -24,6 +25,12 @@ SYSTEM STOP MERGES tab_fully;
 
 INSERT INTO tab_fully SELECT number, 'hello::world' from numbers(10000);
 INSERT INTO tab_fully SELECT number, 'hello world' from numbers(10000);
+
+SELECT trim(explain) FROM
+(
+    EXPLAIN actions = 1 SELECT count() FROM tab_fully WHERE hasAnyToken(text, 'hello') SETTINGS use_skip_indexes_on_data_read = 1
+)
+WHERE explain LIKE '%Filter column%';
 
 SELECT count() FROM tab_fully WHERE hasAnyToken(text, 'hello');
 SELECT count() FROM tab_fully WHERE hasAnyToken(text, 'world');
@@ -52,6 +59,12 @@ ALTER TABLE tab_partially ADD INDEX idx(text) TYPE text(tokenizer = splitByStrin
 
 SYSTEM STOP MERGES tab_partially;
 INSERT INTO tab_partially SELECT number, 'hello world' from numbers(10000);
+
+SELECT trim(explain) FROM
+(
+    EXPLAIN actions = 1 SELECT count() FROM tab_partially WHERE hasAnyToken(text, 'hello') SETTINGS use_skip_indexes_on_data_read = 1
+)
+WHERE explain LIKE '%Filter column%';
 
 SELECT count() FROM tab_partially WHERE hasAnyToken(text, 'hello');
 SELECT count() FROM tab_partially WHERE hasAnyToken(text, 'world');
