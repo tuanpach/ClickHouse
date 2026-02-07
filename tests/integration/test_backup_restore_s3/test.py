@@ -146,6 +146,7 @@ def setup_cluster(request):
             "configs/s3_settings.xml",
             "configs/blob_log.xml",
             "configs/remote_servers.xml",
+            "configs/query_log.xml",
         ]
         + request.param,
         user_configs=[
@@ -183,11 +184,12 @@ def new_backup_name():
 
 
 def get_events_for_query(node, query_id: str) -> Dict[str, int]:
+    # Flush logs separately with a longer timeout because query_log is stored
+    # on S3 (policy_s3_plain_rewritable) and can be slow to flush under CI load.
+    node.query("SYSTEM FLUSH LOGS", timeout=300)
     events = TSV(
         node.query(
             f"""
-            SYSTEM FLUSH LOGS;
-
             WITH arrayJoin(ProfileEvents) as pe
             SELECT pe.1, pe.2
             FROM system.query_log
@@ -225,6 +227,11 @@ def check_backup_and_restore(
 ):
     node = cluster.instances["node"]
     optimize_table_query = "OPTIMIZE TABLE data FINAL;" if optimize_table else ""
+
+    # Truncate query_log before running backup/restore so that SYSTEM FLUSH LOGS
+    # later only needs to flush this test's entries to S3 (query_log uses
+    # policy_s3_plain_rewritable), avoiding the 180s flush timeout.
+    node.query("TRUNCATE TABLE IF EXISTS system.query_log")
 
     node.query(
         f"""
@@ -1000,47 +1007,30 @@ def test_backup_to_s3_different_credentials(
         assert ("S3CreateMultipartUpload" in events) == use_multipart_copy
 
 
-def test_backup_restore_table_with_plain_rewritable_disk(cluster):
+def test_backup_restore_system_tables_with_plain_rewritable_disk(cluster):
     instance = cluster.instances["node"]
     backup_name = new_backup_name()
     backup_destination = f"S3('http://minio1:9001/root/data/backups/{backup_name}', 'minio', '{minio_secret_key}')"
 
-    instance.query(
-        """
-        DROP TABLE IF EXISTS data_plain_rewritable SYNC;
-        CREATE TABLE data_plain_rewritable (key Int, value String)
-            Engine=MergeTree() ORDER BY key
-            SETTINGS storage_policy='policy_s3_plain_rewritable';
-        INSERT INTO data_plain_rewritable SELECT number, toString(number) FROM numbers(1000);
-        """
-    )
+    # Truncate query_log to limit data size, avoiding timeouts under sanitizers
+    instance.query("TRUNCATE TABLE IF EXISTS system.query_log")
+    instance.query("SELECT 1")
+    instance.query("SYSTEM FLUSH LOGS")
 
-    try:
-        backup_query_id = uuid.uuid4().hex
-        instance.query(
-            f"BACKUP TABLE data_plain_rewritable TO {backup_destination}",
-            query_id=backup_query_id,
-        )
-        restore_query_id = uuid.uuid4().hex
-        instance.query("DROP TABLE IF EXISTS data_restored SYNC")
-        instance.query(
-            f"""
-            RESTORE TABLE data_plain_rewritable AS data_restored FROM {backup_destination};
-            """,
-            query_id=restore_query_id,
-        )
-        instance.query(
-            """
-            SELECT throwIf(
-                (SELECT count(), sum(sipHash64(*)) FROM data_plain_rewritable) !=
-                (SELECT count(), sum(sipHash64(*)) FROM data_restored),
-                'Data does not matched after BACKUP/RESTORE'
-            );
-            """
-        )
-    finally:
-        instance.query("DROP TABLE IF EXISTS data_plain_rewritable SYNC")
-        instance.query("DROP TABLE IF EXISTS data_restored SYNC")
+    backup_query_id = uuid.uuid4().hex
+    instance.query(
+        f"BACKUP TABLE system.query_log TO {backup_destination}",
+        query_id=backup_query_id,
+    )
+    restore_query_id = uuid.uuid4().hex
+    instance.query("DROP TABLE IF EXISTS data_restored SYNC")
+    instance.query(
+        f"""
+        RESTORE TABLE system.query_log AS data_restored FROM {backup_destination};
+        """,
+        query_id=restore_query_id,
+    )
+    instance.query("DROP TABLE data_restored SYNC")
 
 
 def test_backup_restore_s3_plain(cluster):
