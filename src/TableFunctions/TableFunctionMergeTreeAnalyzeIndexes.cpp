@@ -64,7 +64,7 @@ private:
     void parseArgumentsUUID(const ASTs & args_func, ContextPtr context);
     void parseArgumentsDatabaseTable(const ASTs & args_func, ContextPtr context);
 
-    /// 2 features will benefit from distributed index load + analysis :
+    /// 2 features will benefit from distributed index load + analysis:
     /// a) vector search with large vector indexes
     /// b) top-k using only minmax index (e.g SELECT * FROM youtube ORDER BY dislike_count LIMIT 10)
     /// These 2 cannot be packaged in the 'predicate'

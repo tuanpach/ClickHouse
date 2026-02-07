@@ -1,4 +1,4 @@
--- Tags: no-fasttest, no-ordinary-database
+-- Tags: no-fasttest
 
 set allow_experimental_parallel_reading_from_replicas=0;
 set enable_analyzer = 1;
@@ -42,15 +42,16 @@ ORDER BY L2Distance(vec, [0.3, 0.3]) ASC
 LIMIT 4
 SETTINGS distributed_index_analysis_for_non_shared_merge_tree = 1, distributed_index_analysis = 1, max_parallel_replicas = 3, cluster_for_parallel_replicas = 'parallel_replicas';
 
--- Common from  03620_distributed_index_analysis.sql
+-- Common from 03620_distributed_index_analysis.sql
 system flush logs query_log;
 select format(
-  'distributed_index_analysis={}, DistributedIndexAnalysisMicroseconds>0={}, DistributedIndexAnalysisMissingParts={}, DistributedIndexAnalysisScheduledReplicas={}, DistributedIndexAnalysisFailedReplicas>0={}',
+  'distributed_index_analysis={}, DistributedIndexAnalysisMicroseconds>0={}, DistributedIndexAnalysisMissingParts={}, DistributedIndexAnalysisScheduledReplicas={}, DistributedIndexAnalysisFailedReplicas>0={}, VectorSimilarityIndexCacheHits>0={}',
   Settings['distributed_index_analysis'],
   ProfileEvents['DistributedIndexAnalysisMicroseconds'] > 0,
   ProfileEvents['DistributedIndexAnalysisMissingParts'],
   ProfileEvents['DistributedIndexAnalysisScheduledReplicas'],
   ProfileEvents['DistributedIndexAnalysisFailedReplicas'] > 0
+  ProfileEvents['VectorSimilarityIndexCacheHits'] > 0
 )
 from system.query_log
 where
