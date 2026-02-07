@@ -95,17 +95,15 @@ def test_split_cache_restart(started_cluster):
     new_cache_count = int(
         node.query("SELECT count() FROM system.filesystem_cache WHERE cache_name = 'split_cache_slru' AND size > 0")
     )
-      
+
     print(f"Cache state before restart:\n{cache_state}")
     print(f"Cache state after restart:\n{cache_state_after_restart}")
-      
+
     # Background operations (outdated parts loading, background downloads, cleanup)
     # may change cache state slightly between restarts, so use tolerance.
     if cache_count > 0:
         fraction = abs(new_cache_count - cache_count) / cache_count
         assert fraction < 0.5, f"Cache count changed too much: {cache_count} -> {new_cache_count}"
-
-    assert cache_state_after_restart == cache_state
 
     node.query("DROP TABLE t0")
 
