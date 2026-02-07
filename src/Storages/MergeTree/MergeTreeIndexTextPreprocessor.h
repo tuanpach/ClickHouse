@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Core/NamesAndTypes.h>
 #include <Interpreters/ExpressionActions.h>
 #include <Parsers/IAST_fwd.h>
 
@@ -12,6 +13,7 @@ struct IndexDescription;
 class MergeTreeIndexTextPreprocessor
 {
 public:
+    MergeTreeIndexTextPreprocessor(ASTPtr ast_, NamesAndTypesList source_columns_, ExpressionActions expression_actions_);
     MergeTreeIndexTextPreprocessor(ASTPtr expression_ast, const IndexDescription & index_description);
 
     /// Processes n_rows rows of input column, starting at start_row.
@@ -25,18 +27,15 @@ public:
     /// Kind of equivalent to 'SELECT expression(input)'.
     String process(const String & input) const;
 
+    ASTPtr getAST() const { return ast; }
+    Names getRequiredColumns() const { return expression_actions.getRequiredColumns(); }
+
     /// This function parses an string to build an ExpressionActions.
     /// The conversion is not direct and requires many steps and validations, but long story short
     /// ParserExpression(String) => AST; ActionsVisitor(AST) => ActionsDAG; ExpressionActions(ActionsDAG)
     static ExpressionActions createExpressionActions(const IndexDescription & index, ASTPtr expression_ast);
-private:
-    MergeTreeIndexTextPreprocessor(ASTPtr ast_, NamesAndTypesList source_columns_, ExpressionActions expression_actions_)
-        : ast(std::move(ast_))
-        , source_columns(std::move(source_columns_))
-        , expression_actions(std::move(expression_actions_))
-    {
-    }
 
+private:
     ASTPtr ast;
     NamesAndTypesList source_columns;
     ExpressionActions expression_actions;

@@ -47,10 +47,6 @@ public:
 
     String getName() const override { return name; }
     bool useDefaultImplementationForConstants() const override { return true; }
-
-    void setTokenExtractor(std::unique_ptr<ITokenExtractor> new_token_extractor);
-    void setSearchTokens(const std::vector<String> & new_search_tokens);
-
     ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const override;
 
 private:
@@ -112,8 +108,5 @@ public:
     DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const override;
 
     FunctionBasePtr buildImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr & return_type) const override;
-
-private:
-    const bool enable_full_text_index;
 };
 }

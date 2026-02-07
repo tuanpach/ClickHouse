@@ -11,17 +11,13 @@
 #include <Functions/FunctionHelpers.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/ITokenExtractor.h>
+#include <Interpreters/TokenizerFactory.h>
 
 #include <absl/container/flat_hash_map.h>
 #include <boost/dynamic_bitset.hpp>
 
 namespace DB
 {
-
-namespace Setting
-{
-    extern const SettingsBool enable_full_text_index;
-}
 
 namespace ErrorCodes
 {
@@ -35,53 +31,6 @@ namespace
 constexpr size_t arg_input = 0;
 constexpr size_t arg_needles = 1;
 constexpr size_t arg_tokenizer = 2;
-
-std::unique_ptr<ITokenExtractor> createTokenizer(const ColumnsWithTypeAndName & arguments, std::string_view function_name)
-{
-    const auto tokenizer = arguments.size() < 3 || !arguments[arg_tokenizer].column ? SplitByNonAlphaTokenExtractor::getExternalName()
-                                                                                    : arguments[arg_tokenizer].column->getDataAt(0);
-
-    FieldVector params;
-    for (size_t i = 3; i < arguments.size(); ++i)
-    {
-        const auto & col = arguments[i].column;
-        if (!col)
-            throw Exception(ErrorCodes::ILLEGAL_COLUMN, "Invalid argument of function {}", function_name);
-
-        WhichDataType which_type(arguments[i].type);
-        if (which_type.isUInt())
-        {
-            params.push_back(col->getUInt(0));
-        }
-        else
-        {
-            const ColumnArray * col_separators = checkAndGetColumn<ColumnArray>(col.get());
-            const ColumnArray * col_separators_const = checkAndGetColumnConstData<ColumnArray>(col.get());
-
-            if (!col_separators && !col_separators_const)
-                throw Exception(
-                    ErrorCodes::ILLEGAL_COLUMN,
-                    "Argument {} of function {} should be Array(String), got: {}",
-                    i + 1 /*1-based*/,
-                    function_name,
-                    col->getFamilyName());
-
-            if (col_separators_const)
-                col_separators = col_separators_const;
-
-            params.push_back((*col_separators)[0]);
-        }
-    }
-
-    static std::vector<String> allowed_tokenizers
-        = {NgramsTokenExtractor::getExternalName(),
-           SplitByNonAlphaTokenExtractor::getExternalName(),
-           SplitByStringTokenExtractor::getExternalName(),
-           ArrayTokenExtractor::getExternalName(),
-           SparseGramsTokenExtractor::getExternalName()};
-
-    return TokenizerFactory::createTokenizer(tokenizer, params, allowed_tokenizers, function_name);
-}
 
 template <typename ColumnType>
 const ColumnType * getTypedColumn(const IColumn & column)
@@ -171,73 +120,38 @@ bool isStringOrArrayOfStringType(const IDataType & type)
 }
 
 template <class HasTokensTraits>
-FunctionHasAnyAllTokensOverloadResolver<HasTokensTraits>::FunctionHasAnyAllTokensOverloadResolver(ContextPtr context)
-    : enable_full_text_index(context->getSettingsRef()[Setting::enable_full_text_index])
+FunctionHasAnyAllTokensOverloadResolver<HasTokensTraits>::FunctionHasAnyAllTokensOverloadResolver(ContextPtr)
 {
 }
 
 template <class HasTokensTraits>
 DataTypePtr FunctionHasAnyAllTokensOverloadResolver<HasTokensTraits>::getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const
 {
-    if (!enable_full_text_index)
-        throw Exception(
-            ErrorCodes::SUPPORT_IS_DISABLED,
-            "Enable the setting 'enable_full_text_index' to use function {}", getName());
-
-    FunctionArgumentDescriptors mandatory_args{
+    FunctionArgumentDescriptors mandatory_args
+    {
         {"input", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isStringOrFixedStringOrArrayOfStringOrFixedString), nullptr, "String, FixedString, Array(String) or Array(FixedString)"},
         {"needles",
          static_cast<FunctionArgumentDescriptor::TypeValidator>(&isStringOrArrayOfStringType),
          isColumnConst,
-         "const String or const Array(String)"}};
+         "const String or const Array(String)"}
+    };
 
     FunctionArgumentDescriptors optional_args;
-
-    if (arguments.size() > 2)
-    {
+    if (arguments.size() == 3)
         optional_args.emplace_back("tokenizer", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isString), isColumnConst, "String");
-        validateFunctionArguments(name, {arguments[arg_input], arguments[arg_needles], arguments[arg_tokenizer]}, mandatory_args, optional_args);
-
-        if (arguments.size() == 4)
-        {
-            const std::string tokenizer{arguments[arg_tokenizer].column->getDataAt(0)};
-
-            if (tokenizer == NgramsTokenExtractor::getExternalName())
-                optional_args.emplace_back(
-                    "ngrams", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isUInt8), isColumnConst, "const UInt8");
-            else if (tokenizer == SplitByStringTokenExtractor::getExternalName())
-                optional_args.emplace_back(
-                    "separators", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isArray), isColumnConst, "const Array");
-        }
-        else if (arguments.size() == 5 || arguments.size() == 6)
-        {
-            const auto tokenizer = arguments[arg_tokenizer].column->getDataAt(0);
-
-            if (tokenizer == SparseGramsTokenExtractor::getExternalName())
-            {
-                optional_args.emplace_back(
-                    "min_length", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isUInt8), isColumnConst, "const UInt8");
-                optional_args.emplace_back(
-                    "max_length", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isUInt8), isColumnConst, "const UInt8");
-                if (arguments.size() == 6)
-                    optional_args.emplace_back(
-                        "min_cutoff_length",
-                        static_cast<FunctionArgumentDescriptor::TypeValidator>(&isUInt8),
-                        isColumnConst,
-                        "const UInt8");
-            }
-        }
-    }
 
     validateFunctionArguments(name, arguments, mandatory_args, optional_args);
-
     return std::make_shared<DataTypeNumber<UInt8>>();
 }
 
 template <class HasTokensTraits>
 FunctionBasePtr FunctionHasAnyAllTokensOverloadResolver<HasTokensTraits>::buildImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr & return_type) const
 {
-    auto token_extractor = createTokenizer(arguments, getName());
+    const auto tokenizer_name = arguments.size() < 3 || !arguments[arg_tokenizer].column
+        ? SplitByNonAlphaTokenExtractor::getExternalName()
+        : arguments[arg_tokenizer].column->getDataAt(0);
+
+    auto token_extractor = TokenizerFactory::instance().get(tokenizer_name);
     auto search_tokens = initializeSearchTokens(arguments, *token_extractor, getName());
     DataTypes argument_types{std::from_range_t{}, arguments | std::views::transform([](auto & elem) { return elem.type; })};
     return std::make_shared<FunctionBaseHasAnyAllTokens<HasTokensTraits>>(std::move(token_extractor), std::move(search_tokens), std::move(argument_types), return_type);
@@ -457,35 +371,6 @@ void executeStringOrArray(
 }
 
 template <class HasTokensTraits>
-void ExecutableFunctionHasAnyAllTokens<HasTokensTraits>::setTokenExtractor(std::unique_ptr<ITokenExtractor> new_token_extractor)
-{
-    /// Index parameters can be set multiple times.
-    /// This happens exactly in a case that same hasAnyTokens/hasAllTokens query is used again.
-    /// This is fine because the parameters would be same.
-    if (token_extractor != nullptr)
-        return;
-
-    token_extractor = std::move(new_token_extractor);
-}
-
-template <class HasTokensTraits>
-void ExecutableFunctionHasAnyAllTokens<HasTokensTraits>::setSearchTokens(const std::vector<String> & new_search_tokens)
-{
-    static constexpr size_t max_number_of_tokens = 64;
-
-    if (search_tokens_from_index.has_value())
-        return;
-
-    search_tokens_from_index = TokensWithPosition();
-    for (UInt64 pos = 0; const auto & new_search_token : new_search_tokens)
-        if (auto [_, inserted] = search_tokens_from_index->emplace(new_search_token, pos); inserted)
-            ++pos;
-
-    if (search_tokens_from_index->size() > max_number_of_tokens)
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Function '{}' supports a max of {} search tokens", name, max_number_of_tokens);
-}
-
-template <class HasTokensTraits>
 ColumnPtr ExecutableFunctionHasAnyAllTokens<HasTokensTraits>::executeImpl(
     const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const
 {
@@ -552,22 +437,13 @@ hasAnyTokens(input, needles)
 )";
     FunctionDocumentation::Arguments arguments_hasAnyTokens = {
         {"input", "The input column.", {"String", "FixedString", "Array(String)", "Array(FixedString)"}},
-<<<<<<< HEAD
-        {"needles", "Tokens to be searched.", {"String", "Array(String)"}}
-=======
-        {"needles", "Tokens to be searched. Supports at most 64 tokens.", {"String", "Array(String)"}},
+        {"needles", "Tokens to be searched.", {"String", "Array(String)"}},
         {"tokenizer", "The tokenizer to use. Valid arguments are `splitByNonAlpha`, `ngrams`, `splitByString`, `array`, and `sparseGrams`. Optional, if not set explicitly, defaults to `splitByNonAlpha`.", {"const String"}},
-        {"n", "Only relevant if argument `tokenizer` is `ngrams`: An optional parameter which defines the length of the ngrams. If not set explicitly, defaults to `3`.", {"const UInt8"}},
-        {"separators", "Only relevant if argument `tokenizer` is `split`: An optional parameter which defines the separator strings. If not set explicitly, defaults to `[' ']`.", {"const Array(String)"}},
-        {"min_length", "Only relevant if argument `tokenizer` is `sparseGrams`: An optional parameter which defines the minimum gram length, defaults to 3.", {"const UInt8"}},
-        {"max_length", "Only relevant if argument `tokenizer` is `sparseGrams`: An optional parameter which defines the maximum gram length, defaults to 100.", {"const UInt8"}},
-        {"min_cutoff_length", "Only relevant if argument `tokenizer` is `sparseGrams`: An optional parameter which defines the minimum cutoff length.", {"const UInt8"}}
->>>>>>> upstream/ahmadov/text-index-preprocessor-partially-materialized
     };
     FunctionDocumentation::ReturnedValue returned_value_hasAnyTokens = {"Returns `1`, if there was at least one match. `0`, otherwise.", {"UInt8"}};
     FunctionDocumentation::Examples examples_hasAnyTokens = {
     {
-        "Usage example for a string column",
+        "Basic usage with a string needle",
         R"(
 CREATE TABLE table (
     id UInt32,
@@ -696,22 +572,13 @@ hasAllTokens(input, needles)
 )";
     FunctionDocumentation::Arguments arguments_hasAllTokens = {
         {"input", "The input column.", {"String", "FixedString", "Array(String)", "Array(FixedString)"}},
-<<<<<<< HEAD
-        {"needles", "Tokens to be searched.", {"String", "Array(String)"}}
-=======
-        {"needles", "Tokens to be searched. Supports at most 64 tokens.", {"String", "Array(String)"}},
+        {"needles", "Tokens to be searched.", {"String", "Array(String)"}},
         {"tokenizer", "The tokenizer to use. Valid arguments are `splitByNonAlpha`, `ngrams`, `splitByString`, `array`, and `sparseGrams`. Optional, if not set explicitly, defaults to `splitByNonAlpha`.", {"const String"}},
-        {"n", "Only relevant if argument `tokenizer` is `ngrams`: An optional parameter which defines the length of the ngrams. If not set explicitly, defaults to `3`.", {"const UInt8"}},
-        {"separators", "Only relevant if argument `tokenizer` is `split`: An optional parameter which defines the separator strings. If not set explicitly, defaults to `[' ']`.", {"const Array(String)"}},
-        {"min_length", "Only relevant if argument `tokenizer` is `sparseGrams`: An optional parameter which defines the minimum gram length, defaults to 3.", {"const UInt8"}},
-        {"max_length", "Only relevant if argument `tokenizer` is `sparseGrams`: An optional parameter which defines the maximum gram length, defaults to 100.", {"const UInt8"}},
-        {"min_cutoff_length", "Only relevant if argument `tokenizer` is `sparseGrams`: An optional parameter which defines the minimum cutoff length.", {"const UInt8"}}
->>>>>>> upstream/ahmadov/text-index-preprocessor-partially-materialized
     };
     FunctionDocumentation::ReturnedValue returned_value_hasAllTokens = {"Returns 1, if all needles match. 0, otherwise.", {"UInt8"}};
     FunctionDocumentation::Examples examples_hasAllTokens = {
     {
-        "Usage example for a string column",
+        "Basic usage with a string needle",
         R"(
 CREATE TABLE table (
     id UInt32,

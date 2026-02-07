@@ -96,10 +96,17 @@ DataTypePtr getInnerType(DataTypePtr type)
 
 }
 
+MergeTreeIndexTextPreprocessor::MergeTreeIndexTextPreprocessor(ASTPtr ast_, NamesAndTypesList source_columns_, ExpressionActions expression_actions_)
+    : ast(std::move(ast_))
+    , source_columns(std::move(source_columns_))
+    , expression_actions(std::move(expression_actions_))
+{
+}
+
 MergeTreeIndexTextPreprocessor::MergeTreeIndexTextPreprocessor(ASTPtr expression_ast, const IndexDescription & index_description)
-    : expression(MergeTreeIndexTextPreprocessor::createExpressionActions(index_description, expression_ast))
-    , inner_type(getInnerType(index_description.data_types.front()))
-    , column_name(index_description.column_names.front())
+    : ast(expression_ast)
+    , source_columns({{index_description.column_names.front(), getInnerType(index_description.data_types.front())}})
+    , expression_actions(createExpressionActions(index_description, expression_ast))
 {
 }
 
@@ -230,9 +237,7 @@ ExpressionActions MergeTreeIndexTextPreprocessor::createExpressionActions(const 
     if (actions.hasNonDeterministic())
         throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor expression must not contain non-deterministic functions");
 
-    /// FINALLY! Lets initialize a MergeTreeIndexTextPreprocessor.
-    return std::shared_ptr<MergeTreeIndexTextPreprocessor>(new MergeTreeIndexTextPreprocessor(
-        std::move(expression_ast), std::move(source_columns), ExpressionActions(std::move(actions))));
+    return ExpressionActions(std::move(actions));
 }
 
 }

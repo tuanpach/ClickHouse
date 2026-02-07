@@ -265,11 +265,11 @@ void applyPreprocessor(ASTFunction * function, MergeTreeIndexTextPreprocessorPtr
         return;
 
     const auto & ast = preprocessor->getAST();
-    const auto & source_columns = preprocessor->getSourceColumns();
-    if (!ast || source_columns.empty())
+    auto required_columns = preprocessor->getRequiredColumns();
+    if (!ast || required_columns.empty())
         return;
 
-    const auto & [source_column_name, source_column_type] = source_columns.front();
+    const auto & source_column_name = required_columns.front();
     if (function->children[0]->children[0]->getColumnName() != source_column_name)
         return;
 
@@ -357,7 +357,9 @@ public:
 
                 for (const auto & [index_name, added_virtual_column] : replaced->added_virtual_columns)
                     result.added_columns[index_name].emplace_back(
-                        added_virtual_column.column_name, std::make_shared<DataTypeUInt8>(), added_virtual_column.default_expression);
+                        added_virtual_column.column_name,
+                        std::make_shared<DataTypeUInt8>(),
+                        added_virtual_column.default_expression);
             }
         }
 

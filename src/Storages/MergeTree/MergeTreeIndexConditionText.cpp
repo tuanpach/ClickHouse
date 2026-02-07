@@ -591,27 +591,15 @@ bool MergeTreeIndexConditionText::traverseFunctionNode(
             }
         }
 
-        /// TODO(ahmadov): move this block to another place, e.g. optimizations or query tree re-write.
-        const auto * function_dag_node = function_node.getDAGNode();
-        chassert(function_dag_node != nullptr && function_dag_node->function != nullptr);
-
         if (function_name == "hasAnyTokens")
         {
             out.function = RPNElement::FUNCTION_HAS_ANY_TOKENS;
             out.text_search_queries.emplace_back(std::make_shared<TextSearchQuery>(function_name, TextSearchMode::Any, direct_read_mode, search_tokens));
-
-            auto * search_function = typeid_cast<ExecutableFunctionHasAnyAllTokens<traits::HasAnyTokensTraits> *>(function_dag_node->function.get());
-            search_function->setTokenExtractor(token_extractor->clone());
-            search_function->setSearchTokens(search_tokens);
         }
         else
         {
             out.function = RPNElement::FUNCTION_HAS_ALL_TOKENS;
             out.text_search_queries.emplace_back(std::make_shared<TextSearchQuery>(function_name, TextSearchMode::All, direct_read_mode, search_tokens));
-
-            auto * search_function = typeid_cast<ExecutableFunctionHasAnyAllTokens<traits::HasAllTokensTraits> *>(function_dag_node->function.get());
-            search_function->setTokenExtractor(token_extractor->clone());
-            search_function->setSearchTokens(search_tokens);
         }
 
         return true;
