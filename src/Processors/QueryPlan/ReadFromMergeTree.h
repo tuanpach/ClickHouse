@@ -91,8 +91,10 @@ struct TopKFilterInfo
 struct TextIndexReadInfo
 {
     const MergeTreeIndexWithCondition * index;
+    bool is_materialized;
     bool is_fully_materialied;
 };
+
 using TextIndexReadInfos = absl::flat_hash_map<String, TextIndexReadInfo>;
 
 struct TextIndexAddedVirtualColumn : public NameAndTypePair

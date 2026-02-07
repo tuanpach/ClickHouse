@@ -223,8 +223,6 @@ struct SplitByStringTokenExtractor final : public ITokenExtractorHelper<SplitByS
     bool nextInStringLike(const char * data, size_t length, size_t & pos, String & token) const override;
 
     bool supportsStringLike() const override { return false; }
-
-    const std::vector<String> & getSeparators() const { return separators; }
 private:
     std::vector<String> separators;
 };
@@ -236,7 +234,7 @@ struct ArrayTokenExtractor final : public ITokenExtractorHelper<ArrayTokenExtrac
 
     static const char * getName() { return "array"; }
     static const char * getExternalName() { return getName(); }
-    String getDescription() const override { return "array"; }
+    String getDescription() const override { return getName(); }
 
     bool nextInString(const char * data, size_t length, size_t & pos, size_t & token_start, size_t & token_length) const override;
     bool nextInStringLike(const char * data, size_t length, size_t & pos, String & token) const override;
@@ -260,8 +258,6 @@ struct SparseGramsTokenExtractor final : public ITokenExtractorHelper<SparseGram
 
     bool nextInStringLike(const char * data, size_t length, size_t & pos, String & token) const override;
     bool supportsStringLike() const override { return true; }
-
-    std::tuple<UInt64, UInt64, std::optional<UInt64>> getParams() const { return sparse_grams_iterator.getParams(); }
 private:
     size_t min_gram_length;
     size_t max_gram_length;

@@ -52,6 +52,21 @@ String getNameWithoutAliases(const ActionsDAG::Node * node)
     return node->result_name;
 }
 
+/// Check if a node with the given canonical name exists as a subexpression within the DAG rooted at `node`.
+bool hasSubexpression(const ActionsDAG::Node * node, const String & subexpression_name)
+{
+    if (getNameWithoutAliases(node) == subexpression_name)
+        return true;
+
+    for (const auto * child : node->children)
+    {
+        if (hasSubexpression(child, subexpression_name))
+            return true;
+    }
+
+    return false;
+}
+
 const ActionsDAG::Node * replaceNodes(ActionsDAG & dag, const ActionsDAG::Node * node, const NodesReplacementMap & replacements)
 {
     if (auto it = replacements.find(node); it != replacements.end())
@@ -132,27 +147,21 @@ void collectTextIndexReadInfos(const ReadFromMergeTree * read_from_merge_tree_st
 
     for (const auto & index : indexes->skip_indexes.useful_indices)
     {
-        if (typeid_cast<MergeTreeIndexConditionText *>(index.condition.get()))
+        if (!typeid_cast<MergeTreeIndexConditionText *>(index.condition.get()))
+            continue;
+
+        /// Index may be not materialized in some parts, e.g. after ALTER ADD INDEX query.
+        size_t num_materialized_parts = std::ranges::count_if(unique_parts, [&](const auto & part)
         {
-            /// Index may be not materialized in some parts, e.g. after ALTER ADD INDEX query.
-            /// TODO: support partial read from text index with fallback to the brute-force
-            /// search for parts where index is not materialized.
-            size_t num_materialized_parts = std::ranges::count_if(unique_parts, [&](const auto & part)
-            {
-                return !!index.index->getDeserializedFormat(part->checksums, index.index->getFileName());
-            });
+            return !!index.index->getDeserializedFormat(part->checksums, index.index->getFileName());
+        });
 
-            /// No part is materialized. We cannot use the optimization.
-            if (num_materialized_parts == 0)
-                continue;
-
-            const bool is_fully_materialized = num_materialized_parts == unique_parts.size();
-            text_index_read_infos[index.index->index.name] =
-            {
-                .index = &index,
-                .is_fully_materialied = is_fully_materialized
-            };
-        }
+        text_index_read_infos[index.index->index.name] =
+        {
+            .index = &index,
+            .is_materialized = num_materialized_parts > 0,
+            .is_fully_materialied = num_materialized_parts == unique_parts.size()
+        };
     }
 }
 
@@ -251,7 +260,10 @@ public:
             if (replaced.has_value())
             {
                 replacements[&node] = replaced->node;
-                auto default_expression = convertNodeToAST(node);
+                ASTPtr default_expression;
+
+                if (!replaced->is_fully_materialized)
+                    default_expression = convertNodeToAST(node);
 
                 for (const auto & [index_name, virtual_column_name] : replaced->added_virtual_columns)
                     result.added_columns[index_name].emplace_back(virtual_column_name, std::make_shared<DataTypeUInt8>(), default_expression);
@@ -288,8 +300,9 @@ public:
 private:
     struct NodeReplacement
     {
-        const ActionsDAG::Node * node;
+        const ActionsDAG::Node * node = nullptr;
         std::unordered_map<String, String> added_virtual_columns;
+        bool is_fully_materialized = true;
     };
 
     ActionsDAG & actions_dag;
@@ -301,7 +314,7 @@ private:
         TextSearchQueryPtr search_query;
         String index_name;
         String virtual_column_name;
-        const MergeTreeIndexConditionText * condition = nullptr;
+        const TextIndexReadInfo * info = nullptr;
     };
 
     static bool isTextIndexFunction(const String & function_name)
@@ -333,7 +346,7 @@ private:
             if (!virtual_column_name)
                 continue;
 
-            selected_conditions.emplace_back(search_query, index_name, *virtual_column_name, &text_index_condition);
+            selected_conditions.emplace_back(search_query, index_name, *virtual_column_name, &info);
             used_index_columns.insert(index_header.begin()->name);
         }
 
@@ -369,15 +382,15 @@ private:
         });
 
         if (is_text_index_function)
-            preprocessTextIndexFunctuion(function_node, selected_conditions, context);
+            preprocessTextIndexFunction(function_node, selected_conditions, context);
 
-        if (direct_read_from_text_index)
+        if (direct_read_from_text_index && !selected_conditions.empty())
             return tryReplaceFunctionNode(function_node, selected_conditions, virtual_column_to_node, context);
 
         return std::nullopt;
     }
 
-    void preprocessTextIndexFunctuion(
+    void preprocessTextIndexFunction(
         ActionsDAG::Node & function_node,
         const std::vector<SelectedCondition> & selected_conditions,
         const ContextPtr & context)
@@ -399,22 +412,26 @@ private:
             needles = arg_needles->column->getDataAt(0);
 
         const auto & condition = selected_conditions.front();
-        auto preprocessor = condition.condition->preProcessor();
-        const auto * tokenizer = condition.condition->tokenExtractor();
+        const auto & condition_text = typeid_cast<MergeTreeIndexConditionText &>(*condition.info->index->condition);
+
+        auto preprocessor = condition_text.getPreprocessor();
+        const auto * tokenizer = condition_text.getTokenExtractor();
 
         if (preprocessor && !preprocessor->empty())
         {
             const auto & preprocessor_dag = preprocessor->getActionsDAG();
             chassert(preprocessor_dag.getOutputs().size() == 1);
             const auto & preprocessor_output = preprocessor_dag.getOutputs().front();
-
-            auto preprocessor_output_name = getNameWithoutAliases(preprocessor_output);
             auto haystack_name = getNameWithoutAliases(arg_haystack);
 
-            if (preprocessor_output_name == haystack_name)
+            if (hasSubexpression(preprocessor_output, haystack_name))
             {
-                /// TODO: replace DAG...
-                // new_children[0] = ...
+                ActionsDAG preprocessor_dag_copy = preprocessor_dag.clone();
+                ActionsDAG::NodeRawConstPtrs merged_outputs;
+
+                actions_dag.mergeNodes(std::move(preprocessor_dag_copy), &merged_outputs);
+                chassert(merged_outputs.size() == 1);
+                new_children[0] = merged_outputs.front();
 
                 if (!needles.empty())
                     needles = preprocessor->process(needles);
@@ -433,6 +450,7 @@ private:
         {
             std::vector<String> needles_array;
             tokenizer->stringToTokens(needles.data(), needles.size(), needles_array);
+            needles_array = tokenizer->compactTokens(needles_array);
             Field needles_field = Array(needles_array.begin(), needles_array.end());
 
             arg.column = arg.type->createColumnConst(1, needles_field);
@@ -470,6 +488,16 @@ private:
         const ContextPtr & context)
     {
         NodeReplacement replacement;
+        replacement.is_fully_materialized = true;
+        bool has_exact_search = false;
+        bool has_materialized_index = false;
+
+        for (const auto & condition : selected_conditions)
+        {
+            replacement.is_fully_materialized &= condition.info->is_fully_materialied;
+            has_materialized_index |= condition.info->is_materialized;
+            has_exact_search |= condition.search_query->direct_read_mode == TextIndexDirectReadMode::Exact;
+        }
 
         auto add_condition_to_input = [&](const SelectedCondition & condition)
         {
@@ -484,10 +512,8 @@ private:
             return it->second;
         };
 
-        bool has_exact_search = std::ranges::any_of(selected_conditions, [](const auto & condition)
-        {
-            return condition.search_query->direct_read_mode == TextIndexDirectReadMode::Exact;
-        });
+        if (!has_materialized_index)
+            return std::nullopt;
 
         /// If we have only one condition with exact search, we can use
         /// only virtual column and remove the original condition.

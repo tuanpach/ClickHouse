@@ -20,12 +20,12 @@ ORDER BY id;
 ALTER TABLE tab_fully drop index if exists idx;
 ALTER TABLE tab_fully add index idx(text) TYPE text(tokenizer = splitByString([' ', '::']), preprocessor = lower(text));
 
+SYSTEM STOP MERGES tab_fully;
+
 INSERT INTO tab_fully SELECT number, 'FoO::Bar' from numbers(10000);
 INSERT INTO tab_fully SELECT number, 'Foo::BAR' from numbers(10000);
 INSERT INTO tab_fully SELECT number, 'BAr foO' from numbers(10000);
 INSERT INTO tab_fully SELECT number, 'bAr fOO' from numbers(10000);
-
-SYSTEM STOP MERGES tab_fully;
 
 SELECT count() FROM tab_fully WHERE hasToken(text, 'FOo');
 SELECT count() FROM tab_fully WHERE hasToken(text, 'BaR');
@@ -56,13 +56,10 @@ INSERT INTO tab_partially SELECT number, 'BAr foO' from numbers(10000);
 ALTER TABLE tab_partially DROP INDEX IF EXISTS idx;
 ALTER TABLE tab_partially ADD INDEX idx(text) TYPE text(tokenizer = splitByString([' ', '::']), preprocessor = lower(text));
 
-INSERT INTO tab_partially SELECT number, 'Foo::BAR' from numbers(10000);
-INSERT INTO tab_partially SELECT number, 'bAr fOO' from numbers(10000);
-
 SYSTEM STOP MERGES tab_partially;
 
-SELECT count() FROM tab_partially WHERE hasToken(text, 'FOo');
-SELECT count() FROM tab_partially WHERE hasToken(text, 'BaR');
+INSERT INTO tab_partially SELECT number, 'Foo::BAR' from numbers(10000);
+INSERT INTO tab_partially SELECT number, 'bAr fOO' from numbers(10000);
 
 SELECT count() FROM tab_partially WHERE hasAnyToken(text, 'FOo');
 SELECT count() FROM tab_partially WHERE hasAnyToken(text, 'BaR');

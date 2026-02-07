@@ -168,6 +168,7 @@ ExecutableFunctionPtr FunctionBaseHasAnyAllTokens<HasTokensTraits>::prepare(cons
 
 namespace
 {
+
 struct HasAnyTokensMatcher
 {
     explicit HasAnyTokensMatcher(const TokensWithPosition & tokens_)
@@ -353,19 +354,14 @@ void executeStringOrArray(
     const ITokenExtractor * token_extractor,
     const TokensWithPosition & tokens)
 {
-    /// String
     if (const auto * col_input_string = checkAndGetColumn<ColumnString>(col_input.get()))
         executeString<HasTokensTraits>(*col_input_string, col_result, input_rows_count, token_extractor, tokens);
-    /// FixedString
     else if (const auto * col_input_fixedstring = checkAndGetColumn<ColumnFixedString>(col_input.get()))
         executeString<HasTokensTraits>(*col_input_fixedstring, col_result, input_rows_count, token_extractor, tokens);
-    /// Array(String) or Array(FixedString)
     else if (const auto * col_input_array = checkAndGetColumn<ColumnArray>(col_input.get()))
     {
-        /// String
         if (const auto * input_string = checkAndGetColumn<ColumnString>(&col_input_array->getData()))
             executeArray<HasTokensTraits>(col_input_array, *input_string, col_result, token_extractor, tokens);
-        /// FixedString
         else if (const auto * input_fixedstring = checkAndGetColumn<ColumnFixedString>(&col_input_array->getData()))
             executeArray<HasTokensTraits>(col_input_array, *input_fixedstring, col_result, token_extractor, tokens);
     }
@@ -382,8 +378,6 @@ ColumnPtr ExecutableFunctionHasAnyAllTokens<HasTokensTraits>::executeImpl(
 
     auto col_result = ColumnVector<UInt8>::create();
 
-    const TokensWithPosition & search_tokens = search_tokens_from_index.has_value() ? search_tokens_from_index.value() : search_tokens_args;
-
     if (search_tokens.empty())
     {
         col_result->getData().assign(input_rows_count, UInt8(0));
@@ -392,7 +386,6 @@ ColumnPtr ExecutableFunctionHasAnyAllTokens<HasTokensTraits>::executeImpl(
 
     ColumnPtr col_input = arguments[arg_input].column;
 
-    /// If token_extractor != nullptr, a text index exists and we are doing text index lookups
     if (token_extractor->getType() == ITokenExtractor::Type::SparseGrams)
     {
         /// The sparse gram token extractor stores an internal state which modified during the execution.

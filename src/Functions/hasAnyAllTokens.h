@@ -36,9 +36,9 @@ public:
     static constexpr auto name = HasTokensTraits::name;
 
     explicit ExecutableFunctionHasAnyAllTokens(
-        std::shared_ptr<const ITokenExtractor> token_extractor_, const TokensWithPosition & search_tokens_from_args_)
+        std::shared_ptr<const ITokenExtractor> token_extractor_, const TokensWithPosition & search_tokens_)
         : token_extractor(std::move(token_extractor_))
-        , search_tokens_args(std::move(search_tokens_from_args_))
+        , search_tokens(std::move(search_tokens_))
     {
     }
 
@@ -48,8 +48,7 @@ public:
 
 private:
     std::shared_ptr<const ITokenExtractor> token_extractor;
-    const TokensWithPosition & search_tokens_args;
-    std::optional<TokensWithPosition> search_tokens_from_index;
+    const TokensWithPosition & search_tokens;
 };
 
 template <class HasTokensTraits>
