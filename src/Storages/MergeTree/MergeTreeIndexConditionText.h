@@ -66,8 +66,6 @@ public:
         MergeTreeIndexTextPreprocessorPtr preprocessor_);
 
     ~MergeTreeIndexConditionText() override = default;
-    static bool isSupportedColumnFunction(const String & function_name);
-    static bool isSupportedArrayOrMapFunction(const String & function_name);
     static bool isSupportedFunction(const String & function_name);
     TextIndexDirectReadMode getDirectReadMode(const String & function_name) const;
 

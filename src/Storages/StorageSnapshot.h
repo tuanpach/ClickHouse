@@ -74,6 +74,8 @@ struct StorageSnapshot
     /// list of names is not empty and the names do not repeat.
     void check(const Names & column_names) const;
 
+    /// Get default expression for a column.
+    /// Takes into account physical and virtual columns.
     std::optional<ColumnDefault> getDefault(const String & column_name) const;
 };
 

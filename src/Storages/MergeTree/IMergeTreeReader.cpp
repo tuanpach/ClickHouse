@@ -113,9 +113,9 @@ void IMergeTreeReader::fillVirtualColumns(Columns & columns, size_t rows) const
         if (MergeTreeRangeReader::virtuals_to_fill.contains(it->name))
             throw Exception(ErrorCodes::LOGICAL_ERROR, "Virtual column {} must be filled by range reader", it->name);
 
-        /// Skip text index virtual columns - they have default expressions and should be evaluated via the framework
-        /// Text index virtual columns are not constant per part, they vary per row based on text search results
-        if (isTextIndexVirtualColumn(it->name))
+        /// If virtual column has a default expression, skip filling it.
+        /// It will be filled in evaluateMissingDefaults.
+        if (storage_snapshot->virtual_columns->getDefault(it->name))
             continue;
 
         Field field;
@@ -159,7 +159,7 @@ void IMergeTreeReader::fillMissingColumns(Columns & res_columns, bool & should_e
                 converted_requested_columns,
                 Nested::convertToSubcolumns(available_columns),
                 partially_read_columns,
-                storage_snapshot->metadata);
+                storage_snapshot);
 
             should_evaluate_missing_defaults
                 = std::any_of(res_columns.begin(), res_columns.end(), [](const auto & column) { return column == nullptr; });
@@ -234,7 +234,8 @@ void IMergeTreeReader::evaluateMissingDefaults(Block additional_columns, Columns
         }
 
         auto dag = DB::evaluateMissingDefaults(
-            additional_columns, full_requested_columns,
+            additional_columns,
+            full_requested_columns,
             combined_columns,
             context_copy);
 
