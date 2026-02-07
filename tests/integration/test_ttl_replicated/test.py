@@ -552,7 +552,8 @@ def test_ttl_compatibility(started_cluster, node_left, node_right, num_run):
                 CREATE TABLE {table}_delete(date DateTime, id UInt32)
                 ENGINE = ReplicatedMergeTree('/clickhouse/tables/test/{table}_delete', '{replica}')
                 ORDER BY id PARTITION BY toDayOfMonth(date)
-                TTL date + INTERVAL 3 SECOND;
+                TTL date + INTERVAL 3 SECOND
+                SETTINGS merge_with_ttl_timeout=0;
             """.format(
                 table=table, replica=node.name
             )
@@ -564,7 +565,8 @@ def test_ttl_compatibility(started_cluster, node_left, node_right, num_run):
                 CREATE TABLE {table}_group_by(date DateTime, id UInt32, val UInt64)
                 ENGINE = ReplicatedMergeTree('/clickhouse/tables/test/{table}_group_by', '{replica}')
                 ORDER BY id PARTITION BY toDayOfMonth(date)
-                TTL date + INTERVAL 3 SECOND GROUP BY id SET val = sum(val);
+                TTL date + INTERVAL 3 SECOND GROUP BY id SET val = sum(val)
+                SETTINGS merge_with_ttl_timeout=0;
             """.format(
                 table=table, replica=node.name
             )
@@ -576,7 +578,8 @@ def test_ttl_compatibility(started_cluster, node_left, node_right, num_run):
                 CREATE TABLE {table}_where(date DateTime, id UInt32)
                 ENGINE = ReplicatedMergeTree('/clickhouse/tables/test/{table}_where', '{replica}')
                 ORDER BY id PARTITION BY toDayOfMonth(date)
-                TTL date + INTERVAL 3 SECOND DELETE WHERE id % 2 = 1;
+                TTL date + INTERVAL 3 SECOND DELETE WHERE id % 2 = 1
+                SETTINGS merge_with_ttl_timeout=0;
             """.format(
                 table=table, replica=node.name
             )
