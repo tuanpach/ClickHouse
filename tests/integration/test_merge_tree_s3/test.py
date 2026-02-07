@@ -164,19 +164,6 @@ def remove_all_s3_objects(cluster):
     return objects_to_delete
 
 
-@pytest.fixture(autouse=True, scope="function")
-def clear_minio(cluster):
-    try:
-        # CH do some writes to the S3 at start. For example, file data/clickhouse_access_check_{server_uuid}.
-        # Set the timeout there as 10 sec in order to resolve the race with that file exists.
-        wait_for_delete_s3_objects(cluster, 0, timeout=10)
-    except:
-        # Remove extra objects to prevent tests cascade failing
-        remove_all_s3_objects(cluster)
-
-    yield
-
-
 def check_no_objects_after_drop(cluster, table_name="s3_test", node_name="node"):
     node = cluster.instances[node_name]
     node.query(f"DROP TABLE IF EXISTS {table_name} SYNC")
@@ -697,24 +684,26 @@ def test_s3_disk_apply_new_settings(cluster, node_name):
 
     node.query("SYSTEM RELOAD CONFIG")
 
-    s3_requests_before = get_s3_requests()
-    node.query(
-        "INSERT INTO s3_test VALUES {}".format(generate_values("2020-01-04", 4096, -1))
-    )
+    try:
+        s3_requests_before = get_s3_requests()
+        node.query(
+            "INSERT INTO s3_test VALUES {}".format(generate_values("2020-01-04", 4096, -1))
+        )
 
-    # There should be 3 times more S3 requests because multi-part upload mode uses 3 requests to upload object.
-    assert get_s3_requests() - s3_requests_before == s3_requests_to_write_partition * 3
+        # There should be 3 times more S3 requests because multi-part upload mode uses 3 requests to upload object.
+        assert get_s3_requests() - s3_requests_before == s3_requests_to_write_partition * 3
 
-    check_no_objects_after_drop(cluster)
+        check_no_objects_after_drop(cluster)
 
-    # Restore
-    replace_config(
-        config_path,
-        "<s3_max_single_part_upload_size>0</s3_max_single_part_upload_size>",
-        "<s3_max_single_part_upload_size>33554432</s3_max_single_part_upload_size>",
-    )
+    finally:
+        # Restore
+        replace_config(
+            config_path,
+            "<s3_max_single_part_upload_size>0</s3_max_single_part_upload_size>",
+            "<s3_max_single_part_upload_size>33554432</s3_max_single_part_upload_size>",
+        )
 
-    node.query("SYSTEM RELOAD CONFIG")
+        node.query("SYSTEM RELOAD CONFIG")
 
 
 @pytest.mark.parametrize("node_name", ["node"])
@@ -723,8 +712,7 @@ def test_s3_no_delete_objects(cluster, node_name):
     create_table(
         node, "s3_test_no_delete_objects", storage_policy="no_delete_objects_s3"
     )
-    node.query("DROP TABLE s3_test_no_delete_objects SYNC")
-    remove_all_s3_objects(cluster)
+    check_no_objects_after_drop(cluster, 's3_test_no_delete_objects')
 
 
 @pytest.mark.parametrize("node_name", ["node"])
