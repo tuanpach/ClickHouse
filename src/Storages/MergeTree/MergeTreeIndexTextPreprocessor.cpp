@@ -151,7 +151,7 @@ std::pair<ColumnPtr,size_t> MergeTreeIndexTextPreprocessor::processColumn(const 
 
 String MergeTreeIndexTextPreprocessor::process(const String & input) const
 {
-    if (expression_actions.getActions().empty())
+    if (empty())
         return input;
 
     const auto & [source_column_name, source_column_type] = source_columns.front();
@@ -164,7 +164,6 @@ String MergeTreeIndexTextPreprocessor::process(const String & input) const
 
     size_t nrows = 1;
     expression_actions.execute(input_block, nrows);
-
     return String{input_block.safeGetByPosition(0).column->getDataAt(0)};
 }
 

@@ -90,7 +90,6 @@ public:
     TextIndexPostingsCachePtr postingsCache() const { return postings_cache; }
 
     TokenExtractorPtr tokenExtractor() const { return token_extractor; }
-
     MergeTreeIndexTextPreprocessorPtr preProcessor() const { return preprocessor; }
 
 private:

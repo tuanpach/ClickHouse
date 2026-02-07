@@ -20,10 +20,10 @@ ORDER BY id;
 ALTER TABLE tab_fully drop index if exists idx;
 ALTER TABLE tab_fully add index idx(text) TYPE text(tokenizer = splitByString([' ', '::']));
 
+SYSTEM STOP MERGES tab_fully;
+
 INSERT INTO tab_fully SELECT number, 'hello::world' from numbers(10000);
 INSERT INTO tab_fully SELECT number, 'hello world' from numbers(10000);
-
-SYSTEM STOP MERGES tab_fully;
 
 SELECT count() FROM tab_fully WHERE hasAnyToken(text, 'hello');
 SELECT count() FROM tab_fully WHERE hasAnyToken(text, 'world');
@@ -50,9 +50,8 @@ INSERT INTO tab_partially SELECT number, 'hello::world' from numbers(10000);
 ALTER TABLE tab_partially DROP INDEX IF EXISTS idx;
 ALTER TABLE tab_partially ADD INDEX idx(text) TYPE text(tokenizer = splitByString([' ', '::']), preprocessor = lower(text));
 
-INSERT INTO tab_partially SELECT number, 'hello world' from numbers(10000);
-
 SYSTEM STOP MERGES tab_partially;
+INSERT INTO tab_partially SELECT number, 'hello world' from numbers(10000);
 
 SELECT count() FROM tab_partially WHERE hasAnyToken(text, 'hello');
 SELECT count() FROM tab_partially WHERE hasAnyToken(text, 'world');

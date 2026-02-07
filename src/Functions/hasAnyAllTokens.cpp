@@ -406,11 +406,11 @@ ColumnPtr ExecutableFunctionHasAnyAllTokens<HasTokensTraits>::executeImpl(
     return col_result;
 }
 
-template class ExecutableFunctionHasAnyAllTokens<traits::HasAnyTokensTraits>;
-template class ExecutableFunctionHasAnyAllTokens<traits::HasAllTokensTraits>;
+template class ExecutableFunctionHasAnyAllTokens<HasAnyTokensTraits>;
+template class ExecutableFunctionHasAnyAllTokens<HasAllTokensTraits>;
 
-template class FunctionBaseHasAnyAllTokens<traits::HasAnyTokensTraits>;
-template class FunctionBaseHasAnyAllTokens<traits::HasAllTokensTraits>;
+template class FunctionBaseHasAnyAllTokens<HasAnyTokensTraits>;
+template class FunctionBaseHasAnyAllTokens<HasAllTokensTraits>;
 
 REGISTER_FUNCTION(HasAnyTokens)
 {
@@ -543,8 +543,8 @@ SELECT count() FROM log WHERE hasAnyTokens(mapValues(attributes), ['192.0.0.1', 
     FunctionDocumentation::Category category_hasAnyTokens = FunctionDocumentation::Category::StringSearch;
     FunctionDocumentation documentation_hasAnyTokens = {description_hasAnyTokens, syntax_hasAnyTokens, arguments_hasAnyTokens, {}, returned_value_hasAnyTokens, examples_hasAnyTokens, introduced_in_hasAnyTokens, category_hasAnyTokens};
 
-    factory.registerFunction<FunctionHasAnyAllTokensOverloadResolver<traits::HasAnyTokensTraits>>(documentation_hasAnyTokens);
-    factory.registerAlias("hasAnyToken", traits::HasAnyTokensTraits::name);
+    factory.registerFunction<FunctionHasAnyAllTokensOverloadResolver<HasAnyTokensTraits>>(documentation_hasAnyTokens);
+    factory.registerAlias("hasAnyToken", HasAnyTokensTraits::name);
 }
 
 REGISTER_FUNCTION(HasAllTokens)
@@ -678,7 +678,7 @@ SELECT count() FROM log WHERE hasAllTokens(mapValues(attributes), ['192.0.0.1', 
     FunctionDocumentation::Category category_hasAllTokens = FunctionDocumentation::Category::StringSearch;
     FunctionDocumentation documentation_hasAllTokens = {description_hasAllTokens, syntax_hasAllTokens, arguments_hasAllTokens, {}, returned_value_hasAllTokens, examples_hasAllTokens, introduced_in_hasAllTokens, category_hasAllTokens};
 
-    factory.registerFunction<FunctionHasAnyAllTokensOverloadResolver<traits::HasAllTokensTraits>>(documentation_hasAllTokens);
-    factory.registerAlias("hasAllToken", traits::HasAllTokensTraits::name);
+    factory.registerFunction<FunctionHasAnyAllTokensOverloadResolver<HasAllTokensTraits>>(documentation_hasAllTokens);
+    factory.registerAlias("hasAllToken", HasAllTokensTraits::name);
 }
 }

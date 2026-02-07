@@ -1,5 +1,6 @@
 #include <Interpreters/ITokenExtractor.h>
 
+#include <Common/quoteString.h>
 #include <Common/StringUtils.h>
 #include <Common/UTF8Helpers.h>
 
@@ -327,6 +328,20 @@ bool SplitByStringTokenExtractor::nextInStringLike(const char * /*data*/, size_t
     throw Exception(ErrorCodes::NOT_IMPLEMENTED, "StringTokenExtractor::nextInStringLike is not implemented");
 }
 
+String SplitByStringTokenExtractor::getDescription() const
+{
+    String result = fmt::format("{}([", getName());
+    for (size_t i = 0; i < separators.size(); ++i)
+    {
+        if (i != 0)
+            result += ", ";
+
+        result += quoteString(separators[i]);
+    }
+
+    return result + "])";
+}
+
 bool ArrayTokenExtractor::nextInString(const char * /*data*/, size_t length, size_t & pos, size_t & token_start, size_t & token_length) const
 {
     if (pos == 0)
@@ -457,6 +472,14 @@ std::vector<String> SparseGramsTokenExtractor::compactTokens(const std::vector<S
     }
 
     return std::vector<String>(result.begin(), result.end());
+}
+
+String SparseGramsTokenExtractor::getDescription() const
+{
+    String result = fmt::format("{}({}, {})", getName(), min_gram_length, max_gram_length);
+    if (min_cutoff_length.has_value())
+        result += fmt::format(", {}", *min_cutoff_length);
+    return result + ")";
 }
 
 }

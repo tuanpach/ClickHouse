@@ -26,8 +26,10 @@ public:
     /// Applies the internal expression to an input string.
     /// Kind of equivalent to 'SELECT expression(input)'.
     String process(const String & input) const;
+    bool empty() const { return expression_actions.getActions().empty(); }
 
     ASTPtr getAST() const { return ast; }
+    const ActionsDAG & getActionsDAG() const { return expression_actions.getActionsDAG(); }
     Names getRequiredColumns() const { return expression_actions.getRequiredColumns(); }
 
     /// This function parses an string to build an ExpressionActions.

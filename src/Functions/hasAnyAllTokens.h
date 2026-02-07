@@ -14,8 +14,6 @@ enum class HasAnyAllTokensMode : uint8_t
     All
 };
 
-namespace traits
-{
 struct HasAnyTokensTraits
 {
     static constexpr String name = "hasAnyTokens";
@@ -27,7 +25,6 @@ struct HasAllTokensTraits
     static constexpr String name = "hasAllTokens";
     static constexpr HasAnyAllTokensMode mode = HasAnyAllTokensMode::All;
 };
-}
 
 /// Map needle into a position (for bitmap operations).
 using TokensWithPosition = absl::flat_hash_map<String, UInt64>;
@@ -103,7 +100,7 @@ public:
     String getName() const override { return name; }
     size_t getNumberOfArguments() const override { return 0; }
     bool isVariadic() const override { return true; }
-    ColumnNumbers getArgumentsThatAreAlwaysConstant() const override { return {3, 4, 5, 6}; }
+    ColumnNumbers getArgumentsThatAreAlwaysConstant() const override { return {1, 2}; }
 
     DataTypePtr getReturnTypeImpl(const ColumnsWithTypeAndName & arguments) const override;
 

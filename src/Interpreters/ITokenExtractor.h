@@ -217,11 +217,7 @@ struct SplitByStringTokenExtractor final : public ITokenExtractorHelper<SplitByS
 
     static const char * getName() { return "splitByString"; }
     static const char * getExternalName() { return getName(); }
-
-    String getDescription() const override
-    {
-        return fmt::format("splitByString({})", fmt::join(separators, ","));
-    }
+    String getDescription() const override;
 
     bool nextInString(const char * data, size_t length, size_t & pos, size_t & token_start, size_t & token_length) const override;
     bool nextInStringLike(const char * data, size_t length, size_t & pos, String & token) const override;
@@ -258,15 +254,7 @@ struct SparseGramsTokenExtractor final : public ITokenExtractorHelper<SparseGram
     static const char * getName() { return "sparseGrams"; }
     static const char * getExternalName() { return getName(); }
 
-    String getDescription() const override
-    {
-        String result = fmt::format("sparseGrams({},{}", min_gram_length, max_gram_length);
-        if (min_cutoff_length.has_value())
-            result += fmt::format(", {}", *min_cutoff_length);
-        result += ")";
-        return result;
-    }
-
+    String getDescription() const override;
     bool nextInString(const char * data, size_t length, size_t & __restrict pos, size_t & __restrict token_start, size_t & __restrict token_length) const override;
     std::vector<String> compactTokens(const std::vector<String> & tokens) const override;
 

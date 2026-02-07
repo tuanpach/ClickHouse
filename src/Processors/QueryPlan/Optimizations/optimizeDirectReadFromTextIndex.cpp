@@ -11,6 +11,7 @@
 #include <Processors/QueryPlan/QueryPlan.h>
 #include <Processors/QueryPlan/ReadFromMergeTree.h>
 #include <Storages/MergeTree/MergeTreeIndexConditionText.h>
+#include <Common/FieldVisitorToString.h>
 #include <Common/logger_useful.h>
 #include <Functions/FunctionFactory.h>
 #include <Storages/MergeTree/MergeTreeIndexTextPreprocessor.h>
@@ -143,7 +144,8 @@ void collectTextIndexReadInfos(const ReadFromMergeTree * read_from_merge_tree_st
                 continue;
 
             const bool is_fully_materialized = num_materialized_parts == unique_parts.size();
-            text_index_read_infos[index.index->index.name] = {
+            text_index_read_infos[index.index->index.name] =
+            {
                 .index = &index,
                 .is_fully_materialied = is_fully_materialized
             };
@@ -192,115 +194,6 @@ ASTPtr convertNodeToAST(const ActionsDAG::Node & node)
     }
 }
 
-std::vector<ASTPtr> extractTokenizerArguments(const ITokenExtractor & extractor)
-{
-    std::vector<ASTPtr> arguments;
-
-    switch (extractor.getType())
-    {
-        case ITokenExtractor::Type::SplitByNonAlpha: {
-            arguments.emplace_back(make_intrusive<ASTLiteral>(SplitByNonAlphaTokenExtractor::getExternalName()));
-            break;
-        }
-        case ITokenExtractor::Type::Ngrams: {
-            const auto & ngrams_tokenizer = assert_cast<const NgramsTokenExtractor &>(extractor);
-            arguments.emplace_back(make_intrusive<ASTLiteral>(NgramsTokenExtractor::getExternalName()));
-            arguments.emplace_back(make_intrusive<ASTLiteral>(ngrams_tokenizer.getN()));
-            break;
-        }
-        case ITokenExtractor::Type::SplitByString: {
-            const auto & split_by_string_extractor = assert_cast<const SplitByStringTokenExtractor &>(extractor);
-            auto separators = make_intrusive<ASTLiteral>(Field{Array{}});
-            for (const auto & separator : split_by_string_extractor.getSeparators())
-                separators->value.safeGet<Array>().push_back(separator);
-            arguments.emplace_back(make_intrusive<ASTLiteral>(SplitByStringTokenExtractor::getExternalName()));
-            arguments.emplace_back(std::move(separators));
-            break;
-        }
-        case ITokenExtractor::Type::Array: {
-            arguments.emplace_back(make_intrusive<ASTLiteral>(ArrayTokenExtractor::getExternalName()));
-            break;
-        }
-        case ITokenExtractor::Type::SparseGrams: {
-            const auto & sparse_grams_extractor = assert_cast<const SparseGramsTokenExtractor &>(extractor);
-            auto [min_ngram_length, max_ngram_length, min_cutoff_length] = sparse_grams_extractor.getParams();
-            arguments.emplace_back(make_intrusive<ASTLiteral>(SparseGramsTokenExtractor::getExternalName()));
-            arguments.emplace_back(make_intrusive<ASTLiteral>(min_ngram_length));
-            arguments.emplace_back(make_intrusive<ASTLiteral>(max_ngram_length));
-            if (min_cutoff_length.has_value())
-                arguments.emplace_back(make_intrusive<ASTLiteral>(min_cutoff_length.value()));
-            break;
-        }
-    }
-
-    return arguments;
-}
-
-void applyTokenizer(ASTFunction * function, TokenExtractorPtr tokenizer)
-{
-    if (!function)
-        return;
-
-    /// Tokenizer parameter is only supported by hasAnyTokens and hasAllTokens functions
-    if (function->name != "hasAnyTokens" && function->name != "hasAllTokens")
-        return;
-
-    /// If no tokenizer is explicitly specified.
-    if (function->arguments->children.size() == 2)
-    {
-        /// FunctionNode -> ExpressionList.
-        for (auto argument : extractTokenizerArguments(*tokenizer))
-            function->arguments->children.emplace_back(std::move(argument));
-    }
-}
-
-void applyPreprocessor(ASTFunction * function, MergeTreeIndexTextPreprocessorPtr preprocessor, TextSearchQueryPtr search_query)
-{
-    if (!function)
-        return;
-
-    /// For array or map columns, we cannot directly use AST.
-    /// TODO(ahmadov): implement a proper way to handle them.
-    if (!MergeTreeIndexConditionText::isSupportedColumnFunction(function->name))
-        return;
-
-    const auto & ast = preprocessor->getAST();
-    auto required_columns = preprocessor->getRequiredColumns();
-    if (!ast || required_columns.empty())
-        return;
-
-    const auto & source_column_name = required_columns.front();
-    if (function->children[0]->children[0]->getColumnName() != source_column_name)
-        return;
-
-    /// At this point, we will rebuild the function with a column and search token(s) from the preprocessor.
-    /// FunctionNode -> ExpressionList[0] -> Identifier
-    /// FunctionNode -> ExpressionList[1] -> search token(s)
-
-    /// Replace the column input argument with preprocessor AST
-    function->children[0]->children[0] = ast;
-
-    if (function->name == "hasAnyTokens" || function->name == "hasAllTokens")
-    {
-        /// Search tokens parameter is only supported by hasAnyTokens and hasAllTokens functions
-        auto search_tokens = make_intrusive<ASTLiteral>(Field{Array{}});
-        for (const auto & token : search_query->tokens)
-            search_tokens->value.safeGet<Array>().push_back(token);
-        function->children[0]->children[1] = std::move(search_tokens);
-    }
-    else if (function->name == "hasToken")
-    {
-        /// hasToken function supports only a single string input
-        if (const auto * input = function->children[0]->children[1]->as<ASTLiteral>())
-        {
-            if (input->value.getType() == Field::Types::String)
-            {
-                String value = preprocessor->process(input->value.safeGet<String>());
-                function->children[0]->children[1] = make_intrusive<ASTLiteral>(std::move(value));
-            }
-        }
-    }
-}
 }
 
 /// This class substitutes filters with text-search functions by virtual columns which skip IO and read less data.
@@ -320,12 +213,13 @@ void applyPreprocessor(ASTFunction * function, MergeTreeIndexTextPreprocessorPtr
 /// This class is a (C++) friend of ActionsDAG and can therefore access its private members.
 /// Some of the functions implemented here could be added to ActionsDAG directly, but this wrapper approach
 /// simplifies the work by avoiding conflicts and minimizing coupling between this optimization and ActionsDAG.
-class FullTextMatchingFunctionDAGReplacer
+class TextIndexDAGReplacer
 {
 public:
-    FullTextMatchingFunctionDAGReplacer(ActionsDAG & actions_dag_, const TextIndexReadInfos & text_index_read_infos_)
+    TextIndexDAGReplacer(ActionsDAG & actions_dag_, const TextIndexReadInfos & text_index_read_infos_, bool direct_read_from_text_index_)
         : actions_dag(actions_dag_)
         , text_index_read_infos(text_index_read_infos_)
+        , direct_read_from_text_index(direct_read_from_text_index_)
     {
     }
 
@@ -349,7 +243,7 @@ public:
 
         for (ActionsDAG::Node & node : actions_dag.nodes)
         {
-            auto replaced = tryReplaceFunctionNode(node, virtual_column_to_node, context);
+            auto replaced = processFunctionNode(node, virtual_column_to_node, context);
 
             if (replaced.has_value())
             {
@@ -405,32 +299,26 @@ private:
 
     ActionsDAG & actions_dag;
     TextIndexReadInfos text_index_read_infos;
+    bool direct_read_from_text_index = false;
 
-    /// Attempts to add a new node with the replacement virtual column.
-    /// Returns the pair of (index name, virtual column name) if the replacement is successful.
-    std::optional<NodeReplacement> tryReplaceFunctionNode(
-        ActionsDAG::Node & function_node,
-        std::unordered_map<String, const ActionsDAG::Node *> & virtual_column_to_node,
-        const ContextPtr & context)
+    struct SelectedCondition
     {
-        if (function_node.type != ActionsDAG::ActionType::FUNCTION || !function_node.function || !function_node.function_base)
-            return std::nullopt;
+        TextSearchQueryPtr search_query;
+        String index_name;
+        String virtual_column_name;
+        ASTPtr default_expression;
+        const MergeTreeIndexConditionText * condition = nullptr;
+    };
 
-        /// Skip if function is not a predicate. It doesn't make sense to analyze it.
-        if (!function_node.result_type->canBeUsedInBooleanContext())
-            return std::nullopt;
+    static bool isTextIndexFunction(const String & function_name)
+    {
+        return function_name == "hasAllTokens" || function_name == "hasAnyTokens";
+    }
 
-        struct SelectedCondition
-        {
-            TextSearchQueryPtr search_query;
-            String index_name;
-            String virtual_column_name;
-            ASTPtr default_expression;
-        };
-
+    std::vector<SelectedCondition> selectConditions(const ActionsDAG::Node & function_node)
+    {
         NameSet used_index_columns;
         std::vector<SelectedCondition> selected_conditions;
-        bool has_exact_search = false;
 
         for (const auto & [index_name, info] : text_index_read_infos)
         {
@@ -441,7 +329,7 @@ private:
             /// It is ambiguous which index to use. However, we allow to use several indexes for different expressions.
             /// for example, we can use indexes both for mapKeys(m) and mapValues(m) in one function m['key'] = 'value'.
             if (index_header.columns() != 1 || used_index_columns.contains(index_header.begin()->name))
-                return std::nullopt;
+                continue;
 
             auto search_query = text_index_condition.createTextSearchQuery(function_node);
             if (!search_query || search_query->direct_read_mode == TextIndexDirectReadMode::None)
@@ -453,32 +341,118 @@ private:
 
             ASTPtr default_expression = nullptr;
             if (!info.is_fully_materialied)
-            {
                 default_expression = convertNodeToAST(function_node);
-                if (auto * function = default_expression->as<ASTFunction>())
-                {
-                    applyTokenizer(function, text_index_condition.tokenExtractor());
-                    applyPreprocessor(function, text_index_condition.preProcessor(), search_query);
-                }
-            }
 
-            selected_conditions.push_back({search_query, index_name, *virtual_column_name, std::move(default_expression)});
+            selected_conditions.push_back({search_query, index_name, *virtual_column_name, std::move(default_expression), &text_index_condition});
             used_index_columns.insert(index_header.begin()->name);
-
-            if (search_query->direct_read_mode == TextIndexDirectReadMode::Exact)
-                has_exact_search = true;
         }
 
-        if (selected_conditions.empty())
+        return selected_conditions;
+    }
+
+    /// Attempts to add a new node with the replacement virtual column.
+    /// Returns the pair of (index name, virtual column name) if the replacement is successful.
+    std::optional<NodeReplacement> processFunctionNode(
+        ActionsDAG::Node & function_node,
+        std::unordered_map<String, const ActionsDAG::Node *> & virtual_column_to_node,
+        const ContextPtr & context)
+    {
+        if (function_node.type != ActionsDAG::ActionType::FUNCTION || !function_node.function || !function_node.function_base)
             return std::nullopt;
 
-        NodeReplacement replacement;
+        /// Skip if function is not a predicate. It doesn't make sense to analyze it.
+        if (!function_node.result_type->canBeUsedInBooleanContext())
+            return std::nullopt;
+
+        bool is_text_index_function = isTextIndexFunction(function_node.function_base->getName());
+        if (!is_text_index_function && !direct_read_from_text_index)
+            return std::nullopt;
+
+        auto selected_conditions = selectConditions(function_node);
+        if (selected_conditions.empty())
+            return std::nullopt;
 
         /// Sort conditions to produce stable output for EXPLAIN query.
         std::ranges::sort(selected_conditions, [](const auto & lhs, const auto & rhs)
         {
             return lhs.virtual_column_name < rhs.virtual_column_name;
         });
+
+        if (is_text_index_function)
+            preprocessTextIndexFunctuion(function_node, selected_conditions, context);
+
+        if (direct_read_from_text_index)
+            return tryReplaceFunctionNode(function_node, selected_conditions, virtual_column_to_node, context);
+
+        return std::nullopt;
+    }
+
+    void preprocessTextIndexFunctuion(
+        ActionsDAG::Node & function_node,
+        const std::vector<SelectedCondition> & selected_conditions,
+        const ContextPtr & context)
+    {
+        if (selected_conditions.size() != 1 || function_node.children.size() != 2)
+            return;
+
+        auto new_children = function_node.children;
+        const auto & arg_haystack = new_children[0];
+        const auto & arg_needles = new_children[1];
+
+        String needles;
+        if (arg_needles->type != ActionsDAG::ActionType::COLUMN || !arg_needles->column)
+            return;
+
+        needles = arg_needles->column->getDataAt(0);
+        const auto & condition = selected_conditions.front();
+        auto preprocessor = condition.condition->preProcessor();
+        const auto * tokenizer = condition.condition->tokenExtractor();
+
+        if (preprocessor && !preprocessor->empty())
+        {
+            const auto & preprocessor_dag = preprocessor->getActionsDAG();
+            chassert(preprocessor_dag.getOutputs().size() == 1);
+            const auto & preprocessor_output = preprocessor_dag.getOutputs().front();
+
+            auto preprocessor_output_name = getNameWithoutAliases(preprocessor_output);
+            auto haystack_name = getNameWithoutAliases(arg_haystack);
+
+            if (preprocessor_output_name == haystack_name)
+            {
+                /// TODO: replace DAG...
+                // function_node.children[0] = ...
+                needles = preprocessor->process(needles);
+            }
+        }
+
+        std::vector<String> needles_array;
+        tokenizer->stringToTokens(needles.data(), needles.size(), needles_array);
+        Field needles_field = Array(needles_array.begin(), needles_array.end());
+
+        ColumnWithTypeAndName arg;
+        arg.type = std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>());
+        arg.column = arg.type->createColumnConst(1, needles_field);
+        arg.name = applyVisitor(FieldVisitorToString(), needles_field);
+        new_children[1] = &actions_dag.addColumn(std::move(arg));
+
+        auto tokenizer_description = tokenizer->getDescription();
+        arg.type = std::make_shared<DataTypeString>();
+        arg.column = arg.type->createColumnConst(1, Field(tokenizer_description));
+        arg.name = tokenizer_description;
+        new_children.push_back(&actions_dag.addColumn(std::move(arg)));
+
+        auto new_function_base = FunctionFactory::instance().get(function_node.function_base->getName(), context);
+        const auto & new_function_node = actions_dag.addFunction(new_function_base, new_children, "");
+        function_node = actions_dag.addAlias(new_function_node, function_node.result_name);
+    }
+
+    std::optional<NodeReplacement> tryReplaceFunctionNode(
+        ActionsDAG::Node & function_node,
+        const std::vector<SelectedCondition> & selected_conditions,
+        std::unordered_map<String, const ActionsDAG::Node *> & virtual_column_to_node,
+        const ContextPtr & context)
+    {
+        NodeReplacement replacement;
 
         auto add_condition_to_input = [&](const SelectedCondition & condition)
         {
@@ -492,6 +466,11 @@ private:
 
             return it->second;
         };
+
+        bool has_exact_search = std::ranges::any_of(selected_conditions, [](const auto & condition)
+        {
+            return condition.search_query->direct_read_mode == TextIndexDirectReadMode::Exact;
+        });
 
         /// If we have only one condition with exact search, we can use
         /// only virtual column and remove the original condition.
@@ -526,13 +505,14 @@ private:
 };
 
 const ActionsDAG::Node * applyTextIndexDirectReadToDAG(
-    ReadFromMergeTree * read_from_merge_tree_step,
+    ReadFromMergeTree & read_from_merge_tree_step,
     ActionsDAG & filter_dag,
     const TextIndexReadInfos & text_index_read_infos,
-    const String & filter_column_name)
+    const String & filter_column_name,
+    bool direct_read_from_text_index)
 {
-    FullTextMatchingFunctionDAGReplacer replacer(filter_dag, text_index_read_infos);
-    auto result = replacer.replace(read_from_merge_tree_step->getContext(), filter_column_name);
+    TextIndexDAGReplacer replacer(filter_dag, text_index_read_infos, direct_read_from_text_index);
+    auto result = replacer.replace(read_from_merge_tree_step.getContext(), filter_column_name);
 
     if (result.added_columns.empty())
         return nullptr;
@@ -547,35 +527,46 @@ const ActionsDAG::Node * applyTextIndexDirectReadToDAG(
             LOG_DEBUG(logger, "Text index '{}' is not fully materialized.", index_name);
     }
 
-    const auto & indexes = read_from_merge_tree_step->getIndexes();
-    bool is_final = read_from_merge_tree_step->isQueryWithFinal();
-    read_from_merge_tree_step->createReadTasksForTextIndex(text_index_read_infos, indexes->skip_indexes, result.added_columns, result.removed_columns, is_final);
+    const auto & indexes = read_from_merge_tree_step.getIndexes();
+    bool is_final = read_from_merge_tree_step.isQueryWithFinal();
+    read_from_merge_tree_step.createReadTasksForTextIndex(text_index_read_infos, indexes->skip_indexes, result.added_columns, result.removed_columns, is_final);
     return result.filter_node;
 }
 
-/// Text index search queries have this form:
-///     SELECT [...]
-///     FROM tab
-///     WHERE text_function(...), [...]
-/// where
-/// - text_function is a text-matching functions, e.g. 'hasToken'
-/// - text-matching functions expect that the column on which the function is called has a text index
-///
-/// This function replaces text function nodes from the user query (using semi-brute-force process) with internal virtual columns
-/// which use only the index information to bypass the normal column scan which can consume significant amount of the execution time.
-void optimizeWhereDirectReadFromTextIndex(const Stack & stack, QueryPlan::Nodes & /*nodes*/)
+/// Replaces text-search functions in the PREWHERE clause with virtual columns for direct index reads.
+bool optimizePrewhereDirectReadFromTextIndex(
+    ReadFromMergeTree & read_from_merge_tree_step,
+    const PrewhereInfoPtr & prewhere_info,
+    const TextIndexReadInfos & text_index_read_infos,
+    bool direct_read_from_text_index)
 {
-    if (stack.size() < 2)
-        return;
+    read_from_merge_tree_step.updatePrewhereInfo({});
+    auto cloned_prewhere_info = prewhere_info->clone();
+    const auto * result_filter_node = applyTextIndexDirectReadToDAG(read_from_merge_tree_step, cloned_prewhere_info.prewhere_actions, text_index_read_infos, cloned_prewhere_info.prewhere_column_name, direct_read_from_text_index);
 
+    if (!result_filter_node)
+    {
+        read_from_merge_tree_step.updatePrewhereInfo(prewhere_info);
+        return false;
+    }
+
+    /// Finally, assign the corrected PrewhereInfo back to the plan node.
+    cloned_prewhere_info.prewhere_column_name = result_filter_node->result_name;
+    auto modified_prewhere_info = std::make_shared<PrewhereInfo>(std::move(cloned_prewhere_info));
+    read_from_merge_tree_step.updatePrewhereInfo(modified_prewhere_info);
+    return true;
+}
+
+/// Applies text index optimizations to the query plan.
+///
+/// Always preprocesses `hasAllTokens`/`hasAnyTokens` arguments with text index metadata
+/// (preprocessor wrapping, string-to-array tokenization, tokenizer arguments).
+///
+/// When `direct_read_from_text_index` is true, also replaces text-search functions
+/// with virtual columns for direct index reads (both WHERE and PREWHERE clauses).
+void optimizeDirectReadFromTextIndex(const Stack & stack, QueryPlan::Nodes & /*nodes*/, bool direct_read_from_text_index)
+{
     const auto & frame = stack.back();
-
-    /// Expect this query plan:
-    /// FilterStep
-    ///    ^
-    ///    |
-    /// ReadFromMergeTree
-
     ReadFromMergeTree * read_from_merge_tree_step = typeid_cast<ReadFromMergeTree *>(frame.node->step.get());
     if (!read_from_merge_tree_step)
         return;
@@ -585,13 +576,21 @@ void optimizeWhereDirectReadFromTextIndex(const Stack & stack, QueryPlan::Nodes 
     if (text_index_read_infos.empty())
         return;
 
+    bool optimized = false;
+    if (auto prewhere_info = read_from_merge_tree_step->getPrewhereInfo())
+        optimized = optimizePrewhereDirectReadFromTextIndex(*read_from_merge_tree_step, prewhere_info, text_index_read_infos, direct_read_from_text_index);
+
+    if (stack.size() < 2)
+        return;
+
     QueryPlan::Node * filter_node = (stack.rbegin() + 1)->node;
-    FilterStep * filter_step = typeid_cast<FilterStep *>(filter_node->step.get());
+    auto * filter_step = typeid_cast<FilterStep *>(filter_node->step.get());
+
     if (!filter_step)
         return;
 
     ActionsDAG & filter_dag = filter_step->getExpression();
-    const auto * result_filter_node = applyTextIndexDirectReadToDAG(read_from_merge_tree_step, filter_dag, text_index_read_infos, filter_step->getFilterColumnName());
+    const auto * result_filter_node = applyTextIndexDirectReadToDAG(*read_from_merge_tree_step, filter_dag, text_index_read_infos, filter_step->getFilterColumnName(), direct_read_from_text_index && !optimized);
 
     if (!result_filter_node)
         return;
@@ -599,65 +598,6 @@ void optimizeWhereDirectReadFromTextIndex(const Stack & stack, QueryPlan::Nodes 
     bool removes_filter_column = filter_step->removesFilterColumn();
     auto new_filter_column_name = result_filter_node->result_name;
     filter_node->step = std::make_unique<FilterStep>(read_from_merge_tree_step->getOutputHeader(), filter_dag.clone(), new_filter_column_name, removes_filter_column);
-}
-
-/// Text index search queries have this form:
-///     SELECT [...]
-///     FROM tab
-///     PREWHERE text_function(...), [...]
-/// where
-/// - text_function is a text-matching functions, e.g. 'hasToken'
-/// - text-matching functions expect that the column on which the function is called has a text index
-///
-/// Same as `optimizeWhereDirectReadFromTextIndex, this function replaces text function nodes from the user query (using semi-brute-force process) with internal virtual columns
-/// which use only the index information to bypass the normal column scan which can consume significant amount of the execution time.
-bool optimizePrewhereDirectReadFromTextIndex(const Stack & stack, QueryPlan::Nodes & /*nodes*/)
-{
-    const auto & frame = stack.back();
-    ReadFromMergeTree * read_from_merge_tree_step = typeid_cast<ReadFromMergeTree *>(frame.node->step.get());
-    if (!read_from_merge_tree_step)
-        return false;
-
-    TextIndexReadInfos text_index_read_infos;
-    collectTextIndexReadInfos(read_from_merge_tree_step, text_index_read_infos);
-    if (text_index_read_infos.empty())
-        return false;
-
-    auto prewhere_info = read_from_merge_tree_step->getPrewhereInfo();
-    if (!prewhere_info)
-        return false;
-
-    read_from_merge_tree_step->updatePrewhereInfo({});
-    auto cloned_prewhere_info = prewhere_info->clone();
-    const auto * result_filter_node = applyTextIndexDirectReadToDAG(read_from_merge_tree_step, cloned_prewhere_info.prewhere_actions, text_index_read_infos, cloned_prewhere_info.prewhere_column_name);
-
-    if (!result_filter_node)
-    {
-        read_from_merge_tree_step->updatePrewhereInfo(prewhere_info);
-        return false;
-    }
-
-    /// Finally, assign the corrected PrewhereInfo back to the plan node.
-    cloned_prewhere_info.prewhere_column_name = result_filter_node->result_name;
-    auto modified_prewhere_info = std::make_shared<PrewhereInfo>(std::move(cloned_prewhere_info));
-    read_from_merge_tree_step->updatePrewhereInfo(modified_prewhere_info);
-    return true;
-}
-
-/// Applies text index–based direct-read optimizations to the query.
-/// This includes both WHERE and PREWHERE clauses.
-///
-/// - optimizeWhereDirectReadFromTextIndex(): push down text-index
-///   filters from the WHERE clause.
-/// - optimizePrewhereDirectReadFromTextIndex(): apply the same
-///   optimization for the PREWHERE clause before data reads.
-void optimizeDirectReadFromTextIndex(const Stack & stack, QueryPlan::Nodes & nodes)
-{
-    bool optimized = optimizePrewhereDirectReadFromTextIndex(stack, nodes);
-    /// Currently direct read optimization can be applied only once.
-    /// Do not optimize WHERE clause if PREWHERE was already optimized.
-    if (!optimized)
-        optimizeWhereDirectReadFromTextIndex(stack, nodes);
 }
 
 }
