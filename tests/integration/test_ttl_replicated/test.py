@@ -538,8 +538,8 @@ def test_ttl_empty_parts(started_cluster):
     [(node1, node2, 0), (node3, node4, 1), (node5, node6, 2)],
 )
 def test_ttl_compatibility(started_cluster, node_left, node_right, num_run):
-    # The test times out for sanitizer builds, so we increase the timeout.
-    timeout = 20
+    # The test times out for sanitizer/ARM builds, so we increase the timeout.
+    timeout = 60
     if node_left.is_built_with_sanitizer() or node_right.is_built_with_sanitizer() or \
     node_left.is_built_with_llvm_coverage() or node_right.is_built_with_llvm_coverage():
         timeout = 300
@@ -612,14 +612,15 @@ def test_ttl_compatibility(started_cluster, node_left, node_right, num_run):
 
     time.sleep(5)  # Wait for TTL
 
-    # after restart table can be in readonly mode
-    exec_query_with_retry(node_right, f"OPTIMIZE TABLE {table}_delete FINAL")
-    node_right.query(f"OPTIMIZE TABLE {table}_group_by FINAL")
-    node_right.query(f"OPTIMIZE TABLE {table}_where FINAL")
+    # After restart, tables can be in readonly mode, and background TTL merges
+    # (merge_with_ttl_timeout=0) may block OPTIMIZE FINAL, so use retry for all.
+    exec_query_with_retry(node_right, f"OPTIMIZE TABLE {table}_delete FINAL", timeout=timeout)
+    exec_query_with_retry(node_right, f"OPTIMIZE TABLE {table}_group_by FINAL", timeout=timeout)
+    exec_query_with_retry(node_right, f"OPTIMIZE TABLE {table}_where FINAL", timeout=timeout)
 
-    exec_query_with_retry(node_left, f"OPTIMIZE TABLE {table}_delete FINAL")
-    node_left.query(f"OPTIMIZE TABLE {table}_group_by FINAL", timeout=timeout)
-    node_left.query(f"OPTIMIZE TABLE {table}_where FINAL", timeout=timeout)
+    exec_query_with_retry(node_left, f"OPTIMIZE TABLE {table}_delete FINAL", timeout=timeout)
+    exec_query_with_retry(node_left, f"OPTIMIZE TABLE {table}_group_by FINAL", timeout=timeout)
+    exec_query_with_retry(node_left, f"OPTIMIZE TABLE {table}_where FINAL", timeout=timeout)
 
     # After OPTIMIZE TABLE, it is not guaranteed that everything is merged.
     # Possible scenario (for test_ttl_group_by):
