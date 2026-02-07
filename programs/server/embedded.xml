@@ -64,6 +64,9 @@
     </quotas>
 
     <user_directories>
+        <users_xml>
+            <path>config.xml</path>
+        </users_xml>
         <local_directory>
             <path>access/</path>
         </local_directory>
