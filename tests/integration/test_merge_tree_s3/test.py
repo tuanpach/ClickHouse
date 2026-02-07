@@ -164,6 +164,19 @@ def remove_all_s3_objects(cluster):
     return objects_to_delete
 
 
+@pytest.fixture(autouse=True, scope="function")
+def clear_minio(cluster):
+    try:
+        # CH do some writes to the S3 at start. For example, file data/clickhouse_access_check_{server_uuid}.
+        # Set the timeout there as 10 sec in order to resolve the race with that file exists.
+        wait_for_delete_s3_objects(cluster, 0, timeout=10)
+    except:
+        # Remove extra objects to prevent tests cascade failing
+        remove_all_s3_objects(cluster)
+
+    yield
+
+
 def check_no_objects_after_drop(cluster, table_name="s3_test", node_name="node"):
     node = cluster.instances[node_name]
     node.query(f"DROP TABLE IF EXISTS {table_name} SYNC")
