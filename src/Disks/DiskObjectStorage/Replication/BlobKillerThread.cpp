@@ -260,16 +260,12 @@ void BlobKillerThread::applyNewSettings(const Poco::Util::AbstractConfiguration 
     metadata_request_batch = config.getUInt64(config_prefix + ".metadata_request_size", DEFAULT_METADATA_REQUEST_SIZE);
     remove_tasks_pool.setMaxThreads(config.getUInt64(config_prefix + ".threads_count", DEFAULT_THREADS_COUNT));
 
+    LOG_INFO(log, "Applying new settings: Enabled: {}, Started: {}", enabled.load(), started.load());
+
     if (enabled && started)
-    {
-        LOG_INFO(log, "Execution started");
         task->activateAndSchedule();
-    }
     else
-    {
-        LOG_INFO(log, "Execution stopped: Enabled: {}, Started: {}", enabled.load(), started.load());
         task->deactivate();
-    }
 }
 
 }
