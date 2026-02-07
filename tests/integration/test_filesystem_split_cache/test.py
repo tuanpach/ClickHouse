@@ -80,9 +80,6 @@ def test_split_cache_restart(started_cluster):
     node.restart_clickhouse()
     wait_for_cache_initialized(node, "split_cache_slru")
 
-    cache_count = int(
-        node.query("SELECT count() FROM system.filesystem_cache WHERE size > 0")
-    )
     cache_state = node.query(
         "SELECT key, file_segment_range_begin, size FROM system.filesystem_cache WHERE size > 0 ORDER BY key, file_segment_range_begin, size"
     )
@@ -90,19 +87,13 @@ def test_split_cache_restart(started_cluster):
     node.restart_clickhouse()
     wait_for_cache_initialized(node, "split_cache_slru")
 
-    cache_count_after_restart = int(
-        node.query("SELECT count() FROM system.filesystem_cache WHERE size > 0")
-    )
     cache_state_after_restart = node.query(
         "SELECT key, file_segment_range_begin, size FROM system.filesystem_cache WHERE size > 0 ORDER BY key, file_segment_range_begin, size"
     )
 
-    print(f"Cache count before restart:\n{cache_count}")
-    print(f"Cache count after restart:\n{cache_count_after_restart}")
     print(f"Cache state before restart:\n{cache_state}")
     print(f"Cache state after restart:\n{cache_state_after_restart}")
 
-    assert cache_count_after_restart == cache_count
     assert cache_state_after_restart == cache_state
 
     node.query("DROP TABLE t0")
