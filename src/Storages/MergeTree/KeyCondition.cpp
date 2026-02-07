@@ -1567,6 +1567,9 @@ bool KeyCondition::tryPrepareSetIndexForIn(
     if (adjusted_indexes_mapping.size() < set_types.size() || is_constant_transformed)
         out.relaxed = true;
 
+    if (out.set_index->size() > 1 || out.relaxed)
+        relaxed = true;
+
     return true;
 }
 
@@ -1691,6 +1694,9 @@ bool KeyCondition::tryPrepareSetIndexForHas(
     ///    which is not equivalent.
     if (adjusted_indexes_mapping.size() < set_types.size() || is_constant_transformed)
         out.relaxed = true;
+
+    if (out.set_index->size() > 1 || out.relaxed)
+        relaxed = true;
 
     return true;
 }
