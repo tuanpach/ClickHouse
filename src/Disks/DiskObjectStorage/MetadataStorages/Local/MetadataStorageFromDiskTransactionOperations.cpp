@@ -286,13 +286,15 @@ void RemoveRecursiveOperation::traverseDirectory(const std::string & mid_path)
         const std::string next_to_visit = it->path();
         const int64_t path_inode = disk.stat(next_to_visit).st_ino;
         const bool is_new_path = visited_inodes.emplace(path_inode).second;
-        if (!is_new_path)
-            throw Exception(ErrorCodes::TOO_DEEP_RECURSION, "Found cyclic symlink path {}", next_to_visit);
 
+        /// Hardlinks will point to the same inode for different files.
+        /// So here we need to remove file in any case.
         if (disk.existsFile(next_to_visit))
             traverseFile(next_to_visit);
-        else
+        else if (is_new_path)
             traverseDirectory(next_to_visit);
+        else
+            throw Exception(ErrorCodes::TOO_DEEP_RECURSION, "Found cyclic symlink path {}", next_to_visit);
     }
 }
 

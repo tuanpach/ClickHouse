@@ -1251,6 +1251,33 @@ TEST_F(MetadataLocalDiskTest, TestRecursiveCyclicRemove)
     }
 }
 
+TEST_F(MetadataLocalDiskTest, TestRecursiveRemoveHardlinks)
+{
+    auto metadata = getMetadataStorage("/TestRecursiveRemoveHardlinks");
+
+    {
+        auto tx = metadata->createTransaction();
+        tx->createDirectory("root");
+        tx->writeInlineDataToFile("root/A", "hello");
+        tx->createHardLink("root/A", "root/B");
+        tx->commit(DB::NoCommitOptions{});
+    }
+
+    EXPECT_EQ(metadata->readInlineDataToString("root/A"), "hello");
+    EXPECT_EQ(metadata->readInlineDataToString("root/B"), "hello");
+
+    /// Check that remove recursive will not hang
+    {
+        auto tx = metadata->createTransaction();
+        tx->removeRecursive("root", /*should_remove_objects=*/nullptr);
+        tx->commit(DB::NoCommitOptions{});
+    }
+
+    EXPECT_FALSE(metadata->existsDirectory("root"));
+    EXPECT_FALSE(metadata->existsFile("root/A"));
+    EXPECT_FALSE(metadata->existsFile("root/B"));
+}
+
 TEST_F(MetadataLocalDiskTest, TestComplexUnlink)
 {
     auto metadata = getMetadataStorage("/TestComplexUnlink");
