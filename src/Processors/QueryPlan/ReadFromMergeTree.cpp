@@ -3787,7 +3787,7 @@ std::shared_ptr<ParallelReadingExtension> ReadFromMergeTree::getParallelReadingE
         context->getClusterForParallelReplicas()->getShardsInfo().at(0).getAllNodeCount());
 }
 
-void ReadFromMergeTree::createReadTasksForTextIndex(const TextIndexReadInfos & text_index_read_infos, const UsefulSkipIndexes & skip_indexes, const TextIndexReadColumns & added_columns, const Names & removed_columns, bool is_final)
+void ReadFromMergeTree::createReadTasksForTextIndex(const UsefulSkipIndexes & skip_indexes, const IndexReadColumns & added_columns, const Names & removed_columns, bool is_final)
 {
     index_read_tasks.clear();
 
@@ -3829,28 +3829,8 @@ void ReadFromMergeTree::createReadTasksForTextIndex(const TextIndexReadInfos & t
             if (it != all_column_names.end())
                 throw Exception(ErrorCodes::LOGICAL_ERROR, "Column {} already added for reading", added_virtual_column.name);
 
-            const auto & text_index_read_info_it = text_index_read_infos.find(index_name);
-            chassert(text_index_read_info_it != text_index_read_infos.end());
-
-            VirtualColumnDescription virtual_column(
-                added_virtual_column.name, added_virtual_column.type, nullptr, index_name, VirtualsKind::Ephemeral);
-
-            /// If the text index is not fully materialized in all parts, we need to add a default expression
-            /// so that parts without the index can evaluate the filter function directly on the column data.
-            if (!text_index_read_info_it->second.is_fully_materialied)
-            {
-                if (!added_virtual_column.default_expression)
-                    throw Exception(ErrorCodes::LOGICAL_ERROR,
-                        "Text index '{}' is partially materialized, but column '{}' does not have a default expression.",
-                        index_name,
-                        added_virtual_column.name);
-
-                virtual_column.default_desc.kind = ColumnDefaultKind::Default;
-                virtual_column.default_desc.expression = added_virtual_column.default_expression;
-            }
-
             all_column_names.push_back(added_virtual_column.name);
-            new_virtual_columns->add(std::move(virtual_column));
+            new_virtual_columns->add(added_virtual_column);
             index_task.columns.emplace_back(added_virtual_column.name, added_virtual_column.type);
         }
     }

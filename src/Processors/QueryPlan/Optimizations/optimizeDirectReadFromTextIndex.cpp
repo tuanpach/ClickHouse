@@ -27,6 +27,15 @@ namespace
 
 using NodesReplacementMap = absl::flat_hash_map<const ActionsDAG::Node *, const ActionsDAG::Node *>;
 
+struct TextIndexReadInfo
+{
+    const MergeTreeIndexWithCondition * index;
+    bool is_materialized;
+    bool is_fully_materialied;
+};
+
+using TextIndexReadInfos = absl::flat_hash_map<String, TextIndexReadInfo>;
+
 String getNameWithoutAliases(const ActionsDAG::Node * node)
 {
     while (node->type == ActionsDAG::ActionType::ALIAS)
@@ -96,7 +105,7 @@ const ActionsDAG::Node * replaceNodes(ActionsDAG & dag, const ActionsDAG::Node *
     return node;
 }
 
-String optimizationInfoToString(const TextIndexReadColumns & added_columns, const Names & removed_columns)
+String optimizationInfoToString(const IndexReadColumns & added_columns, const Names & removed_columns)
 {
     chassert(!added_columns.empty());
 
@@ -237,7 +246,7 @@ public:
 
     struct ResultReplacement
     {
-        TextIndexReadColumns added_columns;
+        IndexReadColumns added_columns;
         Names removed_columns;
         const ActionsDAG::Node * filter_node = nullptr;
     };
@@ -266,7 +275,12 @@ public:
                     default_expression = convertNodeToAST(node);
 
                 for (const auto & [index_name, virtual_column_name] : replaced->added_virtual_columns)
-                    result.added_columns[index_name].emplace_back(virtual_column_name, std::make_shared<DataTypeUInt8>(), default_expression);
+                {
+                    VirtualColumnDescription virtual_column(virtual_column_name, std::make_shared<DataTypeUInt8>(), nullptr, index_name, VirtualsKind::Ephemeral);
+                    virtual_column.default_desc.kind = ColumnDefaultKind::Default;
+                    virtual_column.default_desc.expression = default_expression;
+                    result.added_columns[index_name].add(std::move(virtual_column));
+                }
             }
         }
 
@@ -570,7 +584,7 @@ const ActionsDAG::Node * applyTextIndexDirectReadToDAG(
 
     const auto & indexes = read_from_merge_tree_step.getIndexes();
     bool is_final = read_from_merge_tree_step.isQueryWithFinal();
-    read_from_merge_tree_step.createReadTasksForTextIndex(text_index_read_infos, indexes->skip_indexes, result.added_columns, result.removed_columns, is_final);
+    read_from_merge_tree_step.createReadTasksForTextIndex(indexes->skip_indexes, result.added_columns, result.removed_columns, is_final);
     return result.filter_node;
 }
 

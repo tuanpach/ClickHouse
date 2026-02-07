@@ -113,9 +113,8 @@ void IMergeTreeReader::fillVirtualColumns(Columns & columns, size_t rows) const
         if (MergeTreeRangeReader::virtuals_to_fill.contains(it->name))
             throw Exception(ErrorCodes::LOGICAL_ERROR, "Virtual column {} must be filled by range reader", it->name);
 
-        /// If virtual column has a default expression, skip filling it.
-        /// It will be filled in evaluateMissingDefaults.
-        if (storage_snapshot->virtual_columns->getDefault(it->name))
+        /// Virtual columns for text index are filled in another place.
+        if (isTextIndexVirtualColumn(it->name))
             continue;
 
         Field field;

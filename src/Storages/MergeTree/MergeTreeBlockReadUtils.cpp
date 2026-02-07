@@ -44,16 +44,16 @@ bool hasMaterializedTextIndex(
         return false;
 
     const auto * virtual_column = storage_snapshot->virtual_columns->tryGetDescription(virtual_column_name);
-    if (virtual_column)
+    if (!virtual_column)
+        return false;
+
+    /// Name of the text index is embedded as a comment to the virtual column.
+    const auto & text_index_name = virtual_column->comment;
+    for (const auto & index_desc : storage_snapshot->metadata->getSecondaryIndices())
     {
-        /// Name of the text index is embedded as a comment to the virtual column.
-        const auto & text_index_name = virtual_column->comment;
-        for (const auto & index_desc : storage_snapshot->metadata->getSecondaryIndices())
-        {
-            if (index_desc.type == "text" && index_desc.name == text_index_name)
-                if (const auto * loaded_part = dynamic_cast<const LoadedMergeTreeDataPartInfoForReader *>(&data_part_info_for_reader))
-                    return loaded_part->getDataPart()->hasSecondaryIndex(index_desc.name, storage_snapshot->metadata);
-        }
+        if (index_desc.type == "text" && index_desc.name == text_index_name)
+            if (const auto * loaded_part = dynamic_cast<const LoadedMergeTreeDataPartInfoForReader *>(&data_part_info_for_reader))
+                return loaded_part->getDataPart()->hasSecondaryIndex(index_desc.name, storage_snapshot->metadata);
     }
 
     return false;
