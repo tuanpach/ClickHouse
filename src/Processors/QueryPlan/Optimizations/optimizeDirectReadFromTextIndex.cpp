@@ -554,7 +554,7 @@ private:
     }
 };
 
-const ActionsDAG::Node * applyTextIndexDirectReadToDAG(
+static const ActionsDAG::Node * processAndOptimizeTextIndexDAG(
     ReadFromMergeTree & read_from_merge_tree_step,
     ActionsDAG & filter_dag,
     const TextIndexReadInfos & text_index_read_infos,
@@ -567,7 +567,7 @@ const ActionsDAG::Node * applyTextIndexDirectReadToDAG(
     if (result.added_columns.empty())
         return nullptr;
 
-    auto logger = getLogger("optimizeDirectReadFromTextIndex");
+    auto logger = getLogger("processAndOptimizeTextIndexFunctions");
     LOG_DEBUG(logger, "{}", optimizationInfoToString(result.added_columns, result.removed_columns));
 
     /// Log partially materialized text indexes
@@ -584,7 +584,7 @@ const ActionsDAG::Node * applyTextIndexDirectReadToDAG(
 }
 
 /// Replaces text-search functions in the PREWHERE clause with virtual columns for direct index reads.
-bool optimizePrewhereDirectReadFromTextIndex(
+static bool processAndOptimizeTextIndexFunctionsInPrewhere(
     ReadFromMergeTree & read_from_merge_tree_step,
     const PrewhereInfoPtr & prewhere_info,
     const TextIndexReadInfos & text_index_read_infos,
@@ -592,7 +592,7 @@ bool optimizePrewhereDirectReadFromTextIndex(
 {
     read_from_merge_tree_step.updatePrewhereInfo({});
     auto cloned_prewhere_info = prewhere_info->clone();
-    const auto * result_filter_node = applyTextIndexDirectReadToDAG(read_from_merge_tree_step, cloned_prewhere_info.prewhere_actions, text_index_read_infos, cloned_prewhere_info.prewhere_column_name, direct_read_from_text_index);
+    const auto * result_filter_node = processAndOptimizeTextIndexDAG(read_from_merge_tree_step, cloned_prewhere_info.prewhere_actions, text_index_read_infos, cloned_prewhere_info.prewhere_column_name, direct_read_from_text_index);
 
     if (!result_filter_node)
     {
@@ -614,7 +614,7 @@ bool optimizePrewhereDirectReadFromTextIndex(
 ///
 /// When `direct_read_from_text_index` is true, also replaces text-search functions
 /// with virtual columns for direct index reads (both WHERE and PREWHERE clauses).
-void optimizeDirectReadFromTextIndex(const Stack & stack, QueryPlan::Nodes & /*nodes*/, bool direct_read_from_text_index)
+void processAndOptimizeTextIndexFunctions(const Stack & stack, QueryPlan::Nodes & /*nodes*/, bool direct_read_from_text_index)
 {
     const auto & frame = stack.back();
     ReadFromMergeTree * read_from_merge_tree_step = typeid_cast<ReadFromMergeTree *>(frame.node->step.get());
@@ -628,7 +628,7 @@ void optimizeDirectReadFromTextIndex(const Stack & stack, QueryPlan::Nodes & /*n
 
     bool optimized = false;
     if (auto prewhere_info = read_from_merge_tree_step->getPrewhereInfo())
-        optimized = optimizePrewhereDirectReadFromTextIndex(*read_from_merge_tree_step, prewhere_info, text_index_read_infos, direct_read_from_text_index);
+        optimized = processAndOptimizeTextIndexFunctionsInPrewhere(*read_from_merge_tree_step, prewhere_info, text_index_read_infos, direct_read_from_text_index);
 
     if (stack.size() < 2)
         return;
@@ -640,7 +640,7 @@ void optimizeDirectReadFromTextIndex(const Stack & stack, QueryPlan::Nodes & /*n
         return;
 
     ActionsDAG & filter_dag = filter_step->getExpression();
-    const auto * result_filter_node = applyTextIndexDirectReadToDAG(*read_from_merge_tree_step, filter_dag, text_index_read_infos, filter_step->getFilterColumnName(), direct_read_from_text_index && !optimized);
+    const auto * result_filter_node = processAndOptimizeTextIndexDAG(*read_from_merge_tree_step, filter_dag, text_index_read_infos, filter_step->getFilterColumnName(), direct_read_from_text_index && !optimized);
 
     if (!result_filter_node)
         return;
