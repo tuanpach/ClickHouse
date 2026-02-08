@@ -1,5 +1,4 @@
 #pragma once
-#include <Core/NamesAndTypes.h>
 #include <Processors/QueryPlan/SourceStepWithFilter.h>
 #include <Processors/QueryPlan/PartsSplitter.h>
 #include <Storages/MergeTree/ParallelReplicasReadingCoordinator.h>

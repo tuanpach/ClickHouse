@@ -433,7 +433,6 @@ void fillMissingColumns(
             res_columns[i] = nullptr;
 
         /// Nothing to fill or default should be filled in evaluateMissingDefaults.
-        /// Skip text index virtual columns - they have default expressions and will be evaluated later.
         if (res_columns[i] || !storage_snapshot || storage_snapshot->getDefault(requested_column->name))
             continue;
 

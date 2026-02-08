@@ -134,9 +134,7 @@ std::pair<ColumnPtr,size_t> MergeTreeIndexTextPreprocessor::processColumn(const 
         const ColumnPtr array_offsets = column_array->getOffsetsPtr();
 
         ColumnWithTypeAndName array_data_column(array_data, nested_type, source_column_name);
-
         auto [processed_column, _] = processColumn(array_data_column, 0, array_data_column.column->size());
-
         ColumnPtr result_column = ColumnArray::create(processed_column, array_offsets);
 
         return {result_column, 0};

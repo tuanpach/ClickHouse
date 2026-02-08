@@ -1151,12 +1151,11 @@ void MergeTreeIndexAggregatorText::update(const Block & block, size_t * pos, siz
     if (rows_read == 0)
         return;
 
-    const ColumnWithTypeAndName & index_column = block.getByName(index_column_name);
+    const auto & index_column = block.getByName(index_column_name);
+    auto [preprocessed_column, offset] = preprocessor->processColumn(index_column, *pos, rows_read);
 
-    if (isArray(index_column.type->getTypeId()))
+    if (isArray(index_column.type))
     {
-        auto [preprocessed_column, offset] = preprocessor->processColumn(index_column, *pos, rows_read);
-
         const auto & column_array = assert_cast<const ColumnArray &>(*preprocessed_column);
         const auto & column_data = column_array.getData();
         const auto & column_offsets = column_array.getOffsets();
@@ -1173,7 +1172,6 @@ void MergeTreeIndexAggregatorText::update(const Block & block, size_t * pos, siz
     }
     else
     {
-        auto [preprocessed_column, offset] = preprocessor->processColumn(index_column, *pos, rows_read);
         for (size_t i = 0; i < rows_read; ++i)
         {
             std::string_view ref = preprocessed_column->getDataAt(offset + i);

@@ -2,7 +2,6 @@
 -- Tag no-parallel: Messes with internal cache and global udf factory
 
 SET enable_full_text_index = 1;
-SET use_skip_indexes_on_data_read = 1;
 
 -- Tests the preprocessor argument for tokenizers in the text index definitions
 
@@ -141,7 +140,7 @@ SELECT count() FROM tab WHERE hasAnyTokens(val, 'FOO');
 SELECT count() FROM tab WHERE hasAnyTokens(val, 'BAR');
 SELECT count() FROM tab WHERE hasAnyTokens(val, 'Baz');
 
-DROP TABLE tab;
+DROP TABLE IF EXISTS tab;
 
 SELECT '- Test simple preprocessor expression with Array(FixedString).';
 CREATE TABLE tab
