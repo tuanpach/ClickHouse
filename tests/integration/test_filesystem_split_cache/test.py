@@ -83,6 +83,7 @@ def test_split_cache_restart(started_cluster):
 
     cache_state = node.query(
         "SELECT key, file_segment_range_begin, size FROM system.filesystem_cache WHERE size > 0 ORDER BY key, file_segment_range_begin, size"
+    )
     cache_count = int(
         node.query("SELECT count() FROM system.filesystem_cache WHERE cache_name = 'split_cache_slru' AND size > 0")
     )
@@ -92,6 +93,7 @@ def test_split_cache_restart(started_cluster):
 
     cache_state_after_restart = node.query(
         "SELECT key, file_segment_range_begin, size FROM system.filesystem_cache WHERE size > 0 ORDER BY key, file_segment_range_begin, size"
+    )
     new_cache_count = int(
         node.query("SELECT count() FROM system.filesystem_cache WHERE cache_name = 'split_cache_slru' AND size > 0")
     )
