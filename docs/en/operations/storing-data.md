@@ -177,7 +177,7 @@ SETTINGS disk = 's3';
 
 ## refresh_parts_interval and table_disk {#refresh-parts-interval-and-table-disk}
 
-The MergeTree setting `refresh_parts_interval` enables periodic refresh of the list of data parts from the underlying storage (e.g. to pick up parts written externally). **Whether new parts are detected depends on whether the underlying filesystem metadata is shared across replicas**, not on using object storage alone.
+The MergeTree setting `refresh_parts_interval` enables periodic refresh of the list of data parts from the underlying storage (e.g. to pick up parts written externally). The important distinction is **shared metadata across replicas** vs **replica-local metadata** (e.g. S3 with local metadata per replica): only when metadata is shared will new parts be visible to all replicas. Using object storage alone does not imply shared metadata.
 
 - **Object storage (e.g. `disk = 's3'`) does not imply shared metadata.** When metadata is stored locally per replica (the default), each replica independently manages its pointers to blobs in object storage. Changes made on one replica are not visible to others. In that case, `refresh_parts_interval` does not make new parts visible across replicas, because the metadata each replica reads is replica-local.
 
