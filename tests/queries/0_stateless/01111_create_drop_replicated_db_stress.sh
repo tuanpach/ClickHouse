@@ -31,7 +31,7 @@ function drop_db()
         if [[ "$database" == "$CLICKHOUSE_DATABASE" ]]; then continue; fi
         if [ -z "$database" ]; then continue; fi
         $CLICKHOUSE_CLIENT --query \
-        "drop database if exists $database" 2>&1| grep -Fa "Exception: "
+        "drop database if exists $database" 2>&1| grep -Fa "Exception: " | grep -Fv DATABASE_NOT_EMPTY
         sleep 0.$RANDOM
     done
 }
