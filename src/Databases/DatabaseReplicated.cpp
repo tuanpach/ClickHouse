@@ -576,13 +576,22 @@ void DatabaseReplicated::tryConnectToZooKeeperAndInitDatabase(LoadingStrictnessL
 
         auto current_zookeeper = getContext()->getZooKeeper();
 
+        bool is_create_query = mode == LoadingStrictnessLevel::CREATE;
+
         if (!current_zookeeper->exists(zookeeper_path))
         {
             /// Create new database, multiple nodes can execute it concurrently
             createDatabaseNodesInZooKeeper(current_zookeeper);
         }
-
-        bool is_create_query = mode == LoadingStrictnessLevel::CREATE;
+        else if (is_create_query && !current_zookeeper->exists(zookeeper_path + "/max_log_ptr"))
+        {
+            /// Database metadata is incomplete, likely from a previous DROP that partially removed ZK nodes
+            /// (e.g. tryRemoveRecursive removed children but failed to remove the root).
+            /// Clean up and recreate.
+            LOG_WARNING(log, "Found incomplete Replicated database metadata in ZooKeeper at {}, cleaning up and recreating", zookeeper_path);
+            current_zookeeper->tryRemoveRecursive(zookeeper_path);
+            createDatabaseNodesInZooKeeper(current_zookeeper);
+        }
 
         String replica_host_id;
         bool replica_exists_in_zk = current_zookeeper->tryGet(replica_path, replica_host_id);
