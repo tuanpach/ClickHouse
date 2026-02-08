@@ -3,7 +3,6 @@
 -- non-active variant columns that could have inconsistent sizes.
 -- https://s3.amazonaws.com/clickhouse-test-reports/json.html?REF=master&sha=4d4a583a5ad2322918638a3f6a01acd7e0ed7019&name_0=MasterCI&name_1=AST%20fuzzer%20%28amd_tsan%29
 
-SET allow_experimental_variant_type = 1;
 SET allow_suspicious_types_in_order_by = 1;
 SET use_variant_default_implementation_for_comparisons = 0;
 
