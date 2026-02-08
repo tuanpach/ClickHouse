@@ -22,7 +22,7 @@ public:
     }
 
     bool needChildVisit(const QueryTreeNodePtr & parent, const QueryTreeNodePtr & child) 
-    { 
+    {
         if (child->getNodeType() == QueryTreeNodeType::QUERY)
         {
             auto * child_query = child->as<QueryNode>();
