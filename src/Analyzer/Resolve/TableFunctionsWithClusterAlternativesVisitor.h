@@ -21,7 +21,7 @@ public:
             has_join = true;
     }
 
-    bool needChildVisit(const QueryTreeNodePtr & parent, const QueryTreeNodePtr & child) 
+    bool needChildVisit(const QueryTreeNodePtr & parent, const QueryTreeNodePtr & child)
     {
         if (child->getNodeType() == QueryTreeNodeType::QUERY)
         {
