@@ -187,6 +187,10 @@ The MergeTree setting `refresh_parts_interval` enables periodic refresh of the l
 
 For automatic part refreshing, ensure the metadata is shared or use a table-level disk with `table_disk = true` as above. Relying only on `refresh_parts_interval` with replica-local metadata will not refresh parts as expected.
 
+:::note
+This setting is not required for standard replicated MergeTree tables. It is only relevant when using object storage with replica-local metadata, where automatic part discovery is otherwise not possible.
+:::
+
 ## Dynamic Configuration {#dynamic-configuration}
 
 There is also a possibility to specify storage configuration without a predefined
