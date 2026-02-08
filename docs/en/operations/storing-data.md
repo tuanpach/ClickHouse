@@ -177,13 +177,15 @@ SETTINGS disk = 's3';
 
 ## refresh_parts_interval and table_disk {#refresh-parts-interval-and-table-disk}
 
-The MergeTree setting `refresh_parts_interval` enables periodic refresh of the list of data parts from the underlying storage (e.g. to pick up parts written externally). **It only takes effect when the table uses table-owned metadata on object storage**, which is achieved by setting `table_disk = true` together with a table-local disk.
+The MergeTree setting `refresh_parts_interval` enables periodic refresh of the list of data parts from the underlying storage (e.g. to pick up parts written externally). **Whether new parts are detected depends on whether the underlying filesystem metadata is shared across replicas**, not on using object storage alone.
 
-- **With a globally defined disk** (e.g. `disk = 's3'` where `s3` is defined in `storage_configuration`): the disk is shared and not table-scoped. MergeTree does not assume that parts are written externally to that path, so the refresh logic is not enabled. New parts created outside ClickHouse will not be detected even if `refresh_parts_interval` is set.
+- **Object storage (e.g. `disk = 's3'`) does not imply shared metadata.** When metadata is stored locally per replica (the default), each replica independently manages its pointers to blobs in object storage. Changes made on one replica are not visible to others. In that case, `refresh_parts_interval` does not make new parts visible across replicas, because the metadata each replica reads is replica-local.
 
-- **With a table-local disk and `table_disk = true`** (e.g. `SETTINGS disk = disk(type=object_storage, ...), table_disk = true`): the table owns the metadata lifecycle on that object storage. The disks are treated as readonly from the table’s perspective, and `refresh_parts_interval` runs as intended so that externally added parts are discovered.
+- **Automatic part refreshing requires that the filesystem metadata be shared** (or that the table use table-owned, readonly metadata so that refresh is applicable). Setting `table_disk = true` together with a table-local disk (e.g. `SETTINGS disk = disk(type=object_storage, ...), table_disk = true`) is one way to get the correct semantics: the table owns the metadata lifecycle and the storage is treated as readonly, so `refresh_parts_interval` runs and externally added parts can be discovered.
 
-For automatic part refreshing with object storage, use a table-level disk definition and set `table_disk = true`. Relying only on `refresh_parts_interval` with a globally configured disk will not refresh parts as expected.
+- **With a globally defined disk** (e.g. `disk = 's3'` in `storage_configuration`) and default local metadata, each replica has its own metadata state. Even though blobs may be in S3, the storage is not considered shared for the purpose of `refresh_parts_interval`, and new parts created outside ClickHouse or on another replica will not be detected.
+
+For automatic part refreshing, ensure the metadata is shared or use a table-level disk with `table_disk = true` as above. Relying only on `refresh_parts_interval` with replica-local metadata will not refresh parts as expected.
 
 ## Dynamic Configuration {#dynamic-configuration}
 
