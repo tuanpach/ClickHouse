@@ -279,7 +279,7 @@ CREATE TABLE tab
     val String,
     INDEX idx(lower(val)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(val))
 )
-ENGINE = MergeTree ORDER BY tuple();   -- { serverError INCORRECT_QUERY }
+ENGINE = MergeTree ORDER BY tuple();   -- { serverError UNKNOWN_IDENTIFIER }
 
 SELECT '- The preprocessor must be an expression';
 CREATE TABLE tab

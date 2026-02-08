@@ -418,17 +418,15 @@ private:
 
         if (preprocessor && preprocessor->hasActions())
         {
-            const auto & preprocessor_dag = preprocessor->getActionsDAG();
+            const auto & preprocessor_dag = preprocessor->getHaystackActionsDAG();
             chassert(preprocessor_dag.getOutputs().size() == 1);
             const auto & preprocessor_output = preprocessor_dag.getOutputs().front();
             auto haystack_name = getNameWithoutAliases(arg_haystack);
 
             if (hasSubexpression(preprocessor_output, haystack_name))
             {
-                auto haystack_type = removeNullable(arg_haystack->result_type);
-                ActionsDAG preprocessor_dag_copy = isArray(haystack_type) ? preprocessor->getActionsDAGForArray().clone() : preprocessor_dag.clone();
                 ActionsDAG::NodeRawConstPtrs merged_outputs;
-                actions_dag.mergeNodes(std::move(preprocessor_dag_copy), &merged_outputs);
+                actions_dag.mergeNodes(preprocessor_dag.clone(), &merged_outputs);
 
                 chassert(merged_outputs.size() == 1);
                 new_children[0] = merged_outputs.front();

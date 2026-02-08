@@ -26,18 +26,16 @@ public:
     /// Applies the internal expression to an input string.
     /// Kind of equivalent to 'SELECT expression(const_string)'.
     String processConstant(const String & input) const;
-    bool hasActions() const { return !expression_actions.getActions().empty(); }
+    bool hasActions() const { return !haystack_actions.getActions().empty(); }
 
-    ASTPtr getAST() const { return ast; }
-    const ActionsDAG & getActionsDAG() const { return expression_actions.getActionsDAG(); }
-    const ActionsDAG & getActionsDAGForArray() const { return array_expression_actions.getActionsDAG(); }
-    Names getRequiredColumns() const { return expression_actions.getRequiredColumns(); }
+    const ActionsDAG & getHaystackActionsDAG() const { return haystack_actions.getActionsDAG(); }
+    const ActionsDAG & getNeedlesActionsDAG() const { return needles_actions.getActionsDAG(); }
 
 private:
-    ASTPtr ast;
-    NamesAndTypesList index_columns;
-    ExpressionActions expression_actions;
-    ExpressionActions array_expression_actions;
+    NameAndTypePair haystack_column;
+    NameAndTypePair needles_column;
+    ExpressionActions haystack_actions;
+    ExpressionActions needles_actions;
 };
 
 }
