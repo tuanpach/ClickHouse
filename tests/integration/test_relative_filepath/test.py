@@ -4,7 +4,7 @@ from helpers.cluster import ClickHouseCluster
 
 cluster = ClickHouseCluster(__file__)
 node = cluster.add_instance("node", main_configs=["configs/config.xml"])
-path_to_userfiles_from_defaut_config = "user_files"
+path_to_userfiles_from_defaut_config = "/var/lib/clickhouse/user_files"
 
 
 @pytest.fixture(scope="module")
