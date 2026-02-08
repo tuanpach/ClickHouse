@@ -157,9 +157,11 @@ void IndexDescription::initExpressionInfo(ASTPtr index_expression, const Columns
 
 Field getFieldFromIndexArgumentAST(const ASTPtr & ast)
 {
-    if (const auto * ast_literal = ast->as<ASTLiteral>(); ast_literal != nullptr)
+    /// E.g. INDEX index_name column_name TYPE vector_similarity('hnsw', 'f32')
+    if (const auto * ast_literal = ast->as<ASTLiteral>())
         return ast_literal->value;
-    if (const auto * ast_identifier = ast->as<ASTIdentifier>(); ast_identifier != nullptr)
+    /// E.g. INDEX index_name column_name TYPE vector_similarity(index_name, column_name)
+    if (const auto * ast_identifier = ast->as<ASTIdentifier>())
         return Field(ast_identifier->name());
     throw Exception(ErrorCodes::INCORRECT_QUERY, "Only literals and identifiers can be skip index arguments");
 }

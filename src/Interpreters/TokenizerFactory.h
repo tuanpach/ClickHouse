@@ -19,16 +19,16 @@ public:
     using Creator = std::function<std::unique_ptr<ITokenExtractor>(const FieldVector &)>;
     static TokenizerFactory & instance();
 
-    /// Parse definition of a tokenizer from a string into AST and create a tokenizer from it.
+    /// Parses a definition of a tokenizer from a string into AST and creates a tokenizer from it.
     std::unique_ptr<ITokenExtractor> get(std::string_view full_name) const;
 
-    /// Create a tokenizer from an AST node.
+    /// Creates a tokenizer from an AST node.
     /// Supports ASTIdentifier (name without args),
     /// ASTLiteral with string value (name without args),
     /// and ASTFunction (name with literal args).
     std::unique_ptr<ITokenExtractor> get(const ASTPtr & ast) const;
 
-    /// Create a tokenizer by name and arguments.
+    /// Creates a tokenizer by name and arguments.
     /// If allowed is non-empty, only tokenizers of the specified types can be created.
     std::unique_ptr<ITokenExtractor> get(
         std::string_view name,

@@ -405,9 +405,7 @@ private:
             return;
 
         String needles;
-        auto needles_type = removeNullable(arg_needles->result_type);
-
-        if (isStringOrFixedString(needles_type) && !arg_needles->column->empty() && !arg_needles->column->isNullAt(0))
+        if (isStringOrFixedString(removeNullable(arg_needles->result_type)) && !arg_needles->column->empty() && !arg_needles->column->isNullAt(0))
             needles = arg_needles->column->getDataAt(0);
 
         const auto & condition = selected_conditions.front();
@@ -437,12 +435,12 @@ private:
         }
 
         ColumnWithTypeAndName arg;
-        arg.type = std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>());
 
         if (needles.empty())
         {
             arg.column = IColumn::mutate(arg_needles->column);
             arg.name = arg_needles->result_name;
+            arg.type = arg_needles->result_type;
         }
         else
         {
@@ -453,6 +451,7 @@ private:
 
             arg.column = arg.type->createColumnConst(1, needles_field);
             arg.name = applyVisitor(FieldVisitorToString(), needles_field);
+            arg.type = std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>());
         }
 
         new_children[1] = &actions_dag.addColumn(std::move(arg));

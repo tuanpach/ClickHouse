@@ -113,7 +113,7 @@ std::unique_ptr<ITokenExtractor> TokenizerFactory::get(const ASTPtr & ast) const
     if (const auto * literal = ast->as<ASTLiteral>())
     {
         if (literal->value.getType() != Field::Types::String)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Tokenizer name must be a string, got: {}", literal->value.getTypeName());
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Tokenizer name must be a string, got: '{}'", literal->value.getTypeName());
 
         return get(literal->value.safeGet<String>(), args);
     }
@@ -124,7 +124,7 @@ std::unique_ptr<ITokenExtractor> TokenizerFactory::get(const ASTPtr & ast) const
         return get(function->name, args);
     }
 
-    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cannot create tokenizer from AST node of type: {}", ast->getID());
+    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cannot create tokenizer from AST: '{}'", ast->formatForErrorMessage());
 }
 
 std::unique_ptr<ITokenExtractor> TokenizerFactory::get(

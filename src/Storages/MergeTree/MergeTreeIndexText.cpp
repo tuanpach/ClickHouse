@@ -1395,7 +1395,7 @@ void textIndexValidator(const IndexDescription & index, bool /*attach*/)
 
     /// Create the preprocessor for validation.
     /// For very strict validation of the expression we fully parse it here.
-    // However it will be parsed again for index construction, generally immediately after this call.
+    /// However it will be parsed again for index construction, generally immediately after this call.
     /// This is a bit redundant but that doesn't impact performance anyhow because the expression is intended to be simple enough.
     MergeTreeIndexTextPreprocessor preprocessor(preprocessor_ast, index);
 }
