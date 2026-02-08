@@ -101,7 +101,13 @@ bool canRemoveConstantFromGroupByKey(const ConstantNode & root)
         else if (function_node)
         {
             if (!function_node->isOrdinaryFunction())
-                return false;
+            {
+                /// Non-ordinary functions (window, aggregate, lambda) cannot be server constants,
+                /// so it is safe to remove them from GROUP BY. We cannot call getFunctionOrThrow()
+                /// on them (it would throw), but we also don't need to — they won't produce
+                /// server-specific values. Skip examining their children.
+                continue;
+            }
 
             /// Do not allow removing constants like `hostName()`
             if (function_node->getFunctionOrThrow()->isServerConstant())
@@ -158,6 +164,7 @@ std::optional<AggregationAnalysisResult> analyzeAggregation(
 
     bool is_secondary_query = planner_context->getQueryContext()->getClientInfo().query_kind == ClientInfo::QueryKind::SECONDARY_QUERY;
     bool is_distributed_query = planner_context->getQueryContext()->isDistributed();
+    bool check_constants_for_group_by_key = is_secondary_query || is_distributed_query;
 
     if (query_node.hasGroupBy())
     {
@@ -174,12 +181,7 @@ std::optional<AggregationAnalysisResult> analyzeAggregation(
                     const auto * constant_key = grouping_set_key_node->as<ConstantNode>();
                     group_by_with_constant_keys |= (constant_key != nullptr);
 
-                    /// On a secondary query (shard/replica), never remove constants from GROUP BY.
-                    /// The initiator already decided which constants to keep, and that information
-                    /// (e.g. that the source expression contained a window function or server-constant)
-                    /// is lost during AST serialization. Removing them would cause a header mismatch.
-                    if (constant_key && !aggregates_descriptions.empty() && !is_secondary_query
-                        && (!is_distributed_query || canRemoveConstantFromGroupByKey(*constant_key)))
+                    if (constant_key && !aggregates_descriptions.empty() && (!check_constants_for_group_by_key || canRemoveConstantFromGroupByKey(*constant_key)))
                         continue;
 
                     auto [expression_dag_nodes, correlated_subtrees] = actions_visitor.visit(before_aggregation_actions->dag, grouping_set_key_node);
@@ -232,12 +234,7 @@ std::optional<AggregationAnalysisResult> analyzeAggregation(
                 const auto * constant_key = group_by_key_node->as<ConstantNode>();
                 group_by_with_constant_keys |= (constant_key != nullptr);
 
-                /// On a secondary query (shard/replica), never remove constants from GROUP BY.
-                /// The initiator already decided which constants to keep, and that information
-                /// (e.g. that the source expression contained a window function or server-constant)
-                /// is lost during AST serialization. Removing them would cause a header mismatch.
-                if (constant_key && !aggregates_descriptions.empty() && !is_secondary_query
-                    && (!is_distributed_query || canRemoveConstantFromGroupByKey(*constant_key)))
+                if (constant_key && !aggregates_descriptions.empty() && (!check_constants_for_group_by_key || canRemoveConstantFromGroupByKey(*constant_key)))
                     continue;
 
                 auto [expression_dag_nodes, correlated_subtrees] = actions_visitor.visit(before_aggregation_actions->dag, group_by_key_node);
