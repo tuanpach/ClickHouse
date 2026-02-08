@@ -175,6 +175,16 @@ ENGINE = MergeTree() ORDER BY a
 SETTINGS disk = 's3';
 ```
 
+## refresh_parts_interval and table_disk {#refresh-parts-interval-and-table-disk}
+
+The MergeTree setting `refresh_parts_interval` enables periodic refresh of the list of data parts from the underlying storage (e.g. to pick up parts written externally). **It only takes effect when the table uses table-owned metadata on object storage**, which is achieved by setting `table_disk = true` together with a table-local disk.
+
+- **With a globally defined disk** (e.g. `disk = 's3'` where `s3` is defined in `storage_configuration`): the disk is shared and not table-scoped. MergeTree does not assume that parts are written externally to that path, so the refresh logic is not enabled. New parts created outside ClickHouse will not be detected even if `refresh_parts_interval` is set.
+
+- **With a table-local disk and `table_disk = true`** (e.g. `SETTINGS disk = disk(type=object_storage, ...), table_disk = true`): the table owns the metadata lifecycle on that object storage. The disks are treated as readonly from the table’s perspective, and `refresh_parts_interval` runs as intended so that externally added parts are discovered.
+
+For automatic part refreshing with object storage, use a table-level disk definition and set `table_disk = true`. Relying only on `refresh_parts_interval` with a globally configured disk will not refresh parts as expected.
+
 ## Dynamic Configuration {#dynamic-configuration}
 
 There is also a possibility to specify storage configuration without a predefined
