@@ -351,7 +351,7 @@ RelationStats estimateReadRowsCount(QueryPlan::Node & node, const ActionsDAG::No
 }
 
 
-bool optimizeJoinLegacy(QueryPlan::Node & node, QueryPlan::Nodes &, const QueryPlanOptimizationSettings &)
+bool optimizeJoinLegacy(QueryPlan::Node & node, QueryPlan::Nodes & nodes, const QueryPlanOptimizationSettings &)
 {
     auto * join_step = typeid_cast<JoinStep *>(node.step.get());
     if (!join_step || node.children.size() != 2 || join_step->isOptimized())
@@ -402,10 +402,27 @@ bool optimizeJoinLegacy(QueryPlan::Node & node, QueryPlan::Nodes &, const QueryP
     auto left_stream_input_header = headers.front();
     auto right_stream_input_header = headers.back();
 
+    auto original_output = join_step->getOutputHeader();
+
     auto updated_table_join = std::make_shared<TableJoin>(table_join);
     updated_table_join->swapSides();
     auto updated_join = join->clone(updated_table_join, right_stream_input_header, left_stream_input_header);
     join_step->setJoin(std::move(updated_join), /* swap_streams= */ true);
+
+    /// After swapping, the output header may change because TableJoin::swapSides
+    /// swaps result_columns_from_left_table with columns_added_by_join.
+    /// If the header changed, add a converting ExpressionStep to restore the original header.
+    const auto & new_output = join_step->getOutputHeader();
+    if (!isCompatibleHeader(*new_output, *original_output))
+    {
+        auto converting = ActionsDAG::makeConvertingActions(
+            new_output->getColumnsWithTypeAndName(),
+            original_output->getColumnsWithTypeAndName(),
+            ActionsDAG::MatchColumnsMode::Name,
+            nullptr);
+        makeExpressionNodeOnTopOf(node, std::move(converting), nodes);
+    }
+
     return true;
 }
 
