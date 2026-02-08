@@ -13,6 +13,7 @@
 #include <Interpreters/ActionsDAG.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/Context_fwd.h>
+#include <Interpreters/ActionsVisitor.h>
 #include <Interpreters/ExpressionActions.h>
 #include <Interpreters/ExpressionActionsSettings.h>
 #include <Parsers/ASTFunction.h>
@@ -21,8 +22,6 @@
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/ExpressionListParsers.h>
 #include <Storages/IndicesDescription.h>
-#include <Interpreters/ExpressionAnalyzer.h>
-#include <Interpreters/TreeRewriter.h>
 
 namespace DB
 {
@@ -106,18 +105,29 @@ ActionsDAG createActionsDAGForString(const IndexDescription & index, ASTPtr expr
     chassert(index.column_names.size() == 1);
     chassert(index.data_types.size() == 1);
 
-    const auto & index_column_name = index.column_names.front();
-    const auto & index_data_type = index.data_types.front();
-
     if (expression_ast == nullptr)
         return ActionsDAG();
 
-    DataTypePtr inner_data_type = getInnerType(index_data_type);
-    NamesAndTypesList index_columns({{index_column_name, inner_data_type}});
+    NamesAndTypesList index_columns({{index.column_names.front(), getInnerType(index.data_types.front())}});
 
-    auto context = Context::getGlobalContextInstance();
-    auto syntax_result = TreeRewriter(context).analyze(expression_ast, index_columns);
-    auto actions_dag = ExpressionAnalyzer(expression_ast, syntax_result, context).getActionsDAG(false, true);
+    NamesAndTypesList aggregation_keys;
+    ColumnNumbersList aggregation_keys_indexes_list;
+
+    ActionsVisitor::Data visitor_data(
+        Context::getGlobalContextInstance(),
+        SizeLimits() /* set_size_limit */,
+        0 /* subquery_depth */,
+        index_columns,
+        ActionsDAG(index_columns),
+        {} /* prepared_sets */,
+        false /* no_makeset_for_subqueries */,
+        false /* no_makeset */,
+        false /* only_consts */,
+        AggregationKeysInfo(aggregation_keys, aggregation_keys_indexes_list, GroupByKind::NONE)
+    );
+
+    ActionsVisitor(visitor_data).visit(expression_ast);
+    auto actions_dag = visitor_data.getActions();
 
     auto expression_name = expression_ast->getColumnName();
     actions_dag.project({{expression_name, expression_name}});
@@ -127,8 +137,8 @@ ActionsDAG createActionsDAGForString(const IndexDescription & index, ASTPtr expr
     if (outputs.size() != 1)
         throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor expression must return only a single column. Got {} columns", outputs.size());
 
-    if (outputs.front()->type != ActionsDAG::ActionType::FUNCTION)
-        throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor expression must return a function. Got {}", outputs.front()->type);
+    if (outputs.front()->result_name == index_columns.front().name)
+        throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor must have at least one expression. Got '{}'", outputs.front()->result_name);
 
     if (!isStringOrFixedString(outputs.front()->result_type))
         throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor expression should return a String or a FixedString. Got '{}'", outputs.front()->result_type->getName());
@@ -138,19 +148,6 @@ ActionsDAG createActionsDAGForString(const IndexDescription & index, ASTPtr expr
 
     if (actions_dag.hasArrayJoin())
         throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor expression must not contain arrayJoin");
-
-    auto dag_required_columns = actions_dag.getRequiredColumnsNames();
-    auto index_required_columns = index_columns.getNames();
-
-    NameSet dag_required_columns_set(dag_required_columns.begin(), dag_required_columns.end());
-    NameSet index_required_columns_set(index_required_columns.begin(), index_required_columns.end());
-
-    if (dag_required_columns_set != index_required_columns_set)
-    {
-        throw Exception(ErrorCodes::INCORRECT_QUERY,
-            "The preprocessor expression must depend only on columns required for the index. Got '{}' but expected '{}'",
-            toString(dag_required_columns), toString(index_required_columns));
-    }
 
     return actions_dag;
 }
