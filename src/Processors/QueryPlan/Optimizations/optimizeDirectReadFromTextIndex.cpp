@@ -174,7 +174,6 @@ void collectTextIndexReadInfos(const ReadFromMergeTree * read_from_merge_tree_st
     }
 }
 
-/// Convert ActionsDAG::Node to AST for use as default expression
 ASTPtr convertNodeToAST(const ActionsDAG::Node & node)
 {
     switch (node.type)
@@ -183,16 +182,13 @@ ASTPtr convertNodeToAST(const ActionsDAG::Node & node)
             return make_intrusive<ASTIdentifier>(node.result_name);
 
         case ActionsDAG::ActionType::COLUMN:
-            if (node.column)
-                return make_intrusive<ASTLiteral>((*node.column)[0]);
-            return make_intrusive<ASTLiteral>(Field{});
+            return node.column ? make_intrusive<ASTLiteral>((*node.column)[0]) : make_intrusive<ASTLiteral>(Field{});
 
         case ActionsDAG::ActionType::ALIAS:
-            if (!node.children.empty())
-                return convertNodeToAST(*node.children[0]);
-            return nullptr;
+            return node.children.empty() ? nullptr : convertNodeToAST(*node.children[0]);
 
-        case ActionsDAG::ActionType::FUNCTION: {
+        case ActionsDAG::ActionType::FUNCTION:
+        {
             if (!node.function_base)
                 return nullptr;
 
@@ -209,7 +205,6 @@ ASTPtr convertNodeToAST(const ActionsDAG::Node & node)
 
             return function;
         }
-
         default:
             return nullptr;
     }
@@ -269,18 +264,9 @@ public:
             if (replaced.has_value())
             {
                 replacements[&node] = replaced->node;
-                ASTPtr default_expression;
 
-                if (!replaced->is_fully_materialized)
-                    default_expression = convertNodeToAST(node);
-
-                for (const auto & [index_name, virtual_column_name] : replaced->added_virtual_columns)
-                {
-                    VirtualColumnDescription virtual_column(virtual_column_name, std::make_shared<DataTypeUInt8>(), nullptr, index_name, VirtualsKind::Ephemeral);
-                    virtual_column.default_desc.kind = ColumnDefaultKind::Default;
-                    virtual_column.default_desc.expression = default_expression;
+                for (auto & [index_name, virtual_column] : replaced->added_virtual_columns)
                     result.added_columns[index_name].add(std::move(virtual_column));
-                }
             }
         }
 
@@ -315,8 +301,7 @@ private:
     struct NodeReplacement
     {
         const ActionsDAG::Node * node = nullptr;
-        std::unordered_map<String, String> added_virtual_columns;
-        bool is_fully_materialized = true;
+        std::unordered_map<String, VirtualColumnDescription> added_virtual_columns;
     };
 
     ActionsDAG & actions_dag;
@@ -502,13 +487,11 @@ private:
         const ContextPtr & context)
     {
         NodeReplacement replacement;
-        replacement.is_fully_materialized = true;
         bool has_exact_search = false;
         bool has_materialized_index = false;
 
         for (const auto & condition : selected_conditions)
         {
-            replacement.is_fully_materialized &= condition.info->is_fully_materialied;
             has_materialized_index |= condition.info->is_materialized;
             has_exact_search |= condition.search_query->direct_read_mode == TextIndexDirectReadMode::Exact;
         }
@@ -519,8 +502,20 @@ private:
 
             if (inserted)
             {
+                ASTPtr default_expression;
+
+                if (condition.search_query->direct_read_mode == TextIndexDirectReadMode::Exact)
+                    default_expression = convertNodeToAST(function_node);
+                /// Do not execute the default expression for hint mode, because it will be executed anyway in the original predicate.
+                else if (condition.search_query->direct_read_mode == TextIndexDirectReadMode::Hint)
+                    default_expression = make_intrusive<ASTLiteral>(Field(1));
+
+                VirtualColumnDescription virtual_column(condition.virtual_column_name, std::make_shared<DataTypeUInt8>(), /*codec=*/ nullptr, condition.index_name, VirtualsKind::Ephemeral);
+                virtual_column.default_desc.kind = ColumnDefaultKind::Default;
+                virtual_column.default_desc.expression = std::move(default_expression);
+
                 it->second = &actions_dag.addInput(condition.virtual_column_name, std::make_shared<DataTypeUInt8>());
-                replacement.added_virtual_columns.emplace(condition.index_name, condition.virtual_column_name);
+                replacement.added_virtual_columns.emplace(condition.index_name, std::move(virtual_column));
             }
 
             return it->second;
@@ -579,7 +574,7 @@ const ActionsDAG::Node * applyTextIndexDirectReadToDAG(
     for (const auto & [index_name, info] : text_index_read_infos)
     {
         if (!info.is_fully_materialied)
-            LOG_DEBUG(logger, "Text index '{}' is not fully materialized.", index_name);
+            LOG_DEBUG(logger, "Text index '{}' is not fully materialized. In some parts, direct read from text index cannot be used.", index_name);
     }
 
     const auto & indexes = read_from_merge_tree_step.getIndexes();

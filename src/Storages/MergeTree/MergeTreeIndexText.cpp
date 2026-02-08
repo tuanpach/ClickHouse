@@ -1268,7 +1268,7 @@ std::optional<Type> extractFieldOption(std::unordered_map<String, ASTPtr> & opti
     return value.safeGet<Type>();
 }
 
-ASTPtr exctractASTOption(std::unordered_map<String, ASTPtr> & options, const String & option, bool is_required)
+ASTPtr extractASTOption(std::unordered_map<String, ASTPtr> & options, const String & option, bool is_required)
 {
     auto it = options.find(option);
 
@@ -1324,8 +1324,8 @@ MergeTreeIndexPtr textIndexCreator(const IndexDescription & index)
 {
     auto options = convertArgumentsToOptionsMap(index.arguments);
 
-    auto tokenizer_ast = exctractASTOption(options, ARGUMENT_TOKENIZER, true);
-    auto preprocessor_ast = exctractASTOption(options, ARGUMENT_PREPROCESSOR, false);
+    auto tokenizer_ast = extractASTOption(options, ARGUMENT_TOKENIZER, true);
+    auto preprocessor_ast = extractASTOption(options, ARGUMENT_PREPROCESSOR, false);
     auto token_extractor = TokenizerFactory::instance().get(tokenizer_ast);
 
     UInt64 dictionary_block_size = extractFieldOption<UInt64>(options, ARGUMENT_DICTIONARY_BLOCK_SIZE).value_or(DEFAULT_DICTIONARY_BLOCK_SIZE);
@@ -1351,8 +1351,8 @@ void textIndexValidator(const IndexDescription & index, bool /*attach*/)
 {
     auto options = convertArgumentsToOptionsMap(index.arguments);
 
-    auto tokenizer_ast = exctractASTOption(options, ARGUMENT_TOKENIZER, true);
-    auto preprocessor_ast = exctractASTOption(options, ARGUMENT_PREPROCESSOR, false);
+    auto tokenizer_ast = extractASTOption(options, ARGUMENT_TOKENIZER, true);
+    auto preprocessor_ast = extractASTOption(options, ARGUMENT_PREPROCESSOR, false);
     TokenizerFactory::instance().get(tokenizer_ast);
 
     UInt64 dictionary_block_size = extractFieldOption<UInt64>(options, ARGUMENT_DICTIONARY_BLOCK_SIZE).value_or(DEFAULT_DICTIONARY_BLOCK_SIZE);

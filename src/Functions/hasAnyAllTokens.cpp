@@ -44,21 +44,6 @@ const ColumnType * getTypedColumn(const IColumn & column)
     return checkAndGetColumn<ColumnType>(&column);
 }
 
-TokensWithPosition extractTokensFromString(const ITokenExtractor & tokenizer, std::string_view value)
-{
-    TokensWithPosition tokens;
-    size_t pos = 0;
-
-    forEachTokenPadded(tokenizer, value.data(), value.size(), [&](const char * token_start, size_t token_len)
-    {
-        if (auto [_, inserted] = tokens.emplace(std::string{token_start, token_len}, pos); inserted)
-            ++pos;
-        return false;
-    });
-
-    return tokens;
-}
-
 TokensWithPosition initializeSearchTokens(const ColumnsWithTypeAndName & arguments, const ITokenExtractor & tokenizer, std::string_view function_name)
 {
     TokensWithPosition search_tokens;
@@ -66,7 +51,13 @@ TokensWithPosition initializeSearchTokens(const ColumnsWithTypeAndName & argumen
 
     if (const ColumnString * column_needles_string = getTypedColumn<ColumnString>(*col_needles))
     {
-        search_tokens = extractTokensFromString(tokenizer, column_needles_string->getDataAt(0));
+        std::vector<String> tokens_array;
+        auto tokens_str = column_needles_string->getDataAt(0);
+        tokenizer.stringToTokens(tokens_str.data(), tokens_str.size(), tokens_array);
+        tokens_array = tokenizer.compactTokens(tokens_array);
+
+        for (size_t i = 0; i < tokens_array.size(); ++i)
+            search_tokens.emplace(tokens_array[i], i);
     }
     else if (const ColumnArray * column_needles_array = getTypedColumn<ColumnArray>(*col_needles))
     {
@@ -84,7 +75,7 @@ TokensWithPosition initializeSearchTokens(const ColumnsWithTypeAndName & argumen
     }
     else
     {
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Needles argument for function '{}' has unsupported type of column: {}", function_name, col_needles->getName());
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Needles argument for function '{}' has unsupported type of column '{}'", function_name, col_needles->getName());
     }
 
     return search_tokens;
@@ -141,7 +132,7 @@ DataTypePtr FunctionHasAnyAllTokensOverloadResolver<HasTokensTraits>::getReturnT
 
     FunctionArgumentDescriptors optional_args;
     if (arguments.size() == 3)
-        optional_args.emplace_back("tokenizer", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isString), isColumnConst, "String");
+        optional_args.emplace_back("tokenizer", static_cast<FunctionArgumentDescriptor::TypeValidator>(&isString), isColumnConst, "const String");
 
     validateFunctionArguments(name, arguments, mandatory_args, optional_args);
     return std::make_shared<DataTypeNumber<UInt8>>();
