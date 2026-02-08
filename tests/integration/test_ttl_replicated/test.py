@@ -552,8 +552,7 @@ def test_ttl_compatibility(started_cluster, node_left, node_right, num_run):
                 CREATE TABLE {table}_delete(date DateTime, id UInt32)
                 ENGINE = ReplicatedMergeTree('/clickhouse/tables/test/{table}_delete', '{replica}')
                 ORDER BY id PARTITION BY toDayOfMonth(date)
-                TTL date + INTERVAL 3 SECOND
-                SETTINGS merge_with_ttl_timeout=0;
+                TTL date + INTERVAL 3 SECOND;
             """.format(
                 table=table, replica=node.name
             )
@@ -565,8 +564,7 @@ def test_ttl_compatibility(started_cluster, node_left, node_right, num_run):
                 CREATE TABLE {table}_group_by(date DateTime, id UInt32, val UInt64)
                 ENGINE = ReplicatedMergeTree('/clickhouse/tables/test/{table}_group_by', '{replica}')
                 ORDER BY id PARTITION BY toDayOfMonth(date)
-                TTL date + INTERVAL 3 SECOND GROUP BY id SET val = sum(val)
-                SETTINGS merge_with_ttl_timeout=0;
+                TTL date + INTERVAL 3 SECOND GROUP BY id SET val = sum(val);
             """.format(
                 table=table, replica=node.name
             )
@@ -578,8 +576,7 @@ def test_ttl_compatibility(started_cluster, node_left, node_right, num_run):
                 CREATE TABLE {table}_where(date DateTime, id UInt32)
                 ENGINE = ReplicatedMergeTree('/clickhouse/tables/test/{table}_where', '{replica}')
                 ORDER BY id PARTITION BY toDayOfMonth(date)
-                TTL date + INTERVAL 3 SECOND DELETE WHERE id % 2 = 1
-                SETTINGS merge_with_ttl_timeout=0;
+                TTL date + INTERVAL 3 SECOND DELETE WHERE id % 2 = 1;
             """.format(
                 table=table, replica=node.name
             )
@@ -612,8 +609,18 @@ def test_ttl_compatibility(started_cluster, node_left, node_right, num_run):
 
     time.sleep(5)  # Wait for TTL
 
-    # After restart, tables can be in readonly mode, and background TTL merges
-    # (merge_with_ttl_timeout=0) may block OPTIMIZE FINAL, so use retry for all.
+    # Disable TTL merge cooldown so that OPTIMIZE TABLE FINAL can re-trigger
+    # TTL merges immediately if the first merge was only partial.
+    # We set this after restart (not in CREATE TABLE) to avoid an infinite
+    # TTL rewrite loop on the old binary that creates thousands of outdated parts.
+    for suffix in ["_delete", "_group_by", "_where"]:
+        for node in [node_left, node_right]:
+            exec_query_with_retry(
+                node,
+                f"ALTER TABLE {table}{suffix} MODIFY SETTING merge_with_ttl_timeout=0",
+            )
+
+    # After restart, tables can be in readonly mode, so use retry for all.
     exec_query_with_retry(node_right, f"OPTIMIZE TABLE {table}_delete FINAL", timeout=timeout)
     exec_query_with_retry(node_right, f"OPTIMIZE TABLE {table}_group_by FINAL", timeout=timeout)
     exec_query_with_retry(node_right, f"OPTIMIZE TABLE {table}_where FINAL", timeout=timeout)
