@@ -425,15 +425,17 @@ private:
 
             if (hasSubexpression(preprocessor_output, haystack_name))
             {
-                ActionsDAG preprocessor_dag_copy = preprocessor_dag.clone();
-                ActionsDAG::NodeRawConstPtrs merged_outputs;
+                ActionsDAG preprocessor_dag_copy = isArray(removeNullable(arg_haystack->result_type))
+                    ? preprocessor->getActionsDAGForArray().clone()
+                    : preprocessor_dag.clone();
 
+                ActionsDAG::NodeRawConstPtrs merged_outputs;
                 actions_dag.mergeNodes(std::move(preprocessor_dag_copy), &merged_outputs);
                 chassert(merged_outputs.size() == 1);
                 new_children[0] = merged_outputs.front();
 
                 if (!needles.empty())
-                    needles = preprocessor->process(needles);
+                    needles = preprocessor->processConstant(needles);
             }
         }
 

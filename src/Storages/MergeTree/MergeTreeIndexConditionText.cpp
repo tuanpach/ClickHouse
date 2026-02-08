@@ -458,7 +458,7 @@ bool MergeTreeIndexConditionText::traverseAtomNode(const RPNBuilderTreeNode & no
 std::vector<String> MergeTreeIndexConditionText::stringToTokens(const Field & field) const
 {
     std::vector<String> tokens;
-    const String value = preprocessor->process(field.safeGet<String>());
+    const String value = preprocessor->processConstant(field.safeGet<String>());
     token_extractor->stringToTokens(value.data(), value.size(), tokens);
     return token_extractor->compactTokens(tokens);
 }
@@ -466,7 +466,7 @@ std::vector<String> MergeTreeIndexConditionText::stringToTokens(const Field & fi
 std::vector<String> MergeTreeIndexConditionText::substringToTokens(const Field & field, bool is_prefix, bool is_suffix) const
 {
     std::vector<String> tokens;
-    const String value = preprocessor->process(field.safeGet<String>());
+    const String value = preprocessor->processConstant(field.safeGet<String>());
     token_extractor->substringToTokens(value.data(), value.size(), tokens, is_prefix, is_suffix);
     return token_extractor->compactTokens(tokens);
 }
@@ -474,7 +474,7 @@ std::vector<String> MergeTreeIndexConditionText::substringToTokens(const Field &
 std::vector<String> MergeTreeIndexConditionText::stringLikeToTokens(const Field & field) const
 {
     std::vector<String> tokens;
-    const String value = preprocessor->process(field.safeGet<String>());
+    const String value = preprocessor->processConstant(field.safeGet<String>());
     token_extractor->stringLikeToTokens(value.data(), value.size(), tokens);
     return token_extractor->compactTokens(tokens);
 }

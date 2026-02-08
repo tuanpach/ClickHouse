@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Core/NamesAndTypes.h>
+#include <Interpreters/Context_fwd.h>
 #include <Interpreters/ExpressionActions.h>
 #include <Parsers/IAST_fwd.h>
 
@@ -13,7 +14,6 @@ struct IndexDescription;
 class MergeTreeIndexTextPreprocessor
 {
 public:
-    MergeTreeIndexTextPreprocessor(ASTPtr ast_, NamesAndTypesList source_columns_, ExpressionActions expression_actions_);
     MergeTreeIndexTextPreprocessor(ASTPtr expression_ast, const IndexDescription & index_description);
 
     /// Processes n_rows rows of input column, starting at start_row.
@@ -24,23 +24,20 @@ public:
     std::pair<ColumnPtr, size_t> processColumn(const ColumnWithTypeAndName & column, size_t start_row, size_t n_rows) const;
 
     /// Applies the internal expression to an input string.
-    /// Kind of equivalent to 'SELECT expression(input)'.
-    String process(const String & input) const;
+    /// Kind of equivalent to 'SELECT expression(const_string)'.
+    String processConstant(const String & input) const;
     bool empty() const { return expression_actions.getActions().empty(); }
 
     ASTPtr getAST() const { return ast; }
     const ActionsDAG & getActionsDAG() const { return expression_actions.getActionsDAG(); }
+    const ActionsDAG & getActionsDAGForArray() const { return array_expression_actions.getActionsDAG(); }
     Names getRequiredColumns() const { return expression_actions.getRequiredColumns(); }
-
-    /// This function parses an string to build an ExpressionActions.
-    /// The conversion is not direct and requires many steps and validations, but long story short
-    /// ParserExpression(String) => AST; ActionsVisitor(AST) => ActionsDAG; ExpressionActions(ActionsDAG)
-    static ExpressionActions createExpressionActions(const IndexDescription & index, ASTPtr expression_ast);
 
 private:
     ASTPtr ast;
-    NamesAndTypesList source_columns;
+    NamesAndTypesList index_columns;
     ExpressionActions expression_actions;
+    ExpressionActions array_expression_actions;
 };
 
 }

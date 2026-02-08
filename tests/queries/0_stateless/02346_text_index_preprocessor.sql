@@ -22,13 +22,13 @@ ORDER BY key;
 
 INSERT INTO tab VALUES (1, 'foo'), (2, 'BAR'), (3, 'Baz');
 
-SELECT count() FROM tab WHERE hasToken(val, 'foo');
-SELECT count() FROM tab WHERE hasToken(val, 'FOO');
-SELECT count() FROM tab WHERE hasToken(val, 'BAR');
-SELECT count() FROM tab WHERE hasToken(val, 'Baz');
-SELECT count() FROM tab WHERE hasToken(val, 'bar');
-SELECT count() FROM tab WHERE hasToken(val, 'baz');
-SELECT count() FROM tab WHERE hasToken(val, 'def');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'FOO');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'BAR');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'Baz');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'bar');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'baz');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'def');
 
 SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');
 SELECT count() FROM tab WHERE hasAllTokens(val, 'FOO');
@@ -55,13 +55,13 @@ ORDER BY key;
 
 INSERT INTO tab VALUES (1, 'foo'), (2, 'BAR'), (3, 'Baz');
 
-SELECT count() FROM tab WHERE hasToken(val, 'foo');
-SELECT count() FROM tab WHERE hasToken(val, 'FOO');
-SELECT count() FROM tab WHERE hasToken(val, 'BAR');
-SELECT count() FROM tab WHERE hasToken(val, 'Baz');
-SELECT count() FROM tab WHERE hasToken(val, 'bar');
-SELECT count() FROM tab WHERE hasToken(val, 'baz');
-SELECT count() FROM tab WHERE hasToken(val, 'def');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'FOO');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'BAR');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'Baz');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'bar');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'baz');
+SELECT count() FROM tab WHERE hasAllTokens(val, 'def');
 
 SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');
 SELECT count() FROM tab WHERE hasAllTokens(val, 'FOO');
@@ -251,7 +251,7 @@ CREATE TABLE tab
     other_str String,
     INDEX idx(val) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(other_str))
 )
-ENGINE = MergeTree ORDER BY tuple();  -- { serverError BAD_ARGUMENTS }
+ENGINE = MergeTree ORDER BY tuple();  -- { serverError UNKNOWN_IDENTIFIER }
 
 SELECT '- The preprocessor argument must not reference non-indexed columns';
 CREATE TABLE tab
@@ -261,7 +261,7 @@ CREATE TABLE tab
     other_str String,
     INDEX idx(val) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = concat(val, other_str))
 )
-ENGINE = MergeTree ORDER BY tuple();   -- { serverError BAD_ARGUMENTS }
+ENGINE = MergeTree ORDER BY tuple();   -- { serverError UNKNOWN_IDENTIFIER }
 
 SELECT '- Index definition may not be and expression when there is preprocessor';
 CREATE TABLE tab
@@ -270,7 +270,7 @@ CREATE TABLE tab
     val String,
     INDEX idx(upper(val)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(val))
 )
-ENGINE = MergeTree ORDER BY tuple();   -- { serverError BAD_ARGUMENTS }
+ENGINE = MergeTree ORDER BY tuple();   -- { serverError UNKNOWN_IDENTIFIER }
 
 SELECT '-- Not even the same expression';
 CREATE TABLE tab
@@ -279,7 +279,7 @@ CREATE TABLE tab
     val String,
     INDEX idx(lower(val)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(val))
 )
-ENGINE = MergeTree ORDER BY tuple();   -- { serverError BAD_ARGUMENTS }
+ENGINE = MergeTree ORDER BY tuple();   -- { serverError UNKNOWN_IDENTIFIER }
 
 CREATE TABLE tab
 (
@@ -287,7 +287,7 @@ CREATE TABLE tab
     val String,
     INDEX idx(upper(val)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(upper(val)))
 )
-ENGINE = MergeTree ORDER BY tuple();   -- { serverError BAD_ARGUMENTS }
+ENGINE = MergeTree ORDER BY tuple();   -- { serverError UNKNOWN_IDENTIFIER }
 
 SELECT '- The preprocessor must be an expression';
 CREATE TABLE tab

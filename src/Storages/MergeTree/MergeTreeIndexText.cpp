@@ -1402,15 +1402,15 @@ void textIndexValidator(const IndexDescription & index, bool /*attach*/)
         /// This is a bit redundant but I won't expect that this impact performance anyhow because the expression is intended to be simple
         /// enough.  But if this redundant construction represents an issue we could simple build the "intermediate" ASTPtr and use it for
         /// validation. That way we skip the ActionsDAG and ExpressionActions constructions.
-        ExpressionActions expression = MergeTreeIndexTextPreprocessor::createExpressionActions(index, preprocessor_ast);
-        const auto required_columns = expression.getRequiredColumns();
+        MergeTreeIndexTextPreprocessor preprocessor(preprocessor_ast, index);
+        const auto required_columns = preprocessor.getActionsDAG().getRequiredColumns();
 
         if (required_columns.size() != 1)
             throw Exception(ErrorCodes::LOGICAL_ERROR, "Text index preprocessor expression must contain a single text index column, but got {}", required_columns.size());
 
         /// This is expected that never happen because the `validatePreprocessorASTExpression` already checks that we have a single identifier.
         /// But once again, with user inputs: Don't trust, validate!
-        if (required_columns.size() != 1 || required_columns.front() != index.column_names.front())
+        if (required_columns.size() != 1 || required_columns.front().name != index.column_names.front())
             throw Exception(ErrorCodes::LOGICAL_ERROR, "Text index preprocessor expression must depend only of column: {}", index.column_names.front());
     }
 }
