@@ -1,4 +1,3 @@
--- Tags: no-parallel-replicas
 -- Regression test: window function in GROUP BY key should not cause a logical error
 -- in canRemoveConstantFromGroupByKey when the window function gets constant-folded
 -- and the query uses a distributed/remote table.
