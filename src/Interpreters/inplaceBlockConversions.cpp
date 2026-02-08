@@ -21,7 +21,6 @@
 #include <DataTypes/NestedUtils.h>
 #include <Interpreters/RequiredSourceColumnsVisitor.h>
 #include <Storages/ColumnsDescription.h>
-#include <Storages/MergeTree/MergeTreeIndexConditionText.h>
 #include <Storages/StorageInMemoryMetadata.h>
 #include <Storages/StorageDummy.h>
 #include <Common/checkStackSize.h>

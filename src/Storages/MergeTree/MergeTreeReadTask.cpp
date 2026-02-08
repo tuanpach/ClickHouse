@@ -5,7 +5,6 @@
 #include <Storages/MergeTree/MergeTreeIndexText.h>
 #include <Storages/MergeTree/MergeTreeReadTask.h>
 #include <Storages/MergeTree/MergeTreeReaderIndex.h>
-#include <Storages/MergeTree/MergeTreeReaderTextIndex.h>
 #include <Storages/MergeTree/MergeTreeSelectProcessor.h>
 #include <Storages/MergeTree/MergeTreeVirtualColumns.h>
 #include <Storages/MergeTree/PatchParts/MergeTreePatchReader.h>
@@ -123,7 +122,7 @@ static const IndexReadTask * getIndexReadTaskForReadStep(const IndexReadTasks & 
     /// Allow mixing index columns with regular columns when the regular columns are dependencies
     /// for evaluating default expressions of text index virtual columns (e.g., for partially materialized text indexes).
     /// In this case, don't return an index task - let the main reader handle all columns.
-    /// The main reader will check per-part if the index is materialized and handle accordingly.
+    /// The main reader will evaluate the default expression and fill the virtual column.
     if (!index_for_step.empty() && has_non_index_columns)
         return nullptr;
 

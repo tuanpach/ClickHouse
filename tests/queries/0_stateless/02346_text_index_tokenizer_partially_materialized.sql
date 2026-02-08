@@ -1,5 +1,3 @@
--- Tags: no-parallel
-
 --- This test verifies that tokenizer is properly passed to supported functions when a text index is partially materialized.
 
 SET enable_full_text_index = 1;

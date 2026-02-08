@@ -222,14 +222,11 @@ void IMergeTreeReader::evaluateMissingDefaults(Block additional_columns, Columns
         /// Create a combined columns description that includes both metadata columns and virtual columns
         /// This is needed to evaluate default expressions for virtual columns
         auto combined_columns = storage_snapshot->metadata->getColumns();
+
         if (storage_snapshot->virtual_columns)
         {
             for (const auto & virtual_column : *storage_snapshot->virtual_columns)
-            {
-                /// Only consider text index virtual columns
-                if (isTextIndexVirtualColumn(virtual_column.name) && virtual_column.default_desc.expression)
-                    combined_columns.add(virtual_column);
-            }
+                combined_columns.add(virtual_column);
         }
 
         auto dag = DB::evaluateMissingDefaults(
