@@ -17,6 +17,7 @@ EXPLAIN SELECT * FROM s3('http://localhost:11111/test/a.tsv', 'TSV') where c1 in
 EXPLAIN SELECT sum(c1) FROM (SELECT * FROM s3('http://localhost:11111/test/a.tsv', 'TSV'));
 EXPLAIN SELECT number FROM system.numbers n JOIN s3('http://localhost:11111/test/a.tsv', 'TSV') s ON (toInt64(n.number) = toInt64(s.c1));
 EXPLAIN SELECT number FROM system.numbers n JOIN (SELECT * FROM s3('http://localhost:11111/test/a.tsv', 'TSV')) s ON (toInt64(n.number) = toInt64(s.c1));
+EXPLAIN SELECT * FROM (SELECT * FROM s3('http://localhost:11111/test/a.tsv', 'TSV'));
 
 SELECT count() FROM s3('http://localhost:11111/test/a.tsv', 'TSV');
 
@@ -35,6 +36,7 @@ SET parallel_replicas_for_cluster_engines=false;
 
 EXPLAIN SELECT * FROM url('http://localhost:8123');
 EXPLAIN SELECT * FROM s3('http://localhost:11111/test/a.tsv', 'TSV');
+EXPLAIN SELECT * FROM (SELECT * FROM s3('http://localhost:11111/test/a.tsv', 'TSV'));
 
 SELECT count() FROM s3('http://localhost:11111/test/a.tsv', 'TSV');
 
