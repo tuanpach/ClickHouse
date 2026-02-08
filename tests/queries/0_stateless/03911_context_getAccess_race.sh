@@ -3,8 +3,14 @@
 
 # Test for data race in Context::getAccess() where need_recalculate_access
 # was written under a shared lock while being read by another thread.
-# The race is triggered by concurrent queries that perform access checks
-# from multiple pipeline threads, e.g. via recursive CTEs.
+#
+# To trigger the slow path in getAccess(), we use SETTINGS that affect access
+# checks: allow_ddl and allow_introspection_functions are among the three
+# settings listed in ContextAccessParams::dependsOnSettingName. When such a
+# setting is present in the query, applySettingsFromQuery calls setSetting
+# which sets need_recalculate_access=true on a context that already has a
+# cached access object (populated by Session::makeQueryContextImpl).
+# This forces getAccess() to enter the slow recalculation path.
 
 CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=../shell_config.sh
@@ -29,7 +35,9 @@ function thread_recursive_cte()
                 INNER JOIN cte ON t.id = cte.parent_id
                 WHERE cte.parent_id < 50
             )
-            SELECT count() FROM cte FORMAT Null
+            SELECT count() FROM cte
+            SETTINGS allow_ddl=1
+            FORMAT Null
         " 2>&1 | grep -v -e "^$" || true
     done
 }
@@ -38,7 +46,7 @@ function thread_select()
 {
     local TIMELIMIT=$((SECONDS+TIMEOUT))
     while [ $SECONDS -lt "$TIMELIMIT" ]; do
-        $CLICKHOUSE_CLIENT -q "SELECT count() FROM t_race_access WHERE id IN (SELECT id FROM t_race_access) FORMAT Null" 2>&1 | grep -v -e "^$" || true
+        $CLICKHOUSE_CLIENT -q "SELECT count() FROM t_race_access WHERE id IN (SELECT id FROM t_race_access) SETTINGS allow_introspection_functions=1 FORMAT Null" 2>&1 | grep -v -e "^$" || true
     done
 }
 
