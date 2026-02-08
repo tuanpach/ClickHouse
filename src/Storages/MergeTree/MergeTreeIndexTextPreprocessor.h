@@ -26,7 +26,7 @@ public:
     /// Applies the internal expression to an input string.
     /// Kind of equivalent to 'SELECT expression(const_string)'.
     String processConstant(const String & input) const;
-    bool empty() const { return expression_actions.getActions().empty(); }
+    bool hasActions() const { return !expression_actions.getActions().empty(); }
 
     ASTPtr getAST() const { return ast; }
     const ActionsDAG & getActionsDAG() const { return expression_actions.getActionsDAG(); }

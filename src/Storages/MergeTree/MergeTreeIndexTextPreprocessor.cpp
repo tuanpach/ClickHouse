@@ -61,34 +61,38 @@ DataTypePtr getInnerType(DataTypePtr type)
 
 ActionsDAG createActionsDAGForArray(const IndexDescription & index, const ActionsDAG & actions_dag)
 {
-    if (actions_dag.getOutputs().empty() || !isArray(actions_dag.getOutputs().front()->result_type))
+    chassert(index.column_names.size() == 1);
+    chassert(index.data_types.size() == 1);
+
+    const auto & index_column_name = index.column_names.front();
+    const auto & index_data_type = index.data_types.front();
+
+    if (actions_dag.getOutputs().empty() || !isArray(index_data_type))
         return ActionsDAG();
 
-    DataTypePtr index_data_type = getInnerType(index.data_types.front());
-    NamesAndTypesList index_columns({{index.column_names.front(), index_data_type}});
-    auto index_array_type = std::make_shared<DataTypeArray>(index_data_type);
+    DataTypePtr inner_data_type = getInnerType(index_data_type);
+    NamesAndTypesList inner_columns({{index_column_name, inner_data_type}});
 
-    ActionsDAG dag;
-    const auto * array_input = &dag.addInput(index.column_names.front(), index_array_type);
+    ActionsDAG dag(inner_columns);
+    const auto * array_input = &dag.addInput(index_column_name, index_data_type);
 
     /// Clone the preprocessor DAG to use as the lambda body.
     ActionsDAG lambda_dag = actions_dag.clone();
-    auto result_type = lambda_dag.getOutputs().front()->result_type;
-    auto result_name = lambda_dag.getOutputs().front()->result_name;
     ContextPtr context = Context::getGlobalContextInstance();
 
     auto function_capture = std::make_shared<FunctionCaptureOverloadResolver>(
         std::move(lambda_dag),
         ExpressionActionsSettings(context),
         /*captured_names=*/ Names{},
-        index_columns,
-        result_type,
-        result_name,
+        inner_columns,
+        lambda_dag.getOutputs().front()->result_type,
+        lambda_dag.getOutputs().front()->result_name,
         /*allow_constant_folding=*/ false);
 
-    const auto * lambda_node = &dag.addFunction(function_capture, {}, "");
     auto array_map_func = FunctionFactory::instance().get("arrayMap", context);
+    const auto * lambda_node = &dag.addFunction(function_capture, {}, "");
     const auto * array_map_node = &dag.addFunction(array_map_func, {lambda_node, array_input}, "");
+
     dag.getOutputs() = {array_map_node};
     dag.removeUnusedActions();
     return dag;
@@ -102,46 +106,51 @@ ActionsDAG createActionsDAGForString(const IndexDescription & index, ASTPtr expr
     chassert(index.column_names.size() == 1);
     chassert(index.data_types.size() == 1);
 
+    const auto & index_column_name = index.column_names.front();
+    const auto & index_data_type = index.data_types.front();
+
     if (expression_ast == nullptr)
         return ActionsDAG();
 
-    /// Repeat expression validation here. after the string has been parsed into an AST.
-    /// We already made this check during index construction, but "don't trust, verify"
-    const ASTFunction * preprocessor_function = expression_ast->as<ASTFunction>();
-    if (preprocessor_function == nullptr)
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Preprocessor argument must be an expression");
-
-    /// Convert ASTPtr -> ActionsDAG
-    /// We can do less checks here because in previous scope we tested that the ASTPtr is an ASTFunction.
-    const String name = expression_ast->getColumnName();
-    const String alias = expression_ast->getAliasOrColumnName();
-
-    DataTypePtr column_data_type = getInnerType(index.data_types.front());
-    NamesAndTypesList index_columns({{index.column_names.front(), column_data_type}});
+    DataTypePtr inner_data_type = getInnerType(index_data_type);
+    NamesAndTypesList index_columns({{index_column_name, inner_data_type}});
 
     auto context = Context::getGlobalContextInstance();
     auto syntax_result = TreeRewriter(context).analyze(expression_ast, index_columns);
     auto actions_dag = ExpressionAnalyzer(expression_ast, syntax_result, context).getActionsDAG(false, true);
-    actions_dag.project(NamesWithAliases({{name, alias}}));
 
-    /// With the dag we can create an ExpressionActions. But before that is better to perform some validations.
+    auto expression_name = expression_ast->getColumnName();
+    actions_dag.project({{expression_name, expression_name}});
+    actions_dag.removeUnusedActions();
 
-    /// Lets check expression outputs
     const ActionsDAG::NodeRawConstPtrs & outputs = actions_dag.getOutputs();
     if (outputs.size() != 1)
-        throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor expression must return only a single value");
+        throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor expression must return only a single column. Got {} columns", outputs.size());
 
     if (outputs.front()->type != ActionsDAG::ActionType::FUNCTION)
-        throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor expression must return a function");
+        throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor expression must return a function. Got {}", outputs.front()->type);
 
     if (!isStringOrFixedString(outputs.front()->result_type))
-        throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor expression should return a String or a FixedString.");
+        throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor expression should return a String or a FixedString. Got '{}'", outputs.front()->result_type->getName());
 
     if (actions_dag.hasNonDeterministic())
         throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor expression must not contain non-deterministic functions");
 
     if (actions_dag.hasArrayJoin())
         throw Exception(ErrorCodes::INCORRECT_QUERY, "The preprocessor expression must not contain arrayJoin");
+
+    auto dag_required_columns = actions_dag.getRequiredColumnsNames();
+    auto index_required_columns = index_columns.getNames();
+
+    NameSet dag_required_columns_set(dag_required_columns.begin(), dag_required_columns.end());
+    NameSet index_required_columns_set(index_required_columns.begin(), index_required_columns.end());
+
+    if (dag_required_columns_set != index_required_columns_set)
+    {
+        throw Exception(ErrorCodes::INCORRECT_QUERY,
+            "The preprocessor expression must depend only on columns required for the index. Got '{}' but expected '{}'",
+            toString(dag_required_columns), toString(index_required_columns));
+    }
 
     return actions_dag;
 }
@@ -159,18 +168,17 @@ MergeTreeIndexTextPreprocessor::MergeTreeIndexTextPreprocessor(ASTPtr expression
 std::pair<ColumnPtr, size_t> MergeTreeIndexTextPreprocessor::processColumn(const ColumnWithTypeAndName & column, size_t start_row, size_t n_rows) const
 {
     ColumnPtr index_column = column.column;
-    if (expression_actions.getActions().empty())
+    if (!hasActions())
         return {index_column, start_row};
 
-    const auto & [index_column_name, index_column_type] = index_columns.front();
-    chassert(column.name == index_column_name);
+    chassert(column.name == index_columns.front().name);
     chassert(index_column->getDataType() == column.type->getTypeId());
 
     /// Only copy if needed
     if (start_row != 0 || n_rows != index_column->size())
         index_column = index_column->cut(start_row, n_rows);
 
-    Block block({ColumnWithTypeAndName(index_column, column.type, index_column_name)});
+    Block block({ColumnWithTypeAndName(index_column, column.type, index_columns.front().name)});
     const auto & actions_to_execute = isArray(column.type) ? array_expression_actions : expression_actions;
     actions_to_execute.execute(block, n_rows);
     return {block.safeGetByPosition(0).column, 0};
@@ -178,7 +186,7 @@ std::pair<ColumnPtr, size_t> MergeTreeIndexTextPreprocessor::processColumn(const
 
 String MergeTreeIndexTextPreprocessor::processConstant(const String & input) const
 {
-    if (empty())
+    if (!hasActions())
         return input;
 
     const auto & [index_column_name, index_column_type] = index_columns.front();

@@ -405,9 +405,9 @@ private:
             return;
 
         String needles;
-        if (isStringOrFixedString(removeNullable(arg_needles->result_type))
-            && !arg_needles->column->empty()
-            && !arg_needles->column->isNullAt(0))
+        auto needles_type = removeNullable(arg_needles->result_type);
+
+        if (isStringOrFixedString(needles_type) && !arg_needles->column->empty() && !arg_needles->column->isNullAt(0))
             needles = arg_needles->column->getDataAt(0);
 
         const auto & condition = selected_conditions.front();
@@ -416,7 +416,7 @@ private:
         auto preprocessor = condition_text.getPreprocessor();
         const auto * tokenizer = condition_text.getTokenExtractor();
 
-        if (preprocessor && !preprocessor->empty())
+        if (preprocessor && preprocessor->hasActions())
         {
             const auto & preprocessor_dag = preprocessor->getActionsDAG();
             chassert(preprocessor_dag.getOutputs().size() == 1);
@@ -425,12 +425,11 @@ private:
 
             if (hasSubexpression(preprocessor_output, haystack_name))
             {
-                ActionsDAG preprocessor_dag_copy = isArray(removeNullable(arg_haystack->result_type))
-                    ? preprocessor->getActionsDAGForArray().clone()
-                    : preprocessor_dag.clone();
-
+                auto haystack_type = removeNullable(arg_haystack->result_type);
+                ActionsDAG preprocessor_dag_copy = isArray(haystack_type) ? preprocessor->getActionsDAGForArray().clone() : preprocessor_dag.clone();
                 ActionsDAG::NodeRawConstPtrs merged_outputs;
                 actions_dag.mergeNodes(std::move(preprocessor_dag_copy), &merged_outputs);
+
                 chassert(merged_outputs.size() == 1);
                 new_children[0] = merged_outputs.front();
 

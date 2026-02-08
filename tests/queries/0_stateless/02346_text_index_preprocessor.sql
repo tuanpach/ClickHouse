@@ -296,7 +296,7 @@ CREATE TABLE tab
     val String,
     INDEX idx(val) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = BAD)
 )
-ENGINE = MergeTree ORDER BY key;   -- { serverError BAD_ARGUMENTS }
+ENGINE = MergeTree ORDER BY key;   -- { serverError UNKNOWN_IDENTIFIER }
 
 SELECT '- The preprocessor must be an expression, with existing functions';
 CREATE TABLE tab

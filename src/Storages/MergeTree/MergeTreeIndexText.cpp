@@ -1393,26 +1393,11 @@ void textIndexValidator(const IndexDescription & index, bool /*attach*/)
             "Text index must be created on columns of type `String`, `FixedString`, `LowCardinality(String)`, `LowCardinality(FixedString)`, `Array(String)` or `Array(FixedString)`");
     }
 
-    /// Check preprocessor now, after data_type and column_names and index.data_types were already checked because we want to get accurate
-    /// error messages.
-    if (preprocessor_ast)
-    {
-        /// For very strict validation of the expression we fully parse it here.  However it will be parsed again for index construction,
-        /// generally immediately after this call.
-        /// This is a bit redundant but I won't expect that this impact performance anyhow because the expression is intended to be simple
-        /// enough.  But if this redundant construction represents an issue we could simple build the "intermediate" ASTPtr and use it for
-        /// validation. That way we skip the ActionsDAG and ExpressionActions constructions.
-        MergeTreeIndexTextPreprocessor preprocessor(preprocessor_ast, index);
-        const auto required_columns = preprocessor.getActionsDAG().getRequiredColumns();
-
-        if (required_columns.size() != 1)
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Text index preprocessor expression must contain a single text index column, but got {}", required_columns.size());
-
-        /// This is expected that never happen because the `validatePreprocessorASTExpression` already checks that we have a single identifier.
-        /// But once again, with user inputs: Don't trust, validate!
-        if (required_columns.size() != 1 || required_columns.front().name != index.column_names.front())
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Text index preprocessor expression must depend only of column: {}", index.column_names.front());
-    }
+    /// Create the preprocessor for validation.
+    /// For very strict validation of the expression we fully parse it here.
+    // However it will be parsed again for index construction, generally immediately after this call.
+    /// This is a bit redundant but that doesn't impact performance anyhow because the expression is intended to be simple enough.
+    MergeTreeIndexTextPreprocessor preprocessor(preprocessor_ast, index);
 }
 
 }
