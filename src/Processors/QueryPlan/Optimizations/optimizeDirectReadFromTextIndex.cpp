@@ -449,9 +449,9 @@ private:
             needles_array = tokenizer->compactTokens(needles_array);
             Field needles_field = Array(needles_array.begin(), needles_array.end());
 
+            arg.type = std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>());
             arg.column = arg.type->createColumnConst(1, needles_field);
             arg.name = applyVisitor(FieldVisitorToString(), needles_field);
-            arg.type = std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>());
         }
 
         new_children[1] = &actions_dag.addColumn(std::move(arg));
