@@ -158,9 +158,6 @@ bool ReadBufferFromS3::nextImpl()
             if (!impl)
             {
                 impl = initialize(attempt);
-                for (size_t i = 0; i < next_calls; ++i)
-                    impl->next();
-                next_calls = 0;
 
                 if (use_external_buffer)
                 {
@@ -177,7 +174,6 @@ bool ReadBufferFromS3::nextImpl()
 
             /// Try to read a next portion of data.
             next_result = impl->next();
-            next_calls += 1;
             break;
         }
         catch (...)

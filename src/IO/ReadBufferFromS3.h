@@ -24,7 +24,6 @@ class ReadBufferFromS3 : public ReadBufferFromFileBase
 {
 private:
     mutable std::shared_ptr<const S3::Client> client_ptr;
-    mutable size_t next_calls = 0;
     String bucket;
     String key;
     String version_id;
