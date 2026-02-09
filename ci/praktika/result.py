@@ -441,21 +441,10 @@ class Result(MetaClasses.Serializable):
                 name = f"pytest_{command}"
 
             # Run pytest
-            _res = Shell.get_output(full_command, verbose=True)
-            print(f"Pytest command output:\n{_res}")
+            Shell.run(full_command)
             test_result = ResultTranslator.from_pytest_jsonl(
                 pytest_report_file=pytest_report_file
             )
-            if "!!!!!!! xdist.dsession.Interrupted: session-timeout:" in _res:
-                test_result.info = "[ERROR] session-timeout occurred during test execution"
-                assert test_result.status == Result.Status.ERROR
-                test_result.results.append(
-                    Result(
-                        name="Timeout",
-                        status=Result.StatusExtended.FAIL,
-                        info=test_result.info,
-                    )
-                )
 
         return Result.create_from(
             name=name,
