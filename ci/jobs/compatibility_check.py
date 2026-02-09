@@ -13,6 +13,22 @@ DOWNLOAD_RETRIES_COUNT = 5
 
 temp_path = Path(f"{Utils.cwd()}/ci/tmp")
 
+# Math functions that must come from llvm-libc, not glibc.
+# These are dispatched via llvmlibc_dispatch.cpp for runtime CPU detection.
+# If any of these appear with @GLIBC_, it means llvm-libc dispatch is broken.
+LLVMLIBC_MATH_FUNCTIONS = {
+    # double
+    "acos", "asin", "atan", "atan2", "cbrt", "cos", "fma", "fmod",
+    "frexp", "hypot", "ldexp", "log10", "log1p", "modf", "nextafter",
+    "sin", "sqrt", "tan",
+    # float
+    "asinf", "ldexpf", "sqrtf",
+    # long double
+    "ceill", "frexpl", "ldexpl", "sqrtl",
+    # long/long long
+    "llround", "lround",
+}
+
 
 def process_glibc_check():
     # See https://sourceware.org/glibc/wiki/Glibc%20Timeline
@@ -43,13 +59,19 @@ def process_glibc_check():
             if line.strip():
                 columns = line.strip().split(" ")
                 symbol_with_glibc = columns[-2]  # sysconf@GLIBC_2.2.5
-                _, version = symbol_with_glibc.split("@GLIBC_")
+                symbol_name, version = symbol_with_glibc.split("@GLIBC_")
                 if version == "PRIVATE":
                     print(f"FAILED: PRIVATE version: {symbol_with_glibc}")
                     ok = False
                 elif Version(version) > Version(max_glibc_version):
                     print(
                         f"FAILED: version is more than max version [{max_glibc_version}]: [{symbol_with_glibc}]"
+                    )
+                    ok = False
+                # Check that math functions come from llvm-libc, not glibc
+                if symbol_name in LLVMLIBC_MATH_FUNCTIONS:
+                    print(
+                        f"FAILED: math function should come from llvm-libc, not glibc: {symbol_with_glibc}"
                     )
                     ok = False
     return ok
