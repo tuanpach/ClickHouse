@@ -33,7 +33,7 @@ function thread_read {
     do
         $CLICKHOUSE_CLIENT --query "
             SELECT count() FROM ${TABLE} WHERE NOT ignore(value) FORMAT Null
-        " 2>&1 | grep -v -e 'Received exception from server' -e '^(query: ' | grep -v -P 'Code: (60)'
+        " 2>&1 | grep -v -e 'Received exception from server' -e '^(query: ' -e '^\s*)$' | grep -v -P 'Code: (60)'
     done
 }
 
@@ -41,10 +41,10 @@ function thread_read_with_cache_drop {
     local TIMELIMIT=$((SECONDS+TIMEOUT))
     while [ $SECONDS -lt "$TIMELIMIT" ]
     do
-        $CLICKHOUSE_CLIENT --query "SYSTEM DROP FILESYSTEM CACHE 's3_cache'" 2>&1 | grep -v -e 'Received exception from server' -e '^(query: '
+        $CLICKHOUSE_CLIENT --query "SYSTEM DROP FILESYSTEM CACHE 's3_cache'" 2>&1 | grep -v -e 'Received exception from server' -e '^(query: ' -e '^\s*)$'
         $CLICKHOUSE_CLIENT --query "
             SELECT sum(key) FROM ${TABLE} WHERE NOT ignore(value) FORMAT Null
-        " 2>&1 | grep -v -e 'Received exception from server' -e '^(query: ' | grep -v -P 'Code: (60)'
+        " 2>&1 | grep -v -e 'Received exception from server' -e '^(query: ' -e '^\s*)$' | grep -v -P 'Code: (60)'
     done
 }
 
