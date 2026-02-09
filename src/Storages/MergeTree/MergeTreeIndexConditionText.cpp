@@ -158,18 +158,11 @@ TextIndexDirectReadMode MergeTreeIndexConditionText::getHintOrNoneMode() const
 
 TextIndexDirectReadMode MergeTreeIndexConditionText::getDirectReadMode(const String & function_name) const
 {
-    if (function_name == "hasAnyTokens" || function_name == "hasAllTokens")
+    if (function_name == "hasToken"
+        || function_name == "hasAnyTokens"
+        || function_name == "hasAllTokens")
     {
         return TextIndexDirectReadMode::Exact;
-    }
-
-    if (function_name == "hasToken")
-    {
-        /// Function "hasToken" assumes the splitByNonAlpha tokenizer while executing brute force search.
-        /// Therefore, we can use exact direct read only if tokenizer is splitByNonAlpha and there is no preprocessor.
-        bool is_default_tokenizer = typeid_cast<const SplitByNonAlphaTokenExtractor *>(token_extractor);
-        bool has_preprocessor = preprocessor && preprocessor->hasActions();
-        return is_default_tokenizer && !has_preprocessor ? TextIndexDirectReadMode::Exact : getHintOrNoneMode();
     }
 
     if (function_name == "equals"
@@ -521,8 +514,7 @@ bool MergeTreeIndexConditionText::traverseFunctionNode(
         auto make_map_function = [&](auto tokens)
         {
             out.function = RPNElement::FUNCTION_EQUALS;
-            out.text_search_queries.emplace_back(
-                std::make_shared<TextSearchQuery>(function_name, TextSearchMode::All, direct_read_mode, std::move(tokens)));
+            out.text_search_queries.emplace_back(std::make_shared<TextSearchQuery>(function_name, TextSearchMode::All, direct_read_mode, std::move(tokens)));
             return true;
         };
 
