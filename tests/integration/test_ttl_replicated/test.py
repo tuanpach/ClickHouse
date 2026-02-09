@@ -582,24 +582,30 @@ def test_ttl_compatibility(started_cluster, node_left, node_right, num_run):
             )
         )
 
-    node_left.query(f"INSERT INTO {table}_delete VALUES (now(), 1)")
+    # Use a fixed past timestamp instead of now() to guarantee all rows land
+    # in the same partition even if the test runs across a day boundary.
+    # The table uses PARTITION BY toDayOfMonth(date), so a midnight crossing
+    # would split rows into different partitions that can never be merged.
+    expired = "toDateTime('2020-01-01 00:00:00')"
+
+    node_left.query(f"INSERT INTO {table}_delete VALUES ({expired}, 1)")
     node_left.query(
         f"INSERT INTO {table}_delete VALUES (toDateTime('2100-10-11 10:00:00'), 2)"
     )
-    node_right.query(f"INSERT INTO {table}_delete VALUES (now(), 3)")
+    node_right.query(f"INSERT INTO {table}_delete VALUES ({expired}, 3)")
     node_right.query(
         f"INSERT INTO {table}_delete VALUES (toDateTime('2100-10-11 10:00:00'), 4)"
     )
 
-    node_left.query(f"INSERT INTO {table}_group_by VALUES (now(), 0, 1)")
-    node_left.query(f"INSERT INTO {table}_group_by VALUES (now(), 0, 2)")
-    node_right.query(f"INSERT INTO {table}_group_by VALUES (now(), 0, 3)")
-    node_right.query(f"INSERT INTO {table}_group_by VALUES (now(), 0, 4)")
+    node_left.query(f"INSERT INTO {table}_group_by VALUES ({expired}, 0, 1)")
+    node_left.query(f"INSERT INTO {table}_group_by VALUES ({expired}, 0, 2)")
+    node_right.query(f"INSERT INTO {table}_group_by VALUES ({expired}, 0, 3)")
+    node_right.query(f"INSERT INTO {table}_group_by VALUES ({expired}, 0, 4)")
 
-    node_left.query(f"INSERT INTO {table}_where VALUES (now(), 1)")
-    node_left.query(f"INSERT INTO {table}_where VALUES (now(), 2)")
-    node_right.query(f"INSERT INTO {table}_where VALUES (now(), 3)")
-    node_right.query(f"INSERT INTO {table}_where VALUES (now(), 4)")
+    node_left.query(f"INSERT INTO {table}_where VALUES ({expired}, 1)")
+    node_left.query(f"INSERT INTO {table}_where VALUES ({expired}, 2)")
+    node_right.query(f"INSERT INTO {table}_where VALUES ({expired}, 3)")
+    node_right.query(f"INSERT INTO {table}_where VALUES ({expired}, 4)")
 
     if node_left.with_installed_binary:
         node_left.restart_with_latest_version()
