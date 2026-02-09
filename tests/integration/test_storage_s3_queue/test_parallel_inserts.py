@@ -97,7 +97,7 @@ def test_parallel_inserts_generated_parts(started_cluster, parallel_inserts):
     def get_processed_files():
         return set(
             node.query(
-                f"SELECT file_name FROM system.s3queue WHERE zookeeper_path ilike '%{table_name}%' and status = 'Processed' and rows_processed > 0 "
+                f"SELECT file_name FROM system.s3queue_metadata_cache WHERE zookeeper_path ilike '%{table_name}%' and status = 'Processed' and rows_processed > 0 "
             )
             .strip()
             .split("\n")
@@ -214,7 +214,7 @@ def test_parallel_inserts_with_failures(started_cluster, parallel_inserts):
     def get_processed_files():
         return set(
             node.query(
-                f"SELECT file_name FROM system.s3queue WHERE zookeeper_path ilike '%{table_name}%' and status = 'Processed' and rows_processed > 0 "
+                f"SELECT file_name FROM system.s3queue_metadata_cache WHERE zookeeper_path ilike '%{table_name}%' and status = 'Processed' and rows_processed > 0 "
             )
             .strip()
             .split("\n")
@@ -223,7 +223,7 @@ def test_parallel_inserts_with_failures(started_cluster, parallel_inserts):
     def get_failed_files():
         return set(
             node.query(
-                f"SELECT file_name FROM system.s3queue WHERE zookeeper_path ilike '%{table_name}%' and status = 'Failed'"
+                f"SELECT file_name FROM system.s3queue_metadata_cache WHERE zookeeper_path ilike '%{table_name}%' and status = 'Failed'"
             )
             .strip()
             .split("\n")
