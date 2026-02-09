@@ -16,5 +16,6 @@ SELECT count() FROM s3('http://localhost:11111/test/a.tsv', 'TSV');
 
 
 SET parallel_replicas_for_cluster_engines=false;
+
 EXPLAIN SELECT * FROM (SELECT * FROM s3('http://localhost:11111/test/a.tsv', 'TSV'));
 SELECT count() FROM s3('http://localhost:11111/test/a.tsv', 'TSV');
