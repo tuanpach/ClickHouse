@@ -239,6 +239,7 @@ DataLakeCatalog
 DataLens
 DataPacket
 DataPup
+DataStoria
 DataTypes
 DataTypesMatching
 DatabaseCatalog
