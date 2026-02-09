@@ -337,15 +337,12 @@ add_object_library(clickhouse_user_defined_functions Functions/UserDefined)
 
 # Libcxx hardening means out-of-bounds checks which causes noticeable degradations for some workflows.
 # TUs where libcxx hardening needs to be disabled are specified here.
-
-# hashjoin_with_large_output
-set_source_files_properties(Columns/IColumn.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
-# window functions
-set_source_files_properties(Processors/Transforms/WindowTransform.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
-# destroy_aggregate_states
-set_source_files_properties(Interpreters/Aggregator.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
-# range_hashed_dictionary
-set_source_files_properties(Common/IntervalTree.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
+set_property(SOURCE
+    Columns/IColumn.cpp                        # hashjoin_with_large_output
+    Processors/Transforms/WindowTransform.cpp  # window functions
+    Interpreters/Aggregator.cpp                # destroy_aggregate_states
+    Common/IntervalTree.cpp                    # range_hashed_dictionary
+    PROPERTY COMPILE_FLAGS "-U_LIBCPP_HARDENING_MODE -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE")
 
 if (USE_PARQUET)
     add_object_library(clickhouse_processors_formats_impl_parquet Processors/Formats/Impl/Parquet)
