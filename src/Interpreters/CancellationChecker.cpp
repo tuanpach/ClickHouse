@@ -71,12 +71,12 @@ void CancellationChecker::terminateThread()
     cond_var.notify_all();
 }
 
-void CancellationChecker::appendTask(const QueryStatusPtr & query, const Int64 timeout, OverflowMode overflow_mode)
+bool CancellationChecker::appendTask(const QueryStatusPtr & query, const Int64 timeout, OverflowMode overflow_mode)
 {
     if (timeout <= 0) // Avoid cases when the timeout is less or equal zero
     {
         LOG_TEST(log, "Did not add the task because the timeout is 0, query_id: {}", query->getClientInfo().current_query_id);
-        return;
+        return false;
     }
 
     /// Cap timeout to 1 year to prevent overflow in chrono calculations.
@@ -94,6 +94,7 @@ void CancellationChecker::appendTask(const QueryStatusPtr & query, const Int64 t
     auto iter = query_set.emplace(query, capped_timeout, end_time, overflow_mode);
     if (iter == query_set.begin()) // Only notify if the new task is the earliest one
         cond_var.notify_all();
+    return true;
 }
 
 void CancellationChecker::appendDoneTasks(const QueryStatusPtr & query)
