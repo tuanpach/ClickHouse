@@ -1766,7 +1766,7 @@ static BlockIO executeQueryImpl(
                             && (!ast_contains_system_tables || system_table_handling == QueryResultCacheSystemTableHandling::Save))
                         {
                             auto created_at = std::chrono::system_clock::now();
-                            auto expires_at = created_at + std::chrono::seconds(settings[Setting::query_cache_ttl]);
+                            auto expires_at = created_at + std::chrono::seconds(settings[Setting::query_cache_ttl].totalSeconds());
 
                             QueryResultCache::Key key(
                                 out_ast, context->getCurrentDatabase(), *settings_copy, res.pipeline.getSharedHeader(),
