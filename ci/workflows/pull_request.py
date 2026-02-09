@@ -48,7 +48,7 @@ workflow = Workflow.Config(
         JobConfigs.style_check,
         JobConfigs.docs_job,
         JobConfigs.fast_test,
-        JobConfigs.smoke_tests_macos.set_dependency([ArtifactNames.CH_ARM_DARWIN_BIN]),
+        JobConfigs.smoke_tests_macos.set_dependency([ArtifactNames.CH_AMD_DARWIN_BIN]),
         *JobConfigs.tidy_build_arm_jobs,
         *[job.set_dependency(STYLE_AND_FAST_TESTS) for job in JobConfigs.build_jobs],
         *[

@@ -107,6 +107,17 @@ class CloudInfrastructure:
                     print("=" * 60)
                     host_config.deploy()
 
+            # Deploy IAM Instance Profiles (before EC2 instances that may reference them)
+            if _wants("IAMInstanceProfile", "IAMInstanceProfiles"):
+                for ip_config in self.iam_instance_profiles:
+                    if self._settings and self._settings.AWS_REGION:
+                        ip_config.region = self._settings.AWS_REGION
+
+                    print("\n" + "=" * 60)
+                    print(f"Deploying IAM Instance Profile: {ip_config.name}")
+                    print("=" * 60)
+                    ip_config.deploy()
+
             # Deploy EC2 Instances
             if _wants("EC2Instance", "EC2Instances", "Instance", "Instances"):
                 for instance_config in self.ec2_instances:
@@ -117,17 +128,6 @@ class CloudInfrastructure:
                     print(f"Deploying EC2 Instance: {instance_config.name}")
                     print("=" * 60)
                     instance_config.deploy()
-
-            # Deploy IAM Instance Profiles
-            if _wants("IAMInstanceProfile", "IAMInstanceProfiles"):
-                for ip_config in self.iam_instance_profiles:
-                    if self._settings and self._settings.AWS_REGION:
-                        ip_config.region = self._settings.AWS_REGION
-
-                    print("\n" + "=" * 60)
-                    print(f"Deploying IAM Instance Profile: {ip_config.name}")
-                    print("=" * 60)
-                    ip_config.deploy()
 
             # Deploy Image Builder pipelines
             if _wants("ImageBuilder", "ImageBuilders"):
@@ -217,6 +217,63 @@ class CloudInfrastructure:
                                 role_arn, worker_name
                             )
 
+                print("\n" + "=" * 60)
+                print("Lambda deployment completed!")
+                print("=" * 60)
+
+        def shutdown(
+            self,
+            force: bool = True,
+            only: Optional[List[str]] = None,
+        ):
+            """
+            Terminate running EC2 instances and release Dedicated Hosts.
+
+            Args:
+                force: If True, forcefully terminate instances without stopping first (default: True).
+                only: If set, shutdown only selected component types by name (e.g. EC2Instance, DedicatedHost).
+            """
+            only_set = {
+                s.strip().lower()
+                for s in (only or [])
+                if isinstance(s, str) and s.strip()
+            }
+
+            def _wants(type_name: str, *aliases: str) -> bool:
+                if not only_set:
+                    return True
+                keys = {type_name.lower(), *{a.lower() for a in aliases if a}}
+                return bool(keys & only_set)
+
+            has_work = bool(self.ec2_instances or self.dedicated_hosts)
+            if not has_work:
+                print("No resources configured to shutdown")
+                return
+
+            # Shutdown Dedicated Hosts
+            if self.dedicated_hosts and _wants("DedicatedHost", "DedicatedHosts"):
+                for host_config in self.dedicated_hosts:
+                    if self._settings and self._settings.AWS_REGION:
+                        host_config.region = self._settings.AWS_REGION
+
+                    print("\n" + "=" * 60)
+                    print(f"Shutting down Dedicated Host pool: {host_config.name}")
+                    print("=" * 60)
+                    host_config.shutdown(force=force)
+
+            # Shutdown EC2 Instances
+            if self.ec2_instances and _wants(
+                "EC2Instance", "EC2Instances", "Instance", "Instances"
+            ):
+                for instance_config in self.ec2_instances:
+                    if self._settings and self._settings.AWS_REGION:
+                        instance_config.region = self._settings.AWS_REGION
+
+                    print("\n" + "=" * 60)
+                    print(f"Shutting down EC2 Instance: {instance_config.name}")
+                    print("=" * 60)
+                    instance_config.shutdown(force=force)
+
             print("\n" + "=" * 60)
-            print("Lambda deployment completed!")
+            print("Shutdown completed!")
             print("=" * 60)

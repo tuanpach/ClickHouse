@@ -187,9 +187,13 @@ class JobConfigs:
     )
     smoke_tests_macos = Job.Config(
         name=JobNames.SMOKE_TEST_MACOS,
-        runs_on=RunnerLabels.MACOS_ARM_SMALL,
+        runs_on=RunnerLabels.MACOS_AMD_SMALL,
         command="python3 ./ci/jobs/smoke_test.py",
-        digest_config=fast_test_digest_config,
+        digest_config=Job.CacheDigestConfig(
+            include_paths=[
+                "./ci/jobs/smoke_test.py",
+            ],
+        ),
     )
     tidy_build_arm_jobs = common_build_job_config.parametrize(
         Job.ParamSet(

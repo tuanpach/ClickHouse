@@ -83,15 +83,15 @@ Settings.EVENT_FEED_S3_PATH = "my-bucket/events"  # For Slack feed storage
 Deploy your infrastructure to AWS:
 
 ```bash
-praktika deploy
+praktika infrastructure --deploy
 ```
 
 Deploy only selected component types:
 
 ```bash
-praktika deploy --only ImageBuilder
-praktika deploy --only ImageBuilder LaunchTemplate
-praktika deploy --only DedicatedHost
+praktika infrastructure --deploy --only ImageBuilder
+praktika infrastructure --deploy --only ImageBuilder LaunchTemplate
+praktika infrastructure --deploy --only DedicatedHost
 ```
 
 This command:
@@ -103,6 +103,20 @@ This command:
 6. Deploys all Auto Scaling Groups defined in `CLOUD.autoscaling_groups`
 7. Deploys all Lambda functions defined in `CLOUD.lambda_functions`
 8. Fetches secrets from AWS Parameter Store (for Lambda environment injection)
+
+### Shutdown
+
+Terminate running EC2 instances:
+
+```bash
+praktika infrastructure --shutdown --only EC2Instance
+```
+
+Release Dedicated Hosts:
+
+```bash
+praktika infrastructure --shutdown --only DedicatedHost
+```
 
 ## macOS Auto Scaling Group (Dedicated Hosts)
 
@@ -118,7 +132,8 @@ Minimal working requirements for macOS ASG in Praktika:
 
 - **Dedicated hosts are required**
   - Configure `DedicatedHost.Config(instance_type="mac2-m2.metal" | "mac2.metal")`.
-  - Set `auto_placement="on"` so EC2 can place ASG-launched instances onto available hosts.
+  - **MUST set `auto_placement="on"`** (this is enforced with an assertion). This allows EC2 to automatically place instances with `tenancy="host"` onto available hosts in this pool.
+  - With `auto_placement="on"`, EC2 instances do NOT need to specify `host_resource_group_name` - AWS automatically handles placement based on instance type and availability zone matching.
 - **Launch template must use host tenancy**
   - Configure `LaunchTemplate.Config(tenancy="host")`.
   - Do not pin to a specific `host_id` for ASG usage.
@@ -126,6 +141,20 @@ Minimal working requirements for macOS ASG in Praktika:
   - Either provide `subnet_ids`, or provide `vpc_id`/`vpc_name` and optionally `availability_zones` for discovery.
 - **Start with desired capacity 0**
   - Use `min_size=0` and either omit `desired_capacity` or set it to `0`.
+
+### How Auto-Placement Works
+
+When you configure:
+- `DedicatedHost.Config(auto_placement="on", instance_type="mac2-m2.metal")`
+- `EC2Instance.Config(tenancy="host", instance_type="mac2-m2.metal")` or `LaunchTemplate.Config(tenancy="host")`
+
+AWS automatically places the instance on an available dedicated host that:
+1. Has `auto_placement="on"`
+2. Matches the instance type
+3. Is in the same availability zone
+4. Has available capacity
+
+**Note**: For more complex scenarios requiring explicit host targeting (e.g., multiple host pools with different purposes, specific placement policies), you would need to implement `ResourceGroup.Config` or enhance `EC2Instance.Config` to support explicit `host_resource_group_name` targeting. The current implementation supports the simple case where auto-placement handles all the routing.
 
 Example (macOS, Dedicated Hosts + ASG):
 

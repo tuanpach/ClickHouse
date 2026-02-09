@@ -1,6 +1,5 @@
 import base64
-import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 
@@ -11,6 +10,14 @@ class LaunchTemplate:
         # Launch Template name
         name: str
         region: str = ""
+
+        # Mandatory runner identification fields
+        praktika_resource_tag: str = (
+            ""  # Praktika resource tag (e.g., "mac") - tagged as "praktika_resource_tag"
+        )
+        runner_type: str = (
+            ""  # GitHub runner type (e.g., "arm_macos_small") - tagged as "github:runner-type"
+        )
 
         # High-level fields (optional). If `data` is provided, it is used as-is.
         image_id: str = ""
@@ -149,6 +156,26 @@ class LaunchTemplate:
                 "ImageId": resolved_image_id,
                 "InstanceType": self.instance_type,
             }
+
+            # Add mandatory runner identification tags to instances launched from this template
+            tag_specs = []
+            instance_tags = {"praktika_rn": self.name}
+            # Add resource tag if specified
+            if self.praktika_resource_tag:
+                instance_tags["praktika_resource_tag"] = self.praktika_resource_tag
+            if self.runner_type:
+                instance_tags["github:runner-type"] = self.runner_type
+
+            if instance_tags:
+                tag_specs.append(
+                    {
+                        "ResourceType": "instance",
+                        "Tags": [
+                            {"Key": k, "Value": v} for k, v in instance_tags.items()
+                        ],
+                    }
+                )
+                lt_data["TagSpecifications"] = tag_specs
 
             if self.security_group_ids:
                 lt_data["SecurityGroupIds"] = list(self.security_group_ids)

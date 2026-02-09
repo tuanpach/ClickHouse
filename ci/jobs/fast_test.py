@@ -13,7 +13,7 @@ from ci.praktika.utils import ContextManager, MetaClasses, Shell, Utils
 
 current_directory = Utils.cwd()
 build_dir = f"{current_directory}/ci/tmp/fast_build"
-temp_dir = f"{current_directory}/ci/tmp"
+temp_dir = f"{current_directory}/ci/tmp/"
 repo_path_normalized = "/ClickHouse"
 build_dir_normalized = f"{repo_path_normalized}/ci/tmp/fast_build"
 
@@ -119,23 +119,17 @@ def parse_args():
 def main():
     args = parse_args()
     stop_watch = Utils.Stopwatch()
-    info = Info()
 
     stages = list(JobStages)
-    clickhouse_bin_path = Path(f"{build_dir}/programs/clickhouse")
-
     stage = args.param or JobStages.CHECKOUT_SUBMODULES
+    if stage:
+        assert stage in JobStages, f"--param must be one of [{list(JobStages)}]"
+        print(f"Job will start from stage [{stage}]")
+        while stage in stages:
+            stages.pop(0)
+        stages.insert(0, stage)
 
-    if "darwin" in info.job_name:
-        stages = [JobStages.CONFIG, JobStages.TEST]
-        clickhouse_bin_path = Path(f"./ci/tmp/clickhouse")
-        stage = JobStages.CONFIG
-
-    assert stage in JobStages, f"--param must be one of [{list(JobStages)}]"
-    print(f"Job will start from stage [{stage}]")
-    while stage in stages:
-        stages.pop(0)
-    stages.insert(0, stage)
+    clickhouse_bin_path = Path(f"{build_dir}/programs/clickhouse")
 
     # Global sccache settings for local and CI runs
     os.environ["SCCACHE_DIR"] = f"{temp_dir}/sccache"
@@ -146,7 +140,7 @@ def main():
     os.environ["SCCACHE_ERROR_LOG"] = f"{build_dir}/sccache.log"
     os.environ["SCCACHE_LOG"] = "info"
 
-    if info.is_local_run:
+    if Info().is_local_run:
         os.environ["SCCACHE_S3_NO_CREDENTIALS"] = "true"
         for path in [
             clickhouse_bin_path,
@@ -253,7 +247,6 @@ def main():
 
     if res and JobStages.CONFIG in stages:
         commands = [
-            f"mkdir -p {temp_dir}/etc/clickhouse-server",
             f"cp ./programs/server/config.xml ./programs/server/users.xml {temp_dir}/etc/clickhouse-server/",
             f"./tests/config/install.sh /etc/clickhouse-server /etc/clickhouse-client --fast-test",
             # f"cp -a {current_directory}/programs/server/config.d/log_to_console.xml {temp_dir}/etc/clickhouse-server/config.d/",

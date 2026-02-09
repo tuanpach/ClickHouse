@@ -11,6 +11,14 @@ class AutoScalingGroup:
         name: str
         region: str = ""
 
+        # Mandatory runner identification fields
+        praktika_resource_tag: str = (
+            ""  # Praktika resource tag (e.g., "mac") - tagged as "praktika_resource_tag"
+        )
+        runner_type: str = (
+            ""  # GitHub runner type (e.g., "arm_macos_small") - tagged as "github:runner-type"
+        )
+
         # Networking
         subnet_ids: List[str] = field(default_factory=list)
         vpc_id: str = ""
@@ -260,9 +268,18 @@ class AutoScalingGroup:
                 asg_client.create_auto_scaling_group(**req)
                 print(f"Successfully created ASG: {self.name}")
 
-            if self.tags:
+            # Merge mandatory runner identification tags with user-defined tags
+            merged_tags = {"praktika_rn": self.name}
+            # Add resource tag if specified
+            if self.praktika_resource_tag:
+                merged_tags["praktika_resource_tag"] = self.praktika_resource_tag
+            if self.runner_type:
+                merged_tags["github:runner-type"] = self.runner_type
+            merged_tags.update(self.tags or {})
+
+            if merged_tags:
                 tag_specs = []
-                for k, v in self.tags.items():
+                for k, v in merged_tags.items():
                     tag_specs.append(
                         {
                             "ResourceId": self.name,
@@ -275,7 +292,7 @@ class AutoScalingGroup:
 
                 asg_client.create_or_update_tags(Tags=tag_specs)
                 print(
-                    f"Updated {len(self.tags)} tag(s) (PropagateAtLaunch=True) for ASG: {self.name}"
+                    f"Updated {len(merged_tags)} tag(s) (PropagateAtLaunch=True) for ASG: {self.name}"
                 )
 
             return self

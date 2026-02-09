@@ -11,6 +11,14 @@ class DedicatedHost:
         name: str
         region: str = ""
 
+        # Mandatory runner identification fields
+        praktika_resource_tag: str = (
+            ""  # Praktika resource tag (e.g., "mac") - tagged as "praktika"
+        )
+        runner_type: str = (
+            ""  # GitHub runner type (e.g., "arm_macos_small") - tagged as "github:runner-type"
+        )
+
         # If set, allocate hosts in all availability zones in the region.
         all_availability_zones: bool = False
         availability_zones: List[str] = field(default_factory=list)
@@ -19,6 +27,15 @@ class DedicatedHost:
         instance_type: str = ""
 
         # Auto placement for Dedicated Hosts ("on" or "off")
+        # IMPORTANT: Must be set to "on" for EC2 instances with tenancy="host" to be
+        # automatically placed on these hosts. With auto_placement="on", AWS automatically
+        # places instances that match the instance type and availability zone onto available
+        # hosts in this pool. EC2Instance.Config does not need to specify host_resource_group_name
+        # when auto_placement is enabled - AWS handles placement automatically.
+        #
+        # TODO: For more complex scenarios requiring explicit host targeting (multiple host pools,
+        # specific placement policies), implement ResourceGroup.Config or enhance EC2Instance.Config
+        # to support explicit host_resource_group_name targeting.
         auto_placement: str = "off"
 
         # Desired host count per AZ
@@ -68,7 +85,15 @@ class DedicatedHost:
                 )
 
             # Stable identification tags
-            merged_tags = {"praktika_host_pool": self.name, **(self.tags or {})}
+            merged_tags = {"praktika_rn": self.name}
+            # Add resource tag if specified
+            if self.praktika_resource_tag:
+                merged_tags["praktika_resource_tag"] = self.praktika_resource_tag
+            if self.runner_type:
+                merged_tags["github:runner-type"] = self.runner_type
+            # Add user-defined tags
+            merged_tags.update(self.tags or {})
+
             for k, v in merged_tags.items():
                 filters.append({"Name": f"tag:{k}", "Values": [v]})
 
@@ -79,18 +104,35 @@ class DedicatedHost:
 
             ec2 = boto3.client("ec2", region_name=self.region)
 
-            self._ensure_host_resource_group()
+            # self._ensure_host_resource_group()
 
             azs = self._resolved_availability_zones()
             hosts_by_az: Dict[str, List[str]] = {}
+            releasing_hosts_by_az: Dict[str, List[str]] = {}
 
             for az in azs:
                 resp = ec2.describe_hosts(Filters=self._host_filters(az))
                 hosts = resp.get("Hosts", [])
-                host_ids = [h.get("HostId") for h in hosts if h.get("HostId")]
+                # Only count hosts in available/allocated states
+                host_ids = [
+                    h.get("HostId")
+                    for h in hosts
+                    if h.get("HostId")
+                    and h.get("State")
+                    in ["available", "under-assessment", "permanent-failure"]
+                ]
+                # Track hosts being released
+                releasing_ids = [
+                    h.get("HostId")
+                    for h in hosts
+                    if h.get("HostId")
+                    and h.get("State") == "released-permanent-failure"
+                ]
                 hosts_by_az[az] = host_ids
+                releasing_hosts_by_az[az] = releasing_ids
 
             self.ext["hosts_by_az"] = hosts_by_az
+            self.ext["releasing_hosts_by_az"] = releasing_hosts_by_az
             print(f"Successfully fetched Dedicated Hosts for pool: {self.name}")
             return self
 
@@ -100,7 +142,15 @@ class DedicatedHost:
             group_name = self.host_resource_group_name or self.name
             self.host_resource_group_name = group_name
 
-            merged_tags = {"praktika_host_pool": self.name, **(self.tags or {})}
+            merged_tags = {"praktika_rn": self.name}
+            # Add resource tag if specified
+            if self.praktika_resource_tag:
+                merged_tags["praktika_resource_tag"] = self.praktika_resource_tag
+            if self.runner_type:
+                merged_tags["github:runner-type"] = self.runner_type
+            # Add user-defined tags
+            merged_tags.update(self.tags or {})
+
             query_obj = {
                 "ResourceTypeFilters": ["AWS::EC2::Host"],
                 "TagFilters": [
@@ -161,6 +211,16 @@ class DedicatedHost:
                     f"quantity_per_az must be >= 1 for DedicatedHost '{self.name}'"
                 )
 
+            # IMPORTANT: auto_placement must be "on" for EC2 instances to use these hosts
+            # Without auto_placement="on", instances with tenancy="host" will not be
+            # automatically placed on these dedicated hosts.
+            if self.auto_placement != "on":
+                raise ValueError(
+                    f"auto_placement must be 'on' for DedicatedHost '{self.name}'. "
+                    f"This is required for EC2 instances with tenancy='host' to be automatically "
+                    f"placed on these dedicated hosts. Currently set to: '{self.auto_placement}'"
+                )
+
             ec2 = boto3.client("ec2", region_name=self.region)
 
             azs = self._resolved_availability_zones()
@@ -171,10 +231,26 @@ class DedicatedHost:
 
             allocated_by_az: Dict[str, List[str]] = {}
 
-            merged_tags = {"praktika_host_pool": self.name, **(self.tags or {})}
+            merged_tags = {"praktika_rn": self.name}
+            # Add resource tag if specified
+            if self.praktika_resource_tag:
+                merged_tags["praktika_resource_tag"] = self.praktika_resource_tag
+            if self.runner_type:
+                merged_tags["github:runner-type"] = self.runner_type
+            # Add user-defined tags
+            merged_tags.update(self.tags or {})
 
             for az in azs:
                 existing = hosts_by_az.get(az, [])
+                releasing = self.ext.get("releasing_hosts_by_az", {}).get(az, [])
+
+                # Warn if hosts are being released - this can cause allocation failures
+                if releasing:
+                    print(
+                        f"Warning: {len(releasing)} host(s) are being released in {az}. "
+                        f"This may cause InsufficientHostCapacity errors until release completes. "
+                        f"Releasing hosts: {releasing}"
+                    )
 
                 # Enforce desired auto placement on existing hosts
                 if existing:
@@ -199,26 +275,101 @@ class DedicatedHost:
                     f"Allocating {missing} Dedicated Host(s) for pool '{self.name}' in {az} (instance_type={self.instance_type})"
                 )
 
-                resp = ec2.allocate_hosts(
-                    AvailabilityZone=az,
-                    InstanceType=self.instance_type,
-                    Quantity=missing,
-                    AutoPlacement=self.auto_placement,
-                    TagSpecifications=[
-                        {
-                            "ResourceType": "dedicated-host",
-                            "Tags": [
-                                {"Key": k, "Value": v} for k, v in merged_tags.items()
-                            ],
-                        }
-                    ],
-                )
+                try:
+                    from botocore.exceptions import ClientError
 
-                new_ids = resp.get("HostIds", [])
-                allocated_by_az[az] = new_ids
-                print(
-                    f"Allocated {len(new_ids)} Dedicated Host(s) in {az} for pool '{self.name}': {new_ids}"
-                )
+                    resp = ec2.allocate_hosts(
+                        AvailabilityZone=az,
+                        InstanceType=self.instance_type,
+                        Quantity=missing,
+                        AutoPlacement=self.auto_placement,
+                        TagSpecifications=[
+                            {
+                                "ResourceType": "dedicated-host",
+                                "Tags": [
+                                    {"Key": k, "Value": v}
+                                    for k, v in merged_tags.items()
+                                ],
+                            }
+                        ],
+                    )
+
+                    new_ids = resp.get("HostIds", [])
+                    allocated_by_az[az] = new_ids
+                    print(
+                        f"Allocated {len(new_ids)} Dedicated Host(s) in {az} for pool '{self.name}': {new_ids}"
+                    )
+                except ClientError as e:
+                    error_code = e.response.get("Error", {}).get("Code", "")
+                    if error_code == "InsufficientHostCapacity":
+                        releasing_msg = ""
+                        if releasing:
+                            releasing_msg = f" Note: {len(releasing)} host(s) are currently being released - wait for release to complete."
+                        print(
+                            f"Warning: Insufficient capacity to allocate {missing} host(s) in {az} "
+                            f"for pool '{self.name}' (instance_type={self.instance_type}) - skipping this AZ. "
+                            f"This is common for Mac dedicated hosts.{releasing_msg} "
+                            f"Try again later or contact AWS support."
+                        )
+                        allocated_by_az[az] = []
+                    elif error_code == "UnsupportedHostConfiguration":
+                        print(
+                            f"Warning: Instance type '{self.instance_type}' is not supported in {az} - skipping this AZ. "
+                            f"Mac dedicated hosts are only available in specific AZs (typically us-east-1a, us-west-2a, etc.). "
+                            f"Update your configuration to use supported AZs only."
+                        )
+                        allocated_by_az[az] = []
+                    else:
+                        raise
 
             self.ext["allocated_by_az"] = allocated_by_az
+            return self
+
+        def shutdown(self, force: bool = True):
+            """
+            Release all Dedicated Hosts in this pool.
+
+            Args:
+                force: Not used for DedicatedHost (kept for API consistency with EC2Instance).
+            """
+            import boto3
+
+            _ = force  # Unused, kept for API consistency
+
+            ec2 = boto3.client("ec2", region_name=self.region)
+
+            # Fetch existing hosts
+            self.fetch()
+            hosts_by_az: Dict[str, List[str]] = self.ext.get("hosts_by_az", {})
+
+            if not hosts_by_az or not any(hosts_by_az.values()):
+                print(
+                    f"DedicatedHost pool '{self.name}': no hosts found - nothing to shutdown"
+                )
+                return self
+
+            released_count = 0
+            failed_count = 0
+
+            for az, host_ids in hosts_by_az.items():
+                if not host_ids:
+                    continue
+
+                print(
+                    f"Releasing {len(host_ids)} Dedicated Host(s) in {az} for pool '{self.name}'"
+                )
+
+                for host_id in host_ids:
+                    try:
+                        ec2.release_hosts(HostIds=[host_id])
+                        print(f"  Released host: {host_id}")
+                        released_count += 1
+                    except Exception as e:
+                        print(f"  Failed to release host {host_id}: {e}")
+                        failed_count += 1
+
+            print(
+                f"DedicatedHost pool '{self.name}': released {released_count} host(s), "
+                f"failed {failed_count}"
+            )
             return self

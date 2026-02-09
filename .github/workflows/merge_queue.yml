@@ -46,7 +46,9 @@ jobs:
         run: |
           . ./ci/tmp/praktika_setup_env.sh
           set -o pipefail
-          PYTHONUNBUFFERED=1 python3 -m praktika run 'Config Workflow' --workflow "MergeQueueCI" --ci 2>&1 | python3 -u -c 'import sys,datetime;          prefix=lambda: datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]");          [sys.stdout.write(prefix() + " " + line) for line in sys.stdin]' | tee ./ci/tmp/job.log
+          PYTHONUNBUFFERED=1 python3 -m praktika run 'Config Workflow' --workflow "MergeQueueCI" --ci 2>&1 | python3 -u -c 'import sys,datetime
+          prefix=lambda: datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+          for line in sys.stdin: sys.stdout.write(prefix() + " " + line); sys.stdout.flush()' | tee ./ci/tmp/job.log
 
   dockers_build_amd:
     runs-on: [self-hosted, style-checker]
@@ -82,7 +84,9 @@ jobs:
         run: |
           . ./ci/tmp/praktika_setup_env.sh
           set -o pipefail
-          PYTHONUNBUFFERED=1 python3 -m praktika run 'Dockers Build (amd)' --workflow "MergeQueueCI" --ci 2>&1 | python3 -u -c 'import sys,datetime;          prefix=lambda: datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]");          [sys.stdout.write(prefix() + " " + line) for line in sys.stdin]' | tee ./ci/tmp/job.log
+          PYTHONUNBUFFERED=1 python3 -m praktika run 'Dockers Build (amd)' --workflow "MergeQueueCI" --ci 2>&1 | python3 -u -c 'import sys,datetime
+          prefix=lambda: datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+          for line in sys.stdin: sys.stdout.write(prefix() + " " + line); sys.stdout.flush()' | tee ./ci/tmp/job.log
 
   dockers_build_arm:
     runs-on: [self-hosted, style-checker-aarch64]
@@ -118,7 +122,9 @@ jobs:
         run: |
           . ./ci/tmp/praktika_setup_env.sh
           set -o pipefail
-          PYTHONUNBUFFERED=1 python3 -m praktika run 'Dockers Build (arm)' --workflow "MergeQueueCI" --ci 2>&1 | python3 -u -c 'import sys,datetime;          prefix=lambda: datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]");          [sys.stdout.write(prefix() + " " + line) for line in sys.stdin]' | tee ./ci/tmp/job.log
+          PYTHONUNBUFFERED=1 python3 -m praktika run 'Dockers Build (arm)' --workflow "MergeQueueCI" --ci 2>&1 | python3 -u -c 'import sys,datetime
+          prefix=lambda: datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+          for line in sys.stdin: sys.stdout.write(prefix() + " " + line); sys.stdout.flush()' | tee ./ci/tmp/job.log
 
   style_check:
     runs-on: [self-hosted, style-checker-aarch64]
@@ -154,7 +160,9 @@ jobs:
         run: |
           . ./ci/tmp/praktika_setup_env.sh
           set -o pipefail
-          PYTHONUNBUFFERED=1 python3 -m praktika run 'Style check' --workflow "MergeQueueCI" --ci 2>&1 | python3 -u -c 'import sys,datetime;          prefix=lambda: datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]");          [sys.stdout.write(prefix() + " " + line) for line in sys.stdin]' | tee ./ci/tmp/job.log
+          PYTHONUNBUFFERED=1 python3 -m praktika run 'Style check' --workflow "MergeQueueCI" --ci 2>&1 | python3 -u -c 'import sys,datetime
+          prefix=lambda: datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+          for line in sys.stdin: sys.stdout.write(prefix() + " " + line); sys.stdout.flush()' | tee ./ci/tmp/job.log
 
   fast_test:
     runs-on: [self-hosted, amd-large]
@@ -190,7 +198,9 @@ jobs:
         run: |
           . ./ci/tmp/praktika_setup_env.sh
           set -o pipefail
-          PYTHONUNBUFFERED=1 python3 -m praktika run 'Fast test' --workflow "MergeQueueCI" --ci 2>&1 | python3 -u -c 'import sys,datetime;          prefix=lambda: datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]");          [sys.stdout.write(prefix() + " " + line) for line in sys.stdin]' | tee ./ci/tmp/job.log
+          PYTHONUNBUFFERED=1 python3 -m praktika run 'Fast test' --workflow "MergeQueueCI" --ci 2>&1 | python3 -u -c 'import sys,datetime
+          prefix=lambda: datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+          for line in sys.stdin: sys.stdout.write(prefix() + " " + line); sys.stdout.flush()' | tee ./ci/tmp/job.log
 
   build_amd_binary:
     runs-on: [self-hosted, arm-large]
@@ -226,7 +236,9 @@ jobs:
         run: |
           . ./ci/tmp/praktika_setup_env.sh
           set -o pipefail
-          PYTHONUNBUFFERED=1 python3 -m praktika run 'Build (amd_binary)' --workflow "MergeQueueCI" --ci 2>&1 | python3 -u -c 'import sys,datetime;          prefix=lambda: datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]");          [sys.stdout.write(prefix() + " " + line) for line in sys.stdin]' | tee ./ci/tmp/job.log
+          PYTHONUNBUFFERED=1 python3 -m praktika run 'Build (amd_binary)' --workflow "MergeQueueCI" --ci 2>&1 | python3 -u -c 'import sys,datetime
+          prefix=lambda: datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+          for line in sys.stdin: sys.stdout.write(prefix() + " " + line); sys.stdout.flush()' | tee ./ci/tmp/job.log
 
   finish_workflow:
     runs-on: [self-hosted, style-checker-aarch64]
@@ -262,4 +274,6 @@ jobs:
         run: |
           . ./ci/tmp/praktika_setup_env.sh
           set -o pipefail
-          PYTHONUNBUFFERED=1 python3 -m praktika run 'Finish Workflow' --workflow "MergeQueueCI" --ci 2>&1 | python3 -u -c 'import sys,datetime;          prefix=lambda: datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]");          [sys.stdout.write(prefix() + " " + line) for line in sys.stdin]' | tee ./ci/tmp/job.log
+          PYTHONUNBUFFERED=1 python3 -m praktika run 'Finish Workflow' --workflow "MergeQueueCI" --ci 2>&1 | python3 -u -c 'import sys,datetime
+          prefix=lambda: datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+          for line in sys.stdin: sys.stdout.write(prefix() + " " + line); sys.stdout.flush()' | tee ./ci/tmp/job.log
