@@ -138,3 +138,41 @@ def test_writes_create_table_bug_tuple(started_cluster_iceberg_with_spark, forma
     create_iceberg_table(storage_type, instance, TABLE_NAME, started_cluster_iceberg_with_spark, "(x Int, y Int)", order_by="tuple()", format_version=format_version)
     instance.query(f"INSERT INTO {TABLE_NAME} VALUES (1, 2), (1, 3);", settings={"allow_experimental_insert_into_iceberg": 1})
     assert instance.query(f"SELECT * FROM {TABLE_NAME} ORDER BY ALL") == '1\t2\n1\t3\n'
+
+@pytest.mark.parametrize("format_version", [2])
+@pytest.mark.parametrize("storage_type", ["s3"])
+@pytest.mark.parametrize(
+    "schema,order_by",
+    [
+        ("(c0 Int)", "(1)"),
+        ("(c0 Int)", "(1+1)"),
+        ("(c0 Int)", "rand(c0)"),
+        ("(c0 Int)", "(now())"),
+        ("(c0 Int)", "identity(1)"),
+        ("(c0 Int)", "identity(1+1)"),
+        ("(c0 Int)", "identity()"),
+        ("(c0 Int, c1 Int)", "identity(c0, c1, c0)"),
+        ("(c0 Int, c1 Int)", "icebergBucket(c0, c1)"),
+        ("(c0 Int, c1 Int)", "icebergBucket(1, 2)"),
+        ("(c0 Int)", "icebergBucket(c0, 1)"),
+        ("(c0 Int)", "icebergBucket(-1, c0)"),
+        ("(c0 Int)", "icebergTruncate(1.5, c0)"),
+        ("(c0 Int)", "tuple()"),
+    ]
+)
+def test_order_by_bad_arguments(
+    started_cluster_iceberg_with_spark, format_version, storage_type, schema, order_by
+):
+    instance = started_cluster_iceberg_with_spark.instances["node1"]
+    table_name = "test_order_by_bad_" + storage_type + "_" + get_uuid_str()
+
+    with pytest.raises(Exception):
+        create_iceberg_table(
+            storage_type,
+            instance,
+            table_name,
+            started_cluster_iceberg_with_spark,
+            schema,
+            format_version=format_version,
+            order_by=order_by,
+        )
