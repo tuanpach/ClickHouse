@@ -314,7 +314,7 @@ DistributedIndexAnalysisPartsRanges distributedIndexAnalysisOnReplicas(
         else
         {
             /// Passing references here is fine. All of them will outlive the runner
-            runner.enqueueAndKeepTrack([i, replica_address, connection_pool, &logger, &replica_parts, &replicas_marks, &replicas_rows, &storage_id, &filter_query, &execution_context, &external_tables, &res]()
+            runner.enqueueAndKeepTrack([i, replica_address, connection_pool, &logger, &replica_parts, &replicas_marks, &replicas_rows, &storage_id, &filter_query, &vector_search_parameters, &execution_context, &external_tables, &res]()
             {
                 try
                 {
