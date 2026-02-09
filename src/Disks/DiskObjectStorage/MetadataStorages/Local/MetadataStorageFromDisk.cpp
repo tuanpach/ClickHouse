@@ -8,6 +8,7 @@
 
 #include <Common/logger_useful.h>
 
+#include <limits>
 #include <ranges>
 #include <memory>
 #include <shared_mutex>
@@ -149,6 +150,9 @@ uint32_t MetadataStorageFromDisk::getHardlinkCount(const std::string & path) con
 IMetadataStorage::BlobsToRemove MetadataStorageFromDisk::getBlobsToRemove(const ClusterConfigurationPtr & cluster, int64_t max_count)
 {
     std::lock_guard guard(removed_objects_mutex);
+
+    if (max_count == 0)
+        max_count = std::numeric_limits<int64_t>::max();
 
     BlobsToRemove blobs_to_remove;
     for (const auto & blob : objects_to_remove | std::views::take(max_count))
