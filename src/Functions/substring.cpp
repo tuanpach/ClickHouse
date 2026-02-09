@@ -254,7 +254,7 @@ An optional argument `length` specifies the maximum number of bytes the returned
 Returns the substring of a string `s` which starts at the specified code point index `offset`.
 Code point counting starts from `1` with the following logic:
 - If `offset` is `0`, an empty string is returned.
-- If `offset` is negative, the substring starts `pos` code points from the end of the string, rather than from the beginning.
+- If `offset` is negative, the substring starts `|offset|` code points from the end of the string, rather than from the beginning.
 
 An optional argument `length` specifies the maximum number of code points the returned substring may have.
 
