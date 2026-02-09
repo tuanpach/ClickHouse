@@ -161,8 +161,6 @@ void MySQLWithFailoverSource::onCancel() noexcept
 {
     try
     {
-        LOG_DEBUG(log, "Entering onCancel()");
-
         if (mysql_connection_id == 0)
         {
             LOG_DEBUG(log, "No valid MySQL connection ID to cancel");
@@ -199,8 +197,6 @@ void MySQLWithFailoverSource::onCancel() noexcept
         {
             LOG_WARNING(log, "std::exception during cancellation: {}", e.what());
         }
-
-        LOG_DEBUG(log, "Exiting onCancel()");
     }
     catch (...)
     {
