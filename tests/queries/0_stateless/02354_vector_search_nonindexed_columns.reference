@@ -1,10 +1,10 @@
--- Search over index, strategy = auto
+-- Search with index, strategy = auto
 Filter column: in(__table1.key, __set_Int32_XXX) (removed)
--- Search over index, strategy = prefilter
+-- Search with index, strategy = prefilter
 Prewhere filter column: in(__table1.key, __set_Int32_XXX) (removed)
--- Search over index, strategy = postfilter
+-- Search with index, strategy = postfilter
 Filter column: in(__table1.key, __set_Int32_XXX) (removed)
-
+-----
 -- Search without index, strategy = auto
 Prewhere filter column: in(__table1.key, __set_Int32_XXX) (removed)
 -- Search without index, strategy = prefilter
