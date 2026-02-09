@@ -3,7 +3,7 @@
 #include <Common/Exception.h>
 #include <Common/Logger.h>
 #include <Common/logger_useful.h>
-#include "Core/LogsLevel.h"
+#include <Core/LogsLevel.h>
 #include <Core/Settings.h>
 #include <Formats/FormatFactory.h>
 #include <Formats/ReadSchemaUtils.h>
@@ -637,13 +637,9 @@ std::unique_ptr<ReadBufferIterator> StorageObjectStorage::createReadBufferIterat
     ObjectInfos & read_keys,
     const ContextPtr & context)
 {
-    auto query_settings = configuration->getQuerySettings(context);
-    /// We don't want to throw an exception if there are no files with specified path during schema inference.
-    query_settings.ignore_non_existent_file = true;
-    
     auto file_iterator = StorageObjectStorageSource::createFileIterator(
         configuration,
-        query_settings,
+        configuration->getQuerySettings(context),
         object_storage,
         nullptr, /* storage_metadata */
         false, /* distributed_processing */
