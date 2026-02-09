@@ -161,7 +161,7 @@ public:
     /// Get MySQL C API MYSQL object.
     MYSQL * getDriver();
 
-    unsigned long getDriverThreadID();
+    uint64_t getDriverThreadID();
 
 private:
     std::unique_ptr<MYSQL> driver;

@@ -83,7 +83,7 @@ private:
     mysqlxx::PoolWithFailoverPtr pool;
     std::string query_str;
     bool is_initialized = false;
-    unsigned long mysql_connection_id = 0;
+    uint64_t mysql_connection_id = 0;
 };
 
 }

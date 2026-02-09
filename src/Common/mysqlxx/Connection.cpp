@@ -158,7 +158,7 @@ MYSQL * Connection::getDriver()
     return driver.get();
 }
 
-unsigned long Connection::getDriverThreadID()
+uint64_t Connection::getDriverThreadID()
 {
     return mysql_thread_id(driver.get());
 }
