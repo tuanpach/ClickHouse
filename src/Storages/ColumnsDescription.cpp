@@ -710,7 +710,13 @@ std::optional<NameAndTypePair> ColumnsDescription::tryGetColumn(const GetColumns
     {
         auto jt = subcolumns.get<0>().find(column_name);
         if (jt != subcolumns.get<0>().end())
-            return *jt;
+        {
+            /// Check that the parent column matches the requested kind.
+            auto parent_name = jt->getNameInStorage();
+            auto it_parent = columns.get<1>().find(parent_name);
+            if (it_parent != columns.get<1>().end() && (defaultKindToGetKind(it_parent->default_desc.kind) & options.kind))
+                return *jt;
+        }
 
         if (options.with_dynamic_subcolumns)
         {
@@ -806,8 +812,17 @@ bool ColumnsDescription::hasAlias(const String & column_name) const
 bool ColumnsDescription::hasColumnOrSubcolumn(GetColumnsOptions::Kind kind, const String & column_name) const
 {
     auto it = columns.get<1>().find(column_name);
-    if ((it != columns.get<1>().end() && (defaultKindToGetKind(it->default_desc.kind) & kind)) || hasSubcolumn(column_name))
+    if (it != columns.get<1>().end() && (defaultKindToGetKind(it->default_desc.kind) & kind))
         return true;
+
+    auto jt = subcolumns.get<0>().find(column_name);
+    if (jt != subcolumns.get<0>().end())
+    {
+        auto parent_name = jt->getNameInStorage();
+        auto it_parent = columns.get<1>().find(parent_name);
+        if (it_parent != columns.get<1>().end() && (defaultKindToGetKind(it_parent->default_desc.kind) & kind))
+            return true;
+    }
 
     return false;
 }
