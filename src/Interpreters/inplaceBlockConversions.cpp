@@ -386,6 +386,18 @@ static ColumnPtr createColumnWithDefaultValue(const IDataType & data_type, const
     return ColumnConst::create(std::move(column), num_rows)->convertToFullColumnIfConst();
 }
 
+static bool hasDefault(const StorageSnapshotPtr & storage_snapshot, const NameAndTypePair & column)
+{
+    if (!storage_snapshot)
+        return false;
+
+    if (storage_snapshot->getDefault(column.name).has_value())
+        return true;
+
+    auto name_in_storage = column.getNameInStorage();
+    return storage_snapshot->getDefault(name_in_storage).has_value();
+}
+
 static String removeTupleElementsFromSubcolumn(String subcolumn_name, const Names & tuple_elements)
 {
     /// Add a dot to the end of name for convenience.
@@ -432,7 +444,7 @@ void fillMissingColumns(
             res_columns[i] = nullptr;
 
         /// Nothing to fill or default should be filled in evaluateMissingDefaults.
-        if (res_columns[i] || !storage_snapshot || storage_snapshot->getDefault(requested_column->name))
+        if (res_columns[i] || hasDefault(storage_snapshot, *requested_column))
             continue;
 
         std::vector<ColumnPtr> current_offsets;
