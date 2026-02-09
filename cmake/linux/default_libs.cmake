@@ -29,6 +29,8 @@ if (NOT (ARCH_AMD64 OR ARCH_AARCH64))
 endif()
 
 if (ENABLE_LLVM_LIBC_MATH)
+    link_directories("${CMAKE_BINARY_DIR}/contrib/libllvmlibc-cmake")
+
     if (ARCH_AMD64)
         target_link_libraries(global-libs INTERFACE llvmlibc_dispatch libllvmlibc_x86_64_v2 libllvmlibc_x86_64_v3)
         set (DEFAULT_LIBS "${DEFAULT_LIBS} -lllvmlibc_dispatch -llibllvmlibc_x86_64_v2 -llibllvmlibc_x86_64_v3")
