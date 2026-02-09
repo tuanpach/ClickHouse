@@ -23,6 +23,7 @@ public:
 
     bool needChildVisit(const QueryTreeNodePtr & parent, const QueryTreeNodePtr & child)
     {
+        // Count subqueries that are used in the FROM clause
         if (child->getNodeType() == QueryTreeNodeType::QUERY)
         {
             auto * child_query = child->as<QueryNode>();
@@ -50,6 +51,7 @@ public:
 private:
     size_t table_count = 0;
     size_t table_function_count = 0;
+    // Number of subqueries that appear in the FROM clause
     size_t subquery_in_from_count = 0;
 
     bool has_join = false;
