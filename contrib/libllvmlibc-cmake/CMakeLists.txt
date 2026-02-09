@@ -336,111 +336,91 @@ if (ARCH_AMD64 OR ARCH_AARCH64)
     list(APPEND SRCS ${SRCS_MATH})
 endif()
 
+# Base namespace for llvm-libc
 set(LIBC_NAMESPACE "__llvm_libc")
 
-add_library(libllvmlibc ${SRCS})
-set_target_properties(libllvmlibc PROPERTIES FOLDER "contrib/libllvmlibc-cmake")
-
-set(LLVMLIBC_DEFS
-    LIBC_NAMESPACE=${LIBC_NAMESPACE}
-
-    # LIBC_COPT_PUBLIC_PACKAGING=0
-
+# Common definitions for all llvm-libc builds
+set(LLVMLIBC_DEFS_COMMON
     LIBC_MATH_HAS_NO_ERRNO=1
     LIBC_MATH_HAS_NO_EXCEPT=1
     LIBC_MATH_HAS_SKIP_ACCURATE_PASS=1
-
     LIBC_TARGET_CPU_HAS_FMA_DOUBLE=1
     LIBC_TARGET_CPU_HAS_NEAREST_INT=1
 )
 
 if (ARCH_AMD64)
-    target_compile_options(libllvmlibc PRIVATE
-        -mfma
-    )
+    # x86-64: Build two variants for runtime dispatch
+    # v3 = AVX/AVX2/FMA (Haswell+)
+    # v2 = SSE4.2 (Nehalem+)
 
-    list(APPEND LLVMLIBC_DEFS
+    # x86-64-v3 variant (with FMA)
+    add_library(libllvmlibc_x86_64_v3 ${SRCS})
+    set_target_properties(libllvmlibc_x86_64_v3 PROPERTIES FOLDER "contrib/libllvmlibc-cmake")
+    target_compile_options(libllvmlibc_x86_64_v3 PRIVATE -mfma)
+    target_compile_definitions(libllvmlibc_x86_64_v3 PRIVATE
+        ${LLVMLIBC_DEFS_COMMON}
+        LIBC_NAMESPACE=${LIBC_NAMESPACE}__x86_64_v3
         LIBC_TARGET_CPU_HAS_SSE2=1
-
+        LIBC_TARGET_CPU_HAS_SSE4_2=1
         LIBC_TARGET_CPU_HAS_FPU_FLOAT=1
         LIBC_TARGET_CPU_HAS_FPU_DOUBLE=1
-
         LIBC_TARGET_CPU_HAS_FMA=1
-    )
-endif()
-
-
-if (ENABLE_SSE42)
-    list(APPEND LLVMLIBC_DEFS
-        LIBC_TARGET_CPU_HAS_SSE4_2=1
-    )
-endif()
-
-if (ENABLE_AVX)
-    list(APPEND LLVMLIBC_DEFS
         LIBC_TARGET_CPU_HAS_AVX=1
-    )
-endif()
-
-if (ENABLE_AVX2)
-    list(APPEND LLVMLIBC_DEFS
         LIBC_TARGET_CPU_HAS_AVX2=1
     )
-endif()
-
-if (ENABLE_AVX512)
-    list(APPEND LLVMLIBC_DEFS
-        LIBC_TARGET_CPU_HAS_AVX512F=1
-        LIBC_TARGET_CPU_HAS_AVX512BW=1
+    target_include_directories(libllvmlibc_x86_64_v3 SYSTEM BEFORE
+        PRIVATE $<BUILD_INTERFACE:${LIBLLVMLIBC_SOURCE_DIR}>
     )
-endif()
 
-if (ENABLE_AVX512_VBMI)
-    list(APPEND LLVMLIBC_DEFS
-        LIBC_TARGET_CPU_HAS_AVX512BW=1
+    # x86-64-v2 variant (SSE4.2, no FMA)
+    add_library(libllvmlibc_x86_64_v2 ${SRCS})
+    set_target_properties(libllvmlibc_x86_64_v2 PROPERTIES FOLDER "contrib/libllvmlibc-cmake")
+    target_compile_definitions(libllvmlibc_x86_64_v2 PRIVATE
+        ${LLVMLIBC_DEFS_COMMON}
+        LIBC_NAMESPACE=${LIBC_NAMESPACE}__x86_64_v2
+        LIBC_TARGET_CPU_HAS_SSE2=1
+        LIBC_TARGET_CPU_HAS_SSE4_2=1
+        LIBC_TARGET_CPU_HAS_FPU_FLOAT=1
+        LIBC_TARGET_CPU_HAS_FPU_DOUBLE=1
     )
-endif()
+    target_include_directories(libllvmlibc_x86_64_v2 SYSTEM BEFORE
+        PRIVATE $<BUILD_INTERFACE:${LIBLLVMLIBC_SOURCE_DIR}>
+    )
 
-if (ARCH_AARCH64)
-    list(APPEND LLVMLIBC_DEFS
+    # Dispatcher for runtime CPU detection
+    add_library(llvmlibc_dispatch STATIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/llvmlibc_dispatch.cpp"
+    )
+    target_include_directories(llvmlibc_dispatch PRIVATE
+        ${ClickHouse_SOURCE_DIR}/src
+        ${ClickHouse_SOURCE_DIR}/base
+    )
+
+    # Combined target for linking
+    add_library(libllvmlibc INTERFACE)
+    target_link_libraries(libllvmlibc INTERFACE
+        llvmlibc_dispatch
+        libllvmlibc_x86_64_v3
+        libllvmlibc_x86_64_v2
+    )
+
+elseif (ARCH_AARCH64)
+    # aarch64: Single variant, FMA is always available (ARMv8 baseline)
+    # Uses LIBC_COPT_PUBLIC_PACKAGING to emit public C symbols directly
+    add_library(libllvmlibc ${SRCS})
+    set_target_properties(libllvmlibc PROPERTIES FOLDER "contrib/libllvmlibc-cmake")
+    target_compile_definitions(libllvmlibc PRIVATE
+        ${LLVMLIBC_DEFS_COMMON}
+        LIBC_NAMESPACE=${LIBC_NAMESPACE}
+        LIBC_COPT_PUBLIC_PACKAGING=1
         LIBC_TARGET_CPU_HAS_FMA=1
         LIBC_TARGET_CPU_HAS_FMA_HALF=1
         LIBC_TARGET_CPU_HAS_FMA_FLOAT=1
-
         LIBC_TARGET_CPU_HAS_FULLFP16=1
-
         LIBC_TARGET_CPU_HAS_FAST_FLOAT16_OPS=1
     )
+    target_include_directories(libllvmlibc SYSTEM BEFORE
+        PRIVATE $<BUILD_INTERFACE:${LIBLLVMLIBC_SOURCE_DIR}>
+    )
+
 endif()
-
-target_compile_definitions(libllvmlibc PRIVATE ${LLVMLIBC_DEFS})
-
-target_include_directories(libllvmlibc SYSTEM BEFORE
-    PRIVATE $<BUILD_INTERFACE:${LIBLLVMLIBC_SOURCE_DIR}>
-)
-
-
-set(LLVMLIBC_DEFS_BASIC
-    LIBC_NAMESPACE=${LIBC_NAMESPACE}_basic
-
-    # LIBC_COPT_PUBLIC_PACKAGING=0
-
-    LIBC_MATH_HAS_NO_ERRNO=1
-    LIBC_MATH_HAS_NO_EXCEPT=1
-    LIBC_MATH_HAS_SKIP_ACCURATE_PASS=1
-
-    LIBC_TARGET_CPU_HAS_FMA=0
-    LIBC_TARGET_CPU_HAS_AVX=1
-    LIBC_TARGET_CPU_HAS_AVX2=1
-)
-
-add_library(libllvmlibc_basic ${SRCS})
-target_compile_definitions(libllvmlibc_basic PRIVATE ${LLVMLIBC_DEFS_BASIC})
-target_include_directories(libllvmlibc_basic SYSTEM BEFORE
-    PRIVATE $<BUILD_INTERFACE:${LIBLLVMLIBC_SOURCE_DIR}>
-)
-
-
-add_library(llvmlibc_dispatch STATIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/llvmlibc_dispatch.cpp"
-)

@@ -25,9 +25,7 @@ endif ()
 
 option (ENABLE_LLVM_LIBC_MATH "Use math from llvm-libc instead of glibc" ON)
 if (ENABLE_LLVM_LIBC_MATH)
-    include (cmake/libllvmlibc.cmake)
-
-    set (DEFAULT_LIBS "${DEFAULT_LIBS} -lllvmlibc_dispatch -llibllvmlibc")
+    target_link_libraries(global-libs INTERFACE libllvmlibc)
 endif()
 
 if (OS_ANDROID)
