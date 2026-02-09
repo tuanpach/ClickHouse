@@ -559,10 +559,18 @@ const ActionsDAG::Node & MergeTreeIndexConditionSet::traverseDAG(const ActionsDA
             (atom_node_ptr->type == ActionsDAG::ActionType::COLUMN && !WhichDataType(atom_node_ptr->result_type).isSet()))
         {
             auto bit_wrapper_function = FunctionFactory::instance().get("__bitWrapperFunc", context);
-            result_node = &result_dag.addFunction(bit_wrapper_function, {atom_node_ptr}, {});
+            const auto * wrapped = &result_dag.addFunction(bit_wrapper_function, {atom_node_ptr}, {});
+
+            /// For types like Dynamic, __bitWrapperFunc may return a non-UInt8 result.
+            /// In that case, treat the atom as unknown (conservatively pass all granules).
+            if (WhichDataType(wrapped->result_type).isUInt8())
+                result_node = wrapped;
+            else
+                result_node = nullptr;
         }
     }
-    else
+
+    if (!result_node)
     {
         ColumnWithTypeAndName unknown_field_column_with_type;
 
