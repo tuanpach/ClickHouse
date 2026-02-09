@@ -34,8 +34,8 @@ namespace
 constexpr char preprocessor_lambda_arg[] = "__text_index_x";
 constexpr char preprocessor_needles_arg[] = "__text_index_needles";
 
-/// Replaces subtrees in the AST whose `getColumnName` matches `from` with an `ASTIdentifier` named `to`.
-/// Unlike `RenameColumnVisitor` which only handles plain identifiers, this also handles
+/// Replaces subtrees in the AST whose canonical name matches `from` with an identifier named `to`.
+/// Unlike RenameColumnVisitor which only handles plain identifiers, this also handles
 /// function expressions (e.g., replacing the `lower(val)` subtree with a lambda variable).
 void replaceColumnExpression(ASTPtr & ast, const String & from, const String & to)
 {
@@ -53,8 +53,7 @@ void replaceColumnExpression(ASTPtr & ast, const String & from, const String & t
 }
 
 /// Transforms a preprocessor AST like `lower(val)` into `arrayMap(x -> lower(x), val)`.
-/// This is done at the AST level so that `ActionsVisitor` can build the DAG naturally
-/// (including the lambda→`FunctionCaptureOverloadResolver` conversion).
+/// This is done at the AST level so that `ActionsVisitor` can build the DAG naturally.
 ASTPtr wrapPreprocessorWithArrayMap(const ASTPtr & expression_ast, const String & column_name)
 {
     ASTPtr body = expression_ast->clone();
@@ -90,9 +89,7 @@ ASTPtr convertASTForNeedles(const IndexDescription & index, const ASTPtr & expre
     return body;
 }
 
-/// This function parses an string to build an ExpressionActions.
-/// The conversion is not direct and requires many steps and validations, but long story short
-/// ParserExpression(String) => AST; ActionsVisitor(AST) => ActionsDAG; ExpressionActions(ActionsDAG)
+/// Creates and validates an ActionsDAG for a preprocessor expression.
 ActionsDAG createActionsDAGForPreprocessor(const NameAndTypePair & source_column, ASTPtr expression_ast)
 {
     if (expression_ast == nullptr)
@@ -132,8 +129,8 @@ ActionsDAG createActionsDAGForPreprocessor(const NameAndTypePair & source_column
 
 MergeTreeIndexTextPreprocessor::MergeTreeIndexTextPreprocessor(ASTPtr expression_ast, const IndexDescription & index_description)
     : haystack_column(index_description.column_names.front(), index_description.data_types.front())
-    , needles_column(preprocessor_needles_arg, std::make_shared<DataTypeString>())
     , haystack_actions(createActionsDAGForPreprocessor(haystack_column, convertASTForHaystack(index_description, expression_ast)))
+    , needles_column(preprocessor_needles_arg, std::make_shared<DataTypeString>())
     , needles_actions(createActionsDAGForPreprocessor(needles_column, convertASTForNeedles(index_description, expression_ast)))
 {
 }

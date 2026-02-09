@@ -6,7 +6,7 @@
 #include <Common/assert_cast.h>
 
 #include <Functions/sparseGrams.h>
-#include <fmt/ranges.h>
+#include <fmt/format.h>
 
 namespace DB
 {

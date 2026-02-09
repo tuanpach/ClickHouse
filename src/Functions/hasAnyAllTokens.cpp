@@ -614,6 +614,17 @@ SELECT count() FROM table WHERE hasAllTokens(msg, tokens('a()d', 'splitByString'
         )"
     },
     {
+        "Use a custom tokenizer via the 3rd argument",
+        R"(
+SELECT hasAllTokens('abcdef', 'abc', 'ngrams(3)');
+        )",
+        R"(
+┌─hasAllTokens('abcdef', 'abc', 'ngrams(3)')─┐
+│                                            1 │
+└──────────────────────────────────────────────┘
+        )"
+    },
+    {
         "Usage examples for array and map columns",
         R"(
 CREATE TABLE log (

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Core/NamesAndTypes.h>
-#include <Interpreters/Context_fwd.h>
 #include <Interpreters/ExpressionActions.h>
 #include <Parsers/IAST_fwd.h>
 
@@ -32,9 +31,12 @@ public:
     const ActionsDAG & getNeedlesActionsDAG() const { return needles_actions.getActionsDAG(); }
 
 private:
+    /// Preprocessor is applied to the source column (haystack) and to constant string (needles).
+    /// Column name and type, and expression actions for haystack and needles may differ.
     NameAndTypePair haystack_column;
-    NameAndTypePair needles_column;
     ExpressionActions haystack_actions;
+
+    NameAndTypePair needles_column;
     ExpressionActions needles_actions;
 };
 

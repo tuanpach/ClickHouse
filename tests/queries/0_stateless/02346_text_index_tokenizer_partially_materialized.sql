@@ -16,8 +16,7 @@ CREATE TABLE tab_fully (
 Engine = MergeTree()
 ORDER BY id;
 
-ALTER TABLE tab_fully drop index if exists idx;
-ALTER TABLE tab_fully add index idx(text) TYPE text(tokenizer = splitByString([' ', '::']));
+ALTER TABLE tab_fully ADD INDEX idx(text) TYPE text(tokenizer = splitByString([' ', '::']));
 
 SYSTEM STOP MERGES tab_fully;
 
@@ -52,7 +51,6 @@ ORDER BY id;
 
 INSERT INTO tab_partially SELECT number, 'hello::world' from numbers(10000);
 
-ALTER TABLE tab_partially DROP INDEX IF EXISTS idx;
 ALTER TABLE tab_partially ADD INDEX idx(text) TYPE text(tokenizer = splitByString([' ', '::']), preprocessor = lower(text));
 
 SYSTEM STOP MERGES tab_partially;

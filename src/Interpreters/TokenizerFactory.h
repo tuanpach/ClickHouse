@@ -50,6 +50,4 @@ private:
     Tokenizers tokenizers;
 };
 
-void registerTokenizers(TokenizerFactory & factory);
-
 }

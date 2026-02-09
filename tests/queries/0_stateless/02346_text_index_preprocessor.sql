@@ -22,13 +22,13 @@ ORDER BY key;
 
 INSERT INTO tab VALUES (1, 'foo'), (2, 'BAR'), (3, 'Baz');
 
-SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'FOO');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'BAR');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'Baz');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'bar');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'baz');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'def');
+SELECT count() FROM tab WHERE hasToken(val, 'foo');
+SELECT count() FROM tab WHERE hasToken(val, 'FOO');
+SELECT count() FROM tab WHERE hasToken(val, 'BAR');
+SELECT count() FROM tab WHERE hasToken(val, 'Baz');
+SELECT count() FROM tab WHERE hasToken(val, 'bar');
+SELECT count() FROM tab WHERE hasToken(val, 'baz');
+SELECT count() FROM tab WHERE hasToken(val, 'def');
 
 SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');
 SELECT count() FROM tab WHERE hasAllTokens(val, 'FOO');
@@ -55,13 +55,13 @@ ORDER BY key;
 
 INSERT INTO tab VALUES (1, 'foo'), (2, 'BAR'), (3, 'Baz');
 
-SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'FOO');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'BAR');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'Baz');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'bar');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'baz');
-SELECT count() FROM tab WHERE hasAllTokens(val, 'def');
+SELECT count() FROM tab WHERE hasToken(val, 'foo');
+SELECT count() FROM tab WHERE hasToken(val, 'FOO');
+SELECT count() FROM tab WHERE hasToken(val, 'BAR');
+SELECT count() FROM tab WHERE hasToken(val, 'Baz');
+SELECT count() FROM tab WHERE hasToken(val, 'bar');
+SELECT count() FROM tab WHERE hasToken(val, 'baz');
+SELECT count() FROM tab WHERE hasToken(val, 'def');
 
 SELECT count() FROM tab WHERE hasAllTokens(val, 'foo');
 SELECT count() FROM tab WHERE hasAllTokens(val, 'FOO');
@@ -140,7 +140,7 @@ SELECT count() FROM tab WHERE hasAnyTokens(val, 'FOO');
 SELECT count() FROM tab WHERE hasAnyTokens(val, 'BAR');
 SELECT count() FROM tab WHERE hasAnyTokens(val, 'Baz');
 
-DROP TABLE IF EXISTS tab;
+DROP TABLE tab;
 
 SELECT '- Test simple preprocessor expression with Array(FixedString).';
 CREATE TABLE tab
@@ -281,6 +281,14 @@ CREATE TABLE tab
 )
 ENGINE = MergeTree ORDER BY tuple();   -- { serverError UNKNOWN_IDENTIFIER }
 
+CREATE TABLE tab
+(
+    key UInt64,
+    val String,
+    INDEX idx(upper(val)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(upper(val)))
+)
+ENGINE = MergeTree ORDER BY tuple();   -- { serverError UNKNOWN_IDENTIFIER }
+
 SELECT '- The preprocessor must be an expression';
 CREATE TABLE tab
 (
@@ -323,6 +331,24 @@ CREATE TABLE tab
     key UInt64,
     val String,
     INDEX idx(val) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = concat(val, toString(rand())))
+)
+ENGINE = MergeTree ORDER BY tuple();   -- { serverError INCORRECT_QUERY }
+
+SELECT '- The preprocessor expression must be a function, not an identifier';
+CREATE TABLE tab
+(
+    key UInt64,
+    val String,
+    INDEX idx(val) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = val)
+)
+ENGINE = MergeTree ORDER BY tuple();   -- { serverError INCORRECT_QUERY }
+
+SELECT '- The preprocessor expression must not contain arrayJoin';
+CREATE TABLE tab
+(
+    key UInt64,
+    val String,
+    INDEX idx(val) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = arrayJoin(array(val)))
 )
 ENGINE = MergeTree ORDER BY tuple();   -- { serverError INCORRECT_QUERY }
 

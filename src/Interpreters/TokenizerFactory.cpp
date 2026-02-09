@@ -49,6 +49,8 @@ void assertParamsCount(size_t params_count, size_t max_count, std::string_view t
 
 }
 
+static void registerTokenizers(TokenizerFactory & factory);
+
 static constexpr UInt64 MIN_NGRAM_SIZE = 1;
 static constexpr UInt64 DEFAULT_NGRAM_SIZE = 3;
 static constexpr UInt64 DEFAULT_SPARSE_GRAMS_MIN_LENGTH = 3;
@@ -142,7 +144,7 @@ std::unique_ptr<ITokenExtractor> TokenizerFactory::get(
     return it->second.creator(args);
 }
 
-void registerTokenizers(TokenizerFactory & factory)
+static void registerTokenizers(TokenizerFactory & factory)
 {
     auto ngrams_creator = [](const FieldVector & args) -> std::unique_ptr<ITokenExtractor>
     {
