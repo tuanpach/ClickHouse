@@ -256,21 +256,21 @@ public:
         const auto * filter_node = &actions_dag.findInOutputs(filter_column_name);
         /// Cache for added input nodes for each virtual column.
         std::unordered_map<String, const ActionsDAG::Node *> virtual_column_to_node;
+        /// Copy pointers to nodes to avoid the modification of nodes in the dag while iterating over them.
+        auto nodes_ptrs = actions_dag.getNodesPointers();
 
-        for (ActionsDAG::Node & node : actions_dag.nodes)
+        for (const auto * node : nodes_ptrs)
         {
-            auto replaced = processFunctionNode(node, virtual_column_to_node, context);
+            auto replaced = processFunctionNode(*node, virtual_column_to_node, context);
 
-            if (replaced.has_value())
-            {
-                replacements[&node] = replaced->node;
+            if (replaced.node != node)
+                replacements[node] = replaced.node;
 
-                for (auto & [index_name, virtual_column] : replaced->added_virtual_columns)
-                    result.added_columns[index_name].add(std::move(virtual_column));
-            }
+            for (auto & [index_name, virtual_column] : replaced.added_virtual_columns)
+                result.added_columns[index_name].add(std::move(virtual_column));
         }
 
-        if (result.added_columns.empty())
+        if (replacements.empty())
             return result;
 
         for (auto & output : actions_dag.outputs)
@@ -316,9 +316,14 @@ private:
         const TextIndexReadInfo * info = nullptr;
     };
 
-    static bool isTextIndexFunction(const String & function_name)
+    static bool needApplyTokenizer(const String & function_name)
     {
         return function_name == "hasAllTokens" || function_name == "hasAnyTokens";
+    }
+
+    static bool needApplyPreprocessor(const String & function_name)
+    {
+        return function_name == "hasToken" || function_name == "hasAllTokens" || function_name == "hasAnyTokens";
     }
 
     std::vector<SelectedCondition> selectConditions(const ActionsDAG::Node & function_node)
@@ -353,26 +358,30 @@ private:
     }
 
     /// Attempts to add a new node with the replacement virtual column.
-    /// Returns the pair of (index name, virtual column name) if the replacement is successful.
-    std::optional<NodeReplacement> processFunctionNode(
-        ActionsDAG::Node & function_node,
+    NodeReplacement processFunctionNode(
+        const ActionsDAG::Node & function_node,
         std::unordered_map<String, const ActionsDAG::Node *> & virtual_column_to_node,
         const ContextPtr & context)
     {
+        NodeReplacement replacement;
+        replacement.node = &function_node;
+
         if (function_node.type != ActionsDAG::ActionType::FUNCTION || !function_node.function || !function_node.function_base)
-            return std::nullopt;
+            return replacement;
 
         /// Skip if function is not a predicate. It doesn't make sense to analyze it.
         if (!function_node.result_type->canBeUsedInBooleanContext())
-            return std::nullopt;
+            return replacement;
 
-        bool is_text_index_function = isTextIndexFunction(function_node.function_base->getName());
-        if (!is_text_index_function && !direct_read_from_text_index)
-            return std::nullopt;
+        auto function_name = function_node.function_base->getName();
+        bool need_preprocess_function = needApplyTokenizer(function_name) || needApplyPreprocessor(function_name);
+
+        if (!need_preprocess_function && !direct_read_from_text_index)
+            return replacement;
 
         auto selected_conditions = selectConditions(function_node);
         if (selected_conditions.empty())
-            return std::nullopt;
+            return replacement;
 
         /// Sort conditions to produce stable output for EXPLAIN query.
         std::ranges::sort(selected_conditions, [](const auto & lhs, const auto & rhs)
@@ -380,20 +389,21 @@ private:
             return lhs.virtual_column_name < rhs.virtual_column_name;
         });
 
-        if (is_text_index_function)
-            preprocessTextIndexFunction(function_node, selected_conditions, context);
+        if (need_preprocess_function)
+            preprocessTextIndexFunction(replacement, selected_conditions, context);
 
-        if (direct_read_from_text_index && !selected_conditions.empty())
-            return tryReplaceFunctionNode(function_node, selected_conditions, virtual_column_to_node, context);
+        if (direct_read_from_text_index)
+            replaceFunctionsToVirtualColumns(replacement, selected_conditions, virtual_column_to_node, context);
 
-        return std::nullopt;
+        return replacement;
     }
 
     void preprocessTextIndexFunction(
-        ActionsDAG::Node & function_node,
+        NodeReplacement & replacement,
         const std::vector<SelectedCondition> & selected_conditions,
         const ContextPtr & context)
     {
+        const auto & function_node = *replacement.node;
         if (selected_conditions.size() != 1 || function_node.children.size() != 2)
             return;
 
@@ -404,17 +414,18 @@ private:
         if (arg_needles->type != ActionsDAG::ActionType::COLUMN || !arg_needles->column)
             return;
 
-        String needles;
-        if (isStringOrFixedString(removeNullable(arg_needles->result_type)) && !arg_needles->column->empty() && !arg_needles->column->isNullAt(0))
-            needles = arg_needles->column->getDataAt(0);
+        if (arg_needles->column->empty() || arg_needles->column->isNullAt(0))
+            return;
+
+        Field needles_field = (*arg_needles->column)[0];
+        DataTypePtr needles_type = arg_needles->result_type;
 
         const auto & condition = selected_conditions.front();
         const auto & condition_text = typeid_cast<MergeTreeIndexConditionText &>(*condition.info->index->condition);
-
         auto preprocessor = condition_text.getPreprocessor();
         const auto * tokenizer = condition_text.getTokenExtractor();
 
-        if (preprocessor && preprocessor->hasActions())
+        if (needApplyPreprocessor(replacement.node->function_base->getName()) && preprocessor && preprocessor->hasActions())
         {
             const auto & preprocessor_dag = preprocessor->getHaystackActionsDAG();
             chassert(preprocessor_dag.getOutputs().size() == 1);
@@ -429,38 +440,40 @@ private:
                 chassert(merged_outputs.size() == 1);
                 new_children[0] = merged_outputs.front();
 
-                if (!needles.empty())
-                    needles = preprocessor->processConstant(needles);
+                if (needles_field.getType() == Field::Types::String)
+                {
+                    needles_field = preprocessor->processConstant(needles_field.safeGet<String>());
+                    needles_type = std::make_shared<DataTypeString>();
+                }
+            }
+        }
+
+        if (needApplyTokenizer(function_node.function_base->getName()) && tokenizer)
+        {
+            auto tokenizer_description = tokenizer->getDescription();
+
+            ColumnWithTypeAndName arg;
+            arg.type = std::make_shared<DataTypeString>();
+            arg.column = arg.type->createColumnConst(1, Field(tokenizer_description));
+            arg.name = quoteString(tokenizer_description);
+            new_children.push_back(&actions_dag.addColumn(std::move(arg)));
+
+            if (needles_field.getType() == Field::Types::String)
+            {
+                std::vector<String> needles_array;
+                const auto & needles_string = needles_field.safeGet<String>();
+                tokenizer->stringToTokens(needles_string.data(), needles_string.size(), needles_array);
+                needles_array = tokenizer->compactTokens(needles_array);
+                needles_field = Array(needles_array.begin(), needles_array.end());
+                needles_type = std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>());
             }
         }
 
         ColumnWithTypeAndName arg;
-
-        if (needles.empty())
-        {
-            arg.column = IColumn::mutate(arg_needles->column);
-            arg.name = arg_needles->result_name;
-            arg.type = arg_needles->result_type;
-        }
-        else
-        {
-            std::vector<String> needles_array;
-            tokenizer->stringToTokens(needles.data(), needles.size(), needles_array);
-            needles_array = tokenizer->compactTokens(needles_array);
-            Field needles_field = Array(needles_array.begin(), needles_array.end());
-
-            arg.type = std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>());
-            arg.column = arg.type->createColumnConst(1, needles_field);
-            arg.name = applyVisitor(FieldVisitorToString(), needles_field);
-        }
-
-        new_children[1] = &actions_dag.addColumn(arg);
-
-        auto tokenizer_description = tokenizer->getDescription();
-        arg.type = std::make_shared<DataTypeString>();
-        arg.column = arg.type->createColumnConst(1, Field(tokenizer_description));
-        arg.name = quoteString(tokenizer_description);
-        new_children.push_back(&actions_dag.addColumn(std::move(arg)));
+        arg.type = needles_type;
+        arg.column = needles_type->createColumnConst(1, needles_field);
+        arg.name = applyVisitor(FieldVisitorToString(), needles_field);
+        new_children[1] = &actions_dag.addColumn(std::move(arg));
 
         auto new_function_base = FunctionFactory::instance().get(function_node.function_base->getName(), context);
         const auto * new_function_node = &actions_dag.addFunction(new_function_base, new_children, "");
@@ -468,23 +481,16 @@ private:
         if (!new_function_node->result_type->equals(*function_node.result_type))
             new_function_node = &actions_dag.addCast(*new_function_node, function_node.result_type, "", context);
 
-        /// Convert function node to ALIAS in-place to avoid adding a duplicate node to the DAG.
-        function_node.type = ActionsDAG::ActionType::ALIAS;
-        function_node.children = {new_function_node};
-        function_node.result_type = new_function_node->result_type;
-        function_node.column.reset();
-        function_node.function_base.reset();
-        function_node.function.reset();
-        function_node.is_function_compiled = false;
+        replacement.node = &actions_dag.addAlias(*new_function_node, function_node.result_name);
     }
 
-    std::optional<NodeReplacement> tryReplaceFunctionNode(
-        ActionsDAG::Node & function_node,
+    void replaceFunctionsToVirtualColumns(
+        NodeReplacement & replacement,
         const std::vector<SelectedCondition> & selected_conditions,
         std::unordered_map<String, const ActionsDAG::Node *> & virtual_column_to_node,
         const ContextPtr & context)
     {
-        NodeReplacement replacement;
+        const auto & function_node = *replacement.node;
         bool has_exact_search = false;
         bool has_materialized_index = false;
 
@@ -493,6 +499,9 @@ private:
             has_materialized_index |= condition.info->is_materialized;
             has_exact_search |= condition.search_query->direct_read_mode == TextIndexDirectReadMode::Exact;
         }
+
+        if (!has_materialized_index)
+            return;
 
         auto add_condition_to_input = [&](const SelectedCondition & condition)
         {
@@ -519,9 +528,6 @@ private:
             return it->second;
         };
 
-        if (!has_materialized_index)
-            return std::nullopt;
-
         /// If we have only one condition with exact search, we can use
         /// only virtual column and remove the original condition.
         if (selected_conditions.size() == 1 && has_exact_search)
@@ -547,8 +553,6 @@ private:
         /// It can happen when the original function returns Nullable or LowCardinality type and replacement doesn't.
         if (!function_node.result_type->equals(*replacement.node->result_type))
             replacement.node = &actions_dag.addCast(*replacement.node, function_node.result_type, "", context);
-
-        return replacement;
     }
 };
 
