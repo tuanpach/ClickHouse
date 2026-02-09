@@ -46,11 +46,12 @@ jobs:
               break
             fi
 
-            echo "Checking run $run_id..."
+            run_url="https://github.com/$GH_REPO/actions/runs/$run_id"
+            echo "Checking run $run_url ..."
 
-            # A run is an infrastructure failure if every failed job never reached
-            # its main "Run" step (the step was skipped or absent), meaning the
-            # failure happened during setup (checkout, environment preparation, etc.)
+            # A run is an infrastructure failure if every failed job either:
+            # - never reached its main "Run" step (failed during checkout/setup), or
+            # - is the "Config Workflow" job (pipeline configuration, not actual tests)
             is_infra=$(gh api "repos/$GH_REPO/actions/runs/$run_id/jobs?per_page=100" \
               --jq '
                 [.jobs[] | select(.conclusion == "failure")] as $failed |
@@ -58,9 +59,12 @@ jobs:
                   false
                 else
                   [$failed[] |
-                    [.steps[] | select(.name == "Run")] |
-                    if length == 0 then true
-                    else .[0].conclusion == "skipped"
+                    if .name == "Config Workflow" then true
+                    else
+                      [.steps[] | select(.name == "Run")] |
+                      if length == 0 then true
+                      else .[0].conclusion == "skipped"
+                      end
                     end
                   ] | all
                 end
@@ -69,10 +73,10 @@ jobs:
             if [ "$is_infra" = "true" ]; then
               echo "  Infrastructure failure detected, rerunning..."
               if gh run rerun "$run_id" --repo "$GH_REPO"; then
-                echo "  Triggered rerun for run $run_id"
                 rerun_count=$((rerun_count + 1))
+                echo "  Triggered rerun: $run_url/attempts/2"
               else
-                echo "  Failed to trigger rerun for run $run_id (may already be rerunning)"
+                echo "  Failed to trigger rerun (may already be rerunning)"
               fi
             else
               echo "  Not an infrastructure failure, skipping."
