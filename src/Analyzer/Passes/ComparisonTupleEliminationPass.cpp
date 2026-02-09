@@ -87,7 +87,7 @@ public:
             {
                 node = candidate;
             }
-            else if (node->getResultType()->equals(*makeNullable(candidate->getResultType())))
+            else if (node->getResultType()->equals(*makeNullableSafe(candidate->getResultType())))
             {
                 /// The node's result type may be wrapped in Nullable due to group_by_use_nulls.
                 /// Transfer the Nullable wrapper to the candidate so the optimization still applies.
