@@ -127,7 +127,7 @@ def test_kill_infinite_query(setup_infinite_query):
             '{mysql_pass}')""",
             query_id=query_id,
         )
-        assert "Dmysql_conn.commit()B::Exception: Query was cancelled" in error
+        assert "DB::Exception: Query was cancelled" in error
 
     query_thread = threading.Thread(target=execute_query)
     query_thread.start()
