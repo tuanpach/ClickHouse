@@ -45,10 +45,17 @@ const ColumnType * getTypedColumn(const IColumn & column)
 
 TokensWithPosition initializeSearchTokens(const ColumnsWithTypeAndName & arguments, const ITokenExtractor & tokenizer, std::string_view function_name)
 {
-    TokensWithPosition search_tokens;
-    const ColumnPtr col_needles = removeNullable(arguments[arg_needles].column);
+    if (arguments.size() < 2)
+        return {};
 
-    if (const ColumnString * column_needles_string = getTypedColumn<ColumnString>(*col_needles))
+    auto column_needles = arguments[arg_needles].column;
+    if (!column_needles || column_needles->empty() || column_needles->isNullAt(0))
+        return {};
+
+    TokensWithPosition search_tokens;
+    column_needles = removeNullable(column_needles);
+
+    if (const ColumnString * column_needles_string = getTypedColumn<ColumnString>(*column_needles))
     {
         std::vector<String> tokens_array;
         auto tokens_str = column_needles_string->getDataAt(0);
@@ -58,7 +65,7 @@ TokensWithPosition initializeSearchTokens(const ColumnsWithTypeAndName & argumen
         for (size_t i = 0; i < tokens_array.size(); ++i)
             search_tokens.emplace(tokens_array[i], i);
     }
-    else if (const ColumnArray * column_needles_array = getTypedColumn<ColumnArray>(*col_needles))
+    else if (const ColumnArray * column_needles_array = getTypedColumn<ColumnArray>(*column_needles))
     {
         const IColumn & array_data = column_needles_array->getData();
 
@@ -74,7 +81,7 @@ TokensWithPosition initializeSearchTokens(const ColumnsWithTypeAndName & argumen
     }
     else
     {
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Needles argument for function '{}' has unsupported type of column '{}'", function_name, col_needles->getName());
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Needles argument for function '{}' has unsupported type of column '{}'", function_name, column_needles->getName());
     }
 
     return search_tokens;
