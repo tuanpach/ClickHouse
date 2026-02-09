@@ -23,4 +23,4 @@ If you want to contribute to documentation, please see the [documentation reposi
 
 ## See Also
 
-See aslo [ClickHouse AI Policy](AI_POLICY.md).
+See also [ClickHouse AI Policy](AI_POLICY.md).
