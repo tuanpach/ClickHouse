@@ -1348,7 +1348,7 @@ void DatabaseReplicated::checkQueryValid(const ASTPtr & query, ContextPtr query_
     }
 }
 
-BlockIO DatabaseReplicated::tryEnqueueReplicatedDDL(const ASTPtr & query, ContextPtr query_context, QueryFlags flags)
+BlockIO DatabaseReplicated::tryEnqueueReplicatedDDL(const ASTPtr & query, ContextPtr query_context, QueryFlags flags, DDLGuardPtr && database_guard)
 {
     waitDatabaseStarted();
 
@@ -1361,6 +1361,14 @@ BlockIO DatabaseReplicated::tryEnqueueReplicatedDDL(const ASTPtr & query, Contex
     if (is_readonly)
         throw Exception(ErrorCodes::NO_ZOOKEEPER, "Database is in readonly mode, because it cannot connect to ZooKeeper");
 
+    String host_fqdn_id;
+    {
+        std::lock_guard lock{ddl_worker_mutex};
+        if (!ddl_worker || is_probably_dropped)
+            throw Exception(ErrorCodes::DATABASE_REPLICATION_FAILED, "Database is not initialized or is being dropped");
+        host_fqdn_id = ddl_worker->getCommonHostID();
+    }
+
     if (!flags.internal && (query_context->getClientInfo().query_kind != ClientInfo::QueryKind::INITIAL_QUERY))
         throw Exception(ErrorCodes::INCORRECT_QUERY, "It's not initial query. ON CLUSTER is not allowed for Replicated database.");
 
@@ -1369,7 +1377,7 @@ BlockIO DatabaseReplicated::tryEnqueueReplicatedDDL(const ASTPtr & query, Contex
 
     DDLLogEntry entry;
     entry.query = query->formatWithSecretsOneLine();
-    entry.initiator = ddl_worker->getCommonHostID();
+    entry.initiator = host_fqdn_id;
     entry.setSettingsIfRequired(query_context);
     entry.tracing_context = OpenTelemetry::CurrentContext();
     entry.is_backup_restore = flags.distributed_backup_restore;
@@ -1391,7 +1399,7 @@ BlockIO DatabaseReplicated::tryEnqueueReplicatedDDL(const ASTPtr & query, Contex
     }
 
 
-    return getQueryStatus(node_path, fs::path(zookeeper_path) / "replicas", query_context, hosts_to_wait);
+    return getQueryStatus(node_path, fs::path(zookeeper_path) / "replicas", query_context, hosts_to_wait, std::move(database_guard));
 }
 
 static UUID getTableUUIDIfReplicated(const String & metadata, ContextPtr context)
@@ -1982,6 +1990,28 @@ void DatabaseReplicated::restoreDatabaseMetadataInKeeper(ContextPtr)
 {
     waitDatabaseStarted();
 
+    /// Stop the DDL worker before restoring metadata to prevent a race condition:
+    /// the old DDL worker may reconnect to ZooKeeper, read the intermediate state
+    /// (where table metadata has not been written yet), and mistakenly move local
+    /// tables to `_broken_replicated_tables`.
+    {
+        std::lock_guard lock{ddl_worker_mutex};
+        if (ddl_worker)
+        {
+            LOG_TRACE(log, "Stopping DDL worker before restoring database metadata in Keeper.");
+            ddl_worker->shutdown();
+            ddl_worker_initialized = false;
+            ddl_worker = nullptr;
+        }
+    }
+
+    /// If the restore fails, reinitialize the DDL worker so the database remains functional.
+    bool need_reinitialize_ddl_worker = true;
+    SCOPE_EXIT({
+        if (need_reinitialize_ddl_worker)
+            reinitializeDDLWorker();
+    });
+
     tryConnectToZooKeeperAndInitDatabase(LoadingStrictnessLevel::CREATE);
 
     try
@@ -2001,6 +2031,7 @@ void DatabaseReplicated::restoreDatabaseMetadataInKeeper(ContextPtr)
     auto current_zookeeper = getContext()->getZooKeeper();
     current_zookeeper->set(replica_path + "/digest", DatabaseReplicatedDDLWorker::FORCE_AUTO_RECOVERY_DIGEST);
 
+    need_reinitialize_ddl_worker = false;
     reinitializeDDLWorker();
 }
 
@@ -2126,6 +2157,8 @@ void DatabaseReplicated::renameTable(ContextPtr local_context, const String & ta
 
     waitDatabaseStarted();
 
+    std::lock_guard lock{metadata_mutex};
+
     String statement = readMetadataFile(table_name);
     String statement_to;
     if (exchange)
@@ -2166,7 +2199,6 @@ void DatabaseReplicated::renameTable(ContextPtr local_context, const String & ta
             txn->addOp(zkutil::makeCreateRequest(metadata_zk_path_to, zk_statement, zkutil::CreateMode::Persistent));
     }
 
-    std::lock_guard lock{metadata_mutex};
     UInt64 new_digest = tables_metadata_digest;
     new_digest -= DB::getMetadataHash(table_name, statement);
     new_digest += DB::getMetadataHash(to_table_name, statement);
@@ -2551,13 +2583,13 @@ void registerDatabaseReplicated(DatabaseFactory & factory)
 }
 
 BlockIO DatabaseReplicated::getQueryStatus(
-    const String & node_path, const String & replicas_path, ContextPtr context_, const Strings & hosts_to_wait)
+    const String & node_path, const String & replicas_path, ContextPtr context_, const Strings & hosts_to_wait, DDLGuardPtr && database_guard)
 {
     BlockIO io;
     if (context_->getSettingsRef()[Setting::distributed_ddl_task_timeout] == 0)
         return io;
 
-    auto source = std::make_shared<ReplicatedDatabaseQueryStatusSource>(node_path, replicas_path, context_, hosts_to_wait);
+    auto source = std::make_shared<ReplicatedDatabaseQueryStatusSource>(node_path, replicas_path, context_, hosts_to_wait, std::move(database_guard));
     io.pipeline = QueryPipeline(std::move(source));
 
     if (context_->getSettingsRef()[Setting::distributed_ddl_output_mode] == DistributedDDLOutputMode::NONE
