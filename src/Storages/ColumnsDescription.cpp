@@ -711,10 +711,11 @@ std::optional<NameAndTypePair> ColumnsDescription::tryGetColumn(const GetColumns
         auto jt = subcolumns.get<0>().find(column_name);
         if (jt != subcolumns.get<0>().end())
         {
-            /// Check that the parent column matches the requested kind.
+            /// Skip subcolumns of EPHEMERAL columns: they have no physical data
+            /// and no expression to compute them during SELECT.
             auto parent_name = jt->getNameInStorage();
             auto it_parent = columns.get<1>().find(parent_name);
-            if (it_parent != columns.get<1>().end() && (defaultKindToGetKind(it_parent->default_desc.kind) & options.kind))
+            if (it_parent != columns.get<1>().end() && it_parent->default_desc.kind != ColumnDefaultKind::Ephemeral)
                 return *jt;
         }
 
@@ -722,7 +723,13 @@ std::optional<NameAndTypePair> ColumnsDescription::tryGetColumn(const GetColumns
         {
             /// Check for dynamic subcolumns.
             if (auto dynamic_subcolumn = tryGetDynamicSubcolumn(column_name))
-                return dynamic_subcolumn;
+            {
+                /// Skip subcolumns of EPHEMERAL columns.
+                auto parent_name = dynamic_subcolumn->getNameInStorage();
+                auto it_parent = columns.get<1>().find(parent_name);
+                if (it_parent != columns.get<1>().end() && it_parent->default_desc.kind != ColumnDefaultKind::Ephemeral)
+                    return dynamic_subcolumn;
+            }
         }
     }
 
@@ -818,9 +825,21 @@ bool ColumnsDescription::hasColumnOrSubcolumn(GetColumnsOptions::Kind kind, cons
     auto jt = subcolumns.get<0>().find(column_name);
     if (jt != subcolumns.get<0>().end())
     {
+        /// Skip subcolumns of EPHEMERAL columns: they have no physical data
+        /// and no expression to compute them during SELECT.
         auto parent_name = jt->getNameInStorage();
         auto it_parent = columns.get<1>().find(parent_name);
-        if (it_parent != columns.get<1>().end() && (defaultKindToGetKind(it_parent->default_desc.kind) & kind))
+        if (it_parent != columns.get<1>().end() && it_parent->default_desc.kind != ColumnDefaultKind::Ephemeral)
+            return true;
+    }
+
+    /// Check for dynamic subcolumns.
+    if (auto dynamic_subcolumn = tryGetDynamicSubcolumn(column_name))
+    {
+        /// Skip subcolumns of EPHEMERAL columns.
+        auto parent_name = dynamic_subcolumn->getNameInStorage();
+        auto it_parent = columns.get<1>().find(parent_name);
+        if (it_parent != columns.get<1>().end() && it_parent->default_desc.kind != ColumnDefaultKind::Ephemeral)
             return true;
     }
 
