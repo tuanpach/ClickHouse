@@ -138,14 +138,14 @@ void ReadBufferFromEncryptedFile::setReadUntilEnd()
 bool ReadBufferFromEncryptedFile::nextImpl()
 {
     chassert(internal_buffer.begin() != nullptr);
-    chassert(internal_buffer.size() != 0);
+    chassert(!internal_buffer.empty());
     chassert(encrypted_buffer.size() != 0);
 
     if (need_seek || need_set_read_until_position)
         performSeekAndSetReadUntilPosition();
 
     chassert(internal_buffer.begin() != nullptr);
-    chassert(internal_buffer.size() != 0);
+    chassert(!internal_buffer.empty());
 
     if (in->eof())
         return false;
@@ -163,7 +163,7 @@ bool ReadBufferFromEncryptedFile::nextImpl()
     }
 
     chassert(encrypted_buffer.size() != 0);
-    chassert(internal_buffer.size() != 0);
+    chassert(!internal_buffer.empty());
     size_t bytes_to_read = std::min(encrypted_buffer.size(), internal_buffer.size());
     if (read_until_position)
     {
