@@ -158,7 +158,7 @@ class FuzzerLogParser:
 
         if is_logical_error:
             failed_query = self.get_failed_query()
-            if failed_query:
+            if failed_query and self.fuzzer_log:
                 reproduce_commands = self.get_reproduce_commands(failed_query)
             if format_message and "Inconsistent AST formatting" not in result_name:
                 # Replace {} placeholders with A, B, C, etc. to create a generic error pattern.
@@ -538,8 +538,7 @@ class FuzzerLogParser:
         return commands_to_reproduce
 
     def _get_all_fuzzer_commands(self):
-        if not self.fuzzer_log:
-            return None
+        assert self.fuzzer_log, "Fuzzer log is not provided"
         error_logs = [
             "Fuzzing step",
             "Query succeeded",
