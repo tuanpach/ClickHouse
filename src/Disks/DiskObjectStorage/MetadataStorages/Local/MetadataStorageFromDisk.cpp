@@ -2,7 +2,6 @@
 #include <Disks/DiskObjectStorage/MetadataStorages/Local/MetadataStorageFromDisk.h>
 #include <Disks/DiskObjectStorage/MetadataStorages/Local/MetadataStorageFromDiskTransactionOperations.h>
 #include <Disks/DiskObjectStorage/ObjectStorages/StoredObject.h>
-#include <Storages/PartitionCommands.h>
 
 #include <IO/ReadHelpers.h>
 #include <IO/WriteHelpers.h>
@@ -12,7 +11,6 @@
 #include <ranges>
 #include <memory>
 #include <shared_mutex>
-
 
 namespace DB
 {
@@ -75,7 +73,6 @@ DirectoryIteratorPtr MetadataStorageFromDisk::iterateDirectory(const std::string
 {
     return disk->iterateDirectory(path);
 }
-
 
 std::string MetadataStorageFromDisk::readFileToString(const std::string & path) const
 {
