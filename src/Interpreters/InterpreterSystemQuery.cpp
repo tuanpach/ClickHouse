@@ -1264,7 +1264,11 @@ void InterpreterSystemQuery::dropReplica(ASTSystemQuery & query)
             LOG_TRACE(log, "Dropped replica {} from database {}", query.replica, backQuoteIfNeed(database->getDatabaseName()));
         }
     }
-    else if (!query.replica_zk_path.empty())
+    else if (query.replica_zk_path.empty())
+    {
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "ZooKeeper path is empty");
+    }
+    else
     {
         getContext()->checkAccess(AccessType::SYSTEM_DROP_REPLICA);
         String remote_replica_path = fs::path(query.replica_zk_path)  / "replicas" / query.replica;
@@ -1306,8 +1310,6 @@ void InterpreterSystemQuery::dropReplica(ASTSystemQuery & query)
         StorageReplicatedMergeTree::dropReplica(zookeeper, info, log);
         LOG_INFO(log, "Dropped replica {}", remote_replica_path);
     }
-    else
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Invalid query");
 }
 
 bool InterpreterSystemQuery::dropStorageReplica(const String & query_replica, const StoragePtr & storage)
@@ -1619,7 +1621,11 @@ void InterpreterSystemQuery::dropDatabaseReplica(ASTSystemQuery & query)
             LOG_TRACE(log, "Dropped replica {} of Replicated database {}", query.replica, backQuoteIfNeed(database->getDatabaseName()));
         }
     }
-    else if (!query.replica_zk_path.empty())
+    else if (query.replica_zk_path.empty())
+    {
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "ZooKeeper path is empty");
+    }
+    else
     {
         getContext()->checkAccess(AccessType::SYSTEM_DROP_REPLICA);
 
@@ -1661,8 +1667,6 @@ void InterpreterSystemQuery::dropDatabaseReplica(ASTSystemQuery & query)
         DatabaseReplicated::dropReplica(nullptr, query.replica_zk_path, query.shard, query.replica, /*throw_if_noop*/ true);
         LOG_INFO(log, "Dropped replica {} of Replicated database with path {}", query.replica, query.replica_zk_path);
     }
-    else
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Invalid query");
 }
 
 bool InterpreterSystemQuery::trySyncReplica(StoragePtr table, SyncReplicaMode sync_replica_mode, const std::unordered_set<String> & src_replicas, ContextPtr context_)
