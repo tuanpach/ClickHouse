@@ -1,5 +1,7 @@
+import json
 import pytest
 import time
+import uuid
 
 from helpers.cluster import ClickHouseCluster, QueryRuntimeException
 from helpers.network import PartitionManager
@@ -130,6 +132,7 @@ def test_distributed_query(
             )
             >= 5
         )
+        query_id = str(uuid.uuid4())
         with cluster.pause_container("node1"):
             assert (
                 int(
@@ -144,10 +147,23 @@ def test_distributed_query(
                     max_replica_delay_for_distributed_queries=1
                 """,
                         timeout=10,  # the query should succeed fast despite the paused replica being tried first because of the low handshake and connection timeouts
+                        query_id=query_id,
                     ).strip()
                 )
                 == 4
             )
+        node3.query("SYSTEM FLUSH LOGS")
+        profile_events = json.loads(
+            node3.query(
+                f"SELECT ProfileEvents FROM system.query_log WHERE query_id = '{query_id}' AND is_initial_query AND type = 'QueryFinish' LIMIT 1 FORMAT JSONEachRow"
+            )
+        )["ProfileEvents"]
+        assert (
+            profile_events["DistributedConnectionTries"]
+            == connections_with_failover_max_tries + 1
+        )
+        assert profile_events["DistributedConnectionFailAtAll"] == 1
+        assert profile_events["DistributedConnectionStaleReplica"] == 1
     finally:
         node2.query("SYSTEM START FETCHES")
 
@@ -175,6 +191,7 @@ def test_distributed_query_network_timeout(
             )
             >= 5
         )
+        query_id = str(uuid.uuid4())
         with PartitionManager() as pm:
             port = 9440 if "secure" in distributed_table else 9000
             pm.partition_instances(node1, node3, port=port)
@@ -191,9 +208,22 @@ def test_distributed_query_network_timeout(
                     max_replica_delay_for_distributed_queries=1
                 """,
                         timeout=10,  # the query should succeed fast despite the unreachable replica being tried first because of the low handshake and connection timeouts
+                        query_id=query_id,
                     ).strip()
                 )
                 == 4
             )
+        node3.query("SYSTEM FLUSH LOGS")
+        profile_events = json.loads(
+            node3.query(
+                f"SELECT ProfileEvents FROM system.query_log WHERE query_id = '{query_id}' AND is_initial_query AND type = 'QueryFinish' LIMIT 1 FORMAT JSONEachRow"
+            )
+        )["ProfileEvents"]
+        assert (
+            profile_events["DistributedConnectionTries"]
+            == connections_with_failover_max_tries + 1
+        )
+        assert profile_events["DistributedConnectionFailAtAll"] == 1
+        assert profile_events["DistributedConnectionStaleReplica"] == 1
     finally:
         node2.query("SYSTEM START FETCHES")

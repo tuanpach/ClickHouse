@@ -160,7 +160,7 @@ void Connection::connect(const ConnectionTimeouts & timeouts)
         {
             have_more_addresses_to_connect = it != std::prev(addresses.end());
 
-            LOG_TRACE(log_wrapper.get(), "Connecting to {}:{}, address: {}, have_more_addresses_to_connect: {}", host, port, it->toString(), have_more_addresses_to_connect);
+            LOG_TRACE(log_wrapper.get(), "Connecting to {}:{} (using address {}, {}/{})", host, port, it->toString(), std::distance(addresses.begin(), it) + 1, addresses.size());
 
             if (isConnected())
                 disconnect();

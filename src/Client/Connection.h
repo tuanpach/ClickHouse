@@ -273,7 +273,9 @@ private:
     std::shared_ptr<WriteBuffer> maybe_compressed_out;
     std::unique_ptr<NativeWriter> block_out;
 
+    /// True if there are more resolved addresses to try when connecting (hostname may resolve to multiple IPs).
     bool have_more_addresses_to_connect = false;
+    /// Set by async callback when the per-address connect timeout expires, used to abort the current attempt.
     bool address_connect_timeout_expired = false;
 
     /// Logger is created lazily, for avoid to run DNS request in constructor.
