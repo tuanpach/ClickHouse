@@ -141,7 +141,7 @@ jobs:
       pipeline_status: ${{{{ steps.run.outputs.pipeline_status || 'undefined' }}}}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{{{ env.CHECKOUT_REF }}}}
 {JOB_ADDONS}
@@ -166,9 +166,9 @@ jobs:
           . {ENV_SETUP_SCRIPT}
           set -o pipefail
           if command -v ts &> /dev/null; then
-            python3 -m praktika run '{JOB_NAME}' --workflow "{WORKFLOW_NAME}" --ci |& ts '[%Y-%m-%d %H:%M:%S]' | tee {TEMP_DIR}/job.log
+            python3 -m praktika run '{JOB_NAME}' --workflow "{WORKFLOW_NAME}" --ci 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' | tee {TEMP_DIR}/job.log
           else
-            python3 -m praktika run '{JOB_NAME}' --workflow "{WORKFLOW_NAME}" --ci |& tee {TEMP_DIR}/job.log
+            python3 -m praktika run '{JOB_NAME}' --workflow "{WORKFLOW_NAME}" --ci 2>&1 | tee {TEMP_DIR}/job.log
           fi
 {UPLOADS_GITHUB}\
 """
@@ -231,6 +231,10 @@ jobs:
 
         TEMPLATE_IF_EXPRESSION_NOT_CANCELLED = """
     if: ${{ !cancelled() }}\
+"""
+
+        TEMPLATE_IF_EXPRESSION_ALWAYS = """
+    if: ${{ always() }}\
 """
 
     def __init__(self):
@@ -316,6 +320,8 @@ class PullRequestPushYamlGen:
                 if_expression = (
                     YamlGenerator.Templates.TEMPLATE_IF_EXPRESSION_NOT_CANCELLED
                 )
+            if job.name == Settings.FINISH_WORKFLOW_JOB_NAME:
+                if_expression = YamlGenerator.Templates.TEMPLATE_IF_EXPRESSION_ALWAYS
 
             secrets_envs = []
             for secret in self.workflow_config.secret_names_gh:

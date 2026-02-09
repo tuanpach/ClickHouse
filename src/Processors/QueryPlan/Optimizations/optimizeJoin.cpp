@@ -28,6 +28,7 @@
 #include <Processors/QueryPlan/Optimizations/Utils.h>
 #include <Processors/QueryPlan/QueryPlan.h>
 #include <Processors/QueryPlan/ReadFromMemoryStorageStep.h>
+#include <Processors/Transforms/JoiningTransform.h>
 #include <Processors/QueryPlan/ReadFromMergeTree.h>
 #include <Processors/QueryPlan/ReadFromPreparedSource.h>
 #include <Processors/QueryPlan/SortingStep.h>
@@ -62,7 +63,8 @@ namespace ErrorCodes
 
 namespace Setting
 {
-    extern const SettingsBool allow_statistics_optimize;
+    extern const SettingsBool use_statistics;
+    extern const SettingsBool use_hash_table_stats_for_join_reordering;
 }
 
 RelationStats getDummyStats(ContextPtr context, const String & table_name);
@@ -217,7 +219,7 @@ RelationStats estimateAggregatingStepStats(const AggregatingStep & aggregating_s
 
         /// For now assume that aggregation columns are independent, so multiply their NDVs
         if (total_number_of_distinct_values)
-            *total_number_of_distinct_values *= key_number_of_distinct_values;
+            *total_number_of_distinct_values *= static_cast<Float64>(key_number_of_distinct_values);
     }
 
     if (total_number_of_distinct_values && input_stats.estimated_rows)
@@ -237,7 +239,7 @@ RelationStats estimateReadRowsCount(QueryPlan::Node & node, const ActionsDAG::No
     {
         String table_display_name = reading->getStorageID().getTableName();
 
-        if (reading->getContext()->getSettingsRef()[Setting::allow_statistics_optimize])
+        if (reading->getContext()->getSettingsRef()[Setting::use_statistics])
         {
             if (auto estimator_ = reading->getConditionSelectivityEstimator())
             {
@@ -350,7 +352,7 @@ RelationStats estimateReadRowsCount(QueryPlan::Node & node, const ActionsDAG::No
 }
 
 
-bool optimizeJoinLegacy(QueryPlan::Node & node, QueryPlan::Nodes &, const QueryPlanOptimizationSettings &)
+bool optimizeJoinLegacy(QueryPlan::Node & node, QueryPlan::Nodes & /*nodes*/, const QueryPlanOptimizationSettings &)
 {
     auto * join_step = typeid_cast<JoinStep *>(node.step.get());
     if (!join_step || node.children.size() != 2 || join_step->isOptimized())
@@ -404,7 +406,21 @@ bool optimizeJoinLegacy(QueryPlan::Node & node, QueryPlan::Nodes &, const QueryP
     auto updated_table_join = std::make_shared<TableJoin>(table_join);
     updated_table_join->swapSides();
     auto updated_join = join->clone(updated_table_join, right_stream_input_header, left_stream_input_header);
+
+    /// After swapping, the join output may lose columns because TableJoin::swapSides
+    /// swaps result_columns_from_left_table with columns_added_by_join, and the join
+    /// algorithm may filter different columns from the (now swapped) left input.
+    /// If any column required by downstream steps would be missing, skip the swap.
+    auto original_output = join_step->getOutputHeader();
+    auto swapped_algorithm_header = JoiningTransform::transformHeader(*right_stream_input_header, updated_join);
+    for (const auto & col : *original_output)
+    {
+        if (!swapped_algorithm_header.has(col.name))
+            return true;
+    }
+
     join_step->setJoin(std::move(updated_join), /* swap_streams= */ true);
+
     return true;
 }
 
@@ -568,7 +584,7 @@ size_t addChildQueryGraph(QueryGraphBuilder & graph, QueryPlan::Node * node, Que
     RelationStats stats = estimateReadRowsCount(*node);
 
     std::optional<size_t> num_rows_from_cache = graph.context->statistics_context.getCachedHint(node);
-    if (num_rows_from_cache)
+    if (graph.context->join_settings.use_hash_table_stats_for_join_reordering && num_rows_from_cache)
         stats.estimated_rows = std::min<UInt64>(stats.estimated_rows.value_or(MAX_ROWS), num_rows_from_cache.value());
 
     if (!label.empty())
@@ -598,7 +614,7 @@ void buildQueryGraph(QueryGraphBuilder & query_graph, QueryPlan::Node & node, Qu
     bool allow_left_subgraph = !type_changing_sides.contains(JoinTableSide::Left) && (isInnerOrCross(join_kind) || isLeft(join_kind));
     size_t lhs_count = addChildQueryGraph(query_graph, lhs_plan, nodes, lhs_label, allow_left_subgraph ? join_steps_limit - 1 : 0);
     bool allow_right_subgraph = !type_changing_sides.contains(JoinTableSide::Right) && (isInnerOrCross(join_kind) || isRight(join_kind));
-    size_t rhs_count = addChildQueryGraph(query_graph, rhs_plan, nodes, rhs_label, allow_right_subgraph ? join_steps_limit - lhs_count : 0);
+    size_t rhs_count = addChildQueryGraph(query_graph, rhs_plan, nodes, rhs_label, allow_right_subgraph ? static_cast<int>(join_steps_limit - lhs_count) : 0);
 
     size_t total_inputs = query_graph.inputs.size();
     if (isRightOrFull(join_kind))
