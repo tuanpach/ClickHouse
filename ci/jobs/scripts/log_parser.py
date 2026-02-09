@@ -538,7 +538,8 @@ class FuzzerLogParser:
         return commands_to_reproduce
 
     def _get_all_fuzzer_commands(self):
-        assert self.fuzzer_log, "Fuzzer log is not provided"
+        if not self.fuzzer_log:
+            return None
         error_logs = [
             "Fuzzing step",
             "Query succeeded",
