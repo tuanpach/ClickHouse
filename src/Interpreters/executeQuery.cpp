@@ -215,6 +215,7 @@ namespace FailPoints
     extern const char execute_query_calling_empty_set_result_func_on_exception[];
     extern const char terminate_with_exception[];
     extern const char terminate_with_std_exception[];
+    extern const char libcxx_hardening_out_of_bounds_assertion[];
 }
 
 static void checkASTSizeLimits(const IAST & ast, const Settings & settings)
@@ -2001,6 +2002,12 @@ std::pair<ASTPtr, BlockIO> executeQuery(
             {
                 std::terminate();
             }
+        });
+
+        fiu_do_on(FailPoints::libcxx_hardening_out_of_bounds_assertion,
+        {
+            std::vector<int> v;
+            (void)v[0];
         });
     }
 

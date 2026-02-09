@@ -61,6 +61,7 @@ def test_crash_log_synchronous(started_node):
     [
         "terminate_with_exception",
         "terminate_with_std_exception",
+        "libcxx_hardening_out_of_bounds_assertion",
     ]
 )
 def test_crash_log_extra_fields(started_node, failpoint):
