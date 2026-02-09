@@ -454,7 +454,7 @@ private:
             arg.name = applyVisitor(FieldVisitorToString(), needles_field);
         }
 
-        new_children[1] = &actions_dag.addColumn(std::move(arg));
+        new_children[1] = &actions_dag.addColumn(arg);
 
         auto tokenizer_description = tokenizer->getDescription();
         arg.type = std::make_shared<DataTypeString>();
