@@ -1045,7 +1045,7 @@ class _ResultS3:
         local_dir = Path(local_path).parent
         s3_path = f"{Settings.HTML_S3_PATH}/{env.get_s3_prefix()}"
         latest_result_file = Shell.get_output(
-            f"aws s3 ls {s3_path}/{file_name}_ | awk '{{print $4}}' | sort -r | head -n 1",
+            f"set -o pipefail && aws s3 ls {s3_path}/{file_name}_ | awk '{{print $4}}' | sort -r | head -n 1",
             strict=True,
             verbose=True,
         )
@@ -1092,7 +1092,10 @@ class _ResultS3:
     def upload_result_files_to_s3(
         cls, result: Result, s3_subprefix="", _uploaded_file_link=None
     ):
-        parts = [s3_subprefix.strip("/"), Utils.normalize_string(result.name).strip("/")]
+        parts = [
+            s3_subprefix.strip("/"),
+            Utils.normalize_string(result.name).strip("/"),
+        ]
         s3_subprefix = "/".join([p for p in parts if p])
         if not _uploaded_file_link:
             _uploaded_file_link = {}
@@ -1145,13 +1148,19 @@ class _ResultS3:
 
         # Upload assets in parallel (preserving relative paths for HTML interlinking)
         if result.assets:
-            asset_paths = [Path(a).resolve() for a in result.assets if Path(a).is_file()]
+            asset_paths = [
+                Path(a).resolve() for a in result.assets if Path(a).is_file()
+            ]
             if asset_paths:
                 common_root = os.path.commonpath([p.parent for p in asset_paths])
                 env = _Environment.get()
-                base_s3_prefix = f"{Settings.HTML_S3_PATH}/{env.get_s3_prefix()}/{s3_subprefix}".replace("//", "/")
+                base_s3_prefix = f"{Settings.HTML_S3_PATH}/{env.get_s3_prefix()}/{s3_subprefix}".replace(
+                    "//", "/"
+                )
 
-                print(f"INFO: Uploading {len(asset_paths)} assets to {base_s3_prefix} in parallel")
+                print(
+                    f"INFO: Uploading {len(asset_paths)} assets to {base_s3_prefix} in parallel"
+                )
                 print(asset_paths)
                 with ThreadPoolExecutor(max_workers=10) as executor:
                     for asset in asset_paths:
