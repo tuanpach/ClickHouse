@@ -177,6 +177,7 @@ SETTINGS max_block_size = 10000""",
     query_thread = threading.Thread(target=execute_query)
     query_thread.start()
 
+    node1.wait_for_log_line("Get data from database")
     node1.wait_for_log_line("Generate a chuck")
     time.sleep(1)
 
@@ -254,6 +255,8 @@ SETTINGS max_block_size = 10000"""
 
     query_thread = threading.Thread(target=execute_query)
     query_thread.start()
+
+    node1.wait_for_log_line("Get data from database")
     node1.wait_for_log_line("Generate a chuck")
     time.sleep(2)
 

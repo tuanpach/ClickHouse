@@ -146,9 +146,9 @@ Chunk MySQLWithFailoverSource::generate()
 
         return MySQLSource::generate();
     }
-    catch (...)
+    catch (const mysqlxx::BadQuery & e)
     {
-        LOG_ERROR(log, "Error in MySQLWithFailoverSource::generate()");
+        LOG_ERROR(log, "Error in MySQLWithFailoverSource::generate(): {}", e.displayText());
 
         if (!isCancelled())
             throw;
