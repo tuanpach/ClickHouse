@@ -36,6 +36,7 @@
 
 #include <Formats/FormatFactory.h>
 
+#include <Parsers/ASTColumnDeclaration.h>
 #include <Parsers/ASTCreateQuery.h>
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/ASTFunction.h>
@@ -57,6 +58,8 @@ namespace DatabaseDataLakeSetting
     extern const DatabaseDataLakeSettingsString aws_access_key_id;
     extern const DatabaseDataLakeSettingsString aws_secret_access_key;
     extern const DatabaseDataLakeSettingsString region;
+    extern const DatabaseDataLakeSettingsString aws_role_arn;
+    extern const DatabaseDataLakeSettingsString aws_role_session_name;
     extern const DatabaseDataLakeSettingsString onelake_tenant_id;
     extern const DatabaseDataLakeSettingsString onelake_client_id;
     extern const DatabaseDataLakeSettingsString onelake_client_secret;
@@ -74,6 +77,7 @@ namespace Setting
     extern const SettingsBool use_hive_partitioning;
     extern const SettingsBool parallel_replicas_for_cluster_engines;
     extern const SettingsString cluster_for_parallel_replicas;
+    extern const SettingsBool database_datalake_require_metadata_access;
 
 }
 
@@ -140,6 +144,8 @@ std::shared_ptr<DataLake::ICatalog> DatabaseDataLake::getCatalog() const
         .aws_access_key_id = settings[DatabaseDataLakeSetting::aws_access_key_id].value,
         .aws_secret_access_key = settings[DatabaseDataLakeSetting::aws_secret_access_key].value,
         .region = settings[DatabaseDataLakeSetting::region].value,
+        .aws_role_arn = settings[DatabaseDataLakeSetting::aws_role_arn].value,
+        .aws_role_session_name = settings[DatabaseDataLakeSetting::aws_role_session_name].value,
     };
 
     switch (settings[DatabaseDataLakeSetting::catalog_type].value)
@@ -449,7 +455,6 @@ StoragePtr DatabaseDataLake::tryGetTableImpl(const String & name, ContextPtr con
 
     if (!catalog->tryGetTableMetadata(namespace_name, table_name, table_metadata))
         return nullptr;
-
     if (ignore_if_not_iceberg && !table_metadata.isDefaultReadableTable())
         return nullptr;
 
@@ -761,7 +766,23 @@ DatabaseTablesIteratorPtr DatabaseDataLake::getLightweightTablesIterator(
                     }
                     catch (...)
                     {
-                        tryLogCurrentException(log, fmt::format("Ignoring table {}", table_name));
+                        if (context_->getSettingsRef()[Setting::database_datalake_require_metadata_access])
+                        {
+                            auto error_code = getCurrentExceptionCode();
+                            auto error_message = getCurrentExceptionMessage(true, false, true, true);
+                            auto enhanced_message = fmt::format(
+                                "Received error {} while fetching table metadata for existing table '{}'. "
+                                "If you want this error to be ignored, use database_datalake_require_metadata_access=0. Error: {}",
+                                error_code,
+                                table_name,
+                                error_message);
+                            promise->set_exception(std::make_exception_ptr(Exception::createRuntime(
+                                error_code,
+                                enhanced_message)));
+                            return;
+                        }
+                        else
+                            tryLogCurrentException(log, fmt::format("Ignoring table {}", table_name));
                     }
                     promise->set_value(storage);
                 });
@@ -823,7 +844,7 @@ ASTPtr DatabaseDataLake::getCreateTableQueryImpl(
     auto table_storage_define = table_engine_definition->clone();
 
     auto * storage = table_storage_define->as<ASTStorage>();
-    storage->engine->kind = ASTFunction::Kind::TABLE_ENGINE;
+    storage->engine->setKind(ASTFunction::Kind::TABLE_ENGINE);
     if (!table_metadata.isDefaultReadableTable())
         storage->engine->name = DataLake::FAKE_TABLE_ENGINE_NAME_FOR_UNREADABLE_TABLES;
 
@@ -845,7 +866,7 @@ ASTPtr DatabaseDataLake::getCreateTableQueryImpl(
         LOG_DEBUG(log, "Processing column {}", column_type_and_name.name);
         const auto column_declaration = make_intrusive<ASTColumnDeclaration>();
         column_declaration->name = column_type_and_name.name;
-        column_declaration->type = makeASTDataType(column_type_and_name.type->getName());
+        column_declaration->setType(makeASTDataType(column_type_and_name.type->getName()));
         columns_expression_list->children.emplace_back(column_declaration);
     }
 

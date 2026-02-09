@@ -39,6 +39,15 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
         /// controls new feature and it's 'true' by default, use 'false' as previous_value).
         /// It's used to implement `compatibility` setting (see https://github.com/ClickHouse/ClickHouse/issues/35972)
         /// Note: please check if the key already exists to prevent duplicate entries.
+        addSettingsChanges(settings_changes_history, "26.2",
+        {
+            {"deduplicate_insert", "backward_compatible_choice", "backward_compatible_choice", "New setting to control deduplication for INSERT queries."},
+            {"enable_join_runtime_filters", false, true, "Enabled this optimization"},
+            {"parallel_replicas_filter_pushdown", false, false, "New setting"},
+            {"use_page_cache_for_local_disks", false, false, "New setting to use userspace page cache for local disks"},
+            {"use_page_cache_for_object_storage", false, false, "New setting to use userspace page cache for object storage table functions"},
+            {"use_statistics_cache", false, true, "Enable statistics cache"},
+        });
         addSettingsChanges(settings_changes_history, "26.1",
         {
             {"use_statistics", true, true, "Enable this optimization by default."},
@@ -67,13 +76,15 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
             {"archive_adaptive_buffer_max_size_bytes", 8 * 1024 * 1024, 8 * 1024 * 1024, "New setting"},
             {"type_json_allow_duplicated_key_with_literal_and_nested_object", false, false, "Add a new setting to allow duplicated paths in JSON type with literal and nested object"},
             {"use_primary_key", true, true, "New setting controlling whether MergeTree uses the primary key for granule-level pruning."},
-            {"deduplicate_insert_select", "enable_even_for_bad_queries", "enable_when_possible", "change the default behavior of deduplicate_insert_select to ENABLE_WHEN_PROSSIBLE"},
+            {"deduplicate_insert_select", "enable_even_for_bad_queries", "enable_when_possible", "change the default behavior of deduplicate_insert_select to ENABLE_WHEN_POSSIBLE"},
             {"allow_experimental_qbit_type", false, true, "QBit was moved to Beta"},
             {"enable_qbit_type", false, true, "QBit was moved to Beta. Added an alias for setting 'allow_experimental_qbit_type'."},
             {"use_variant_default_implementation_for_comparisons", false, true, "Enable default implementation for Variant type in comparison functions"},
+            {"use_variant_as_common_type", false, true, "Improves usability."},
             {"max_dynamic_subcolumns_in_json_type_parsing", "auto", "auto", "Add a new setting to limit number of dynamic subcolumns during JSON type parsing regardless the parameters specified in the data type"},
             {"use_hash_table_stats_for_join_reordering", true, true, "New setting. Previously mirrored 'collect_hash_table_stats_during_joins' setting."},
             {"throw_if_deduplication_in_dependent_materialized_views_enabled_with_async_insert", true, false, "It becomes obsolete."},
+            {"database_datalake_require_metadata_access", true, true, "New setting."},
             {"automatic_parallel_replicas_min_bytes_per_replica", 0, 1_MiB, "Better default value derived from testing results"},
         });
         addSettingsChanges(settings_changes_history, "25.12",
@@ -1029,11 +1040,20 @@ const VersionToSettingsChangesMap & getMergeTreeSettingsChangesHistory()
     static std::once_flag initialized_flag;
     std::call_once(initialized_flag, [&]
     {
+        addSettingsChanges(merge_tree_settings_changes_history, "26.2",
+        {
+            {"clone_replica_zookeeper_create_get_part_batch_size", 1, 100, "New setting"},
+            {"add_minmax_index_for_temporal_columns", false, false, "New setting"},
+            {"distributed_index_analysis_min_parts_to_activate", 10, 10, "New setting"},
+            {"distributed_index_analysis_min_indexes_size_to_activate", 1_GiB, 1_GiB, "New setting"},
+            {"refresh_statistics_interval", 0, 300, "Enable statistics cache"},
+        });
         addSettingsChanges(merge_tree_settings_changes_history, "26.1",
         {
             {"min_columns_to_activate_adaptive_write_buffer", 500, 500, "New setting"},
             {"merge_max_dynamic_subcolumns_in_compact_part", "auto", "auto", "Add a new setting to limit number of dynamic subcolumns in Compact part after merge regardless the parameters specified in the data type"},
             {"materialize_statistics_on_merge", true, true, "New setting"},
+            {"escape_index_filenames", false, true, "Escape non-ascii characters in filenames created for indices"},
         });
         addSettingsChanges(merge_tree_settings_changes_history, "25.12",
         {
