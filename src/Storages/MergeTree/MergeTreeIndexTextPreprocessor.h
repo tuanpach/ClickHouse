@@ -14,7 +14,12 @@ struct IndexDescription;
 class MergeTreeIndexTextPreprocessor
 {
 public:
+<<<<<<< HEAD
     MergeTreeIndexTextPreprocessor(ASTPtr expression_ast, const IndexDescription & index_description);
+=======
+    MergeTreeIndexTextPreprocessor(const String & expression, const IndexDescription & index_description);
+    bool hasActions() const { return !expression.getActions().empty(); }
+>>>>>>> upstream/master
 
     /// Processes n_rows rows of input column, starting at start_row.
     /// The transformation is only applied in the range [start_row, start_row + n_rows)

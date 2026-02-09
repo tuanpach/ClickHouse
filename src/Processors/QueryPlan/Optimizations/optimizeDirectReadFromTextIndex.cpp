@@ -543,8 +543,8 @@ private:
         }
 
         /// If the type of original function does not match the type of replacement,
-        /// add a cast to the replacement to match the expected type.
-        /// For example, it can happen when the original function returns Nullable or LowCardinality type and replacement doesn't.
+        /// add a cast to the replacement to match the expected type (e.g. hasAnyTokens('hello world', toNullable('world'))).
+        /// It can happen when the original function returns Nullable or LowCardinality type and replacement doesn't.
         if (!function_node.result_type->equals(*replacement.node->result_type))
             replacement.node = &actions_dag.addCast(*replacement.node, function_node.result_type, "", context);
 
