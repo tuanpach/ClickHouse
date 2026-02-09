@@ -79,8 +79,8 @@ INSERT INTO FUNCTION s3(s3_conn, filename='half_baked', format=Parquet, partitio
 -- Should fail because contains only partition columns in schema and `use_hive_partitioning=1`
 CREATE TABLE s3_table_half_schema_with_format (year UInt64) engine=S3(s3_conn, filename='half_baked/**.parquet', format=Parquet) SETTINGS use_hive_partitioning=1; -- {serverError INCORRECT_DATA}
 
--- Should succeed because hive is off
-CREATE TABLE s3_table_half_schema_with_format (year UInt64) engine=S3(s3_conn, filename='half_baked/**.parquet', format=Parquet) SETTINGS use_hive_partitioning=0;
+-- Shouldn't succeed because hive is off and schema contains non existing parquet columns
+CREATE TABLE s3_table_half_schema_with_format (year UInt64) engine=S3(s3_conn, filename='half_baked/**.parquet', format=Parquet) SETTINGS use_hive_partitioning=0;  -- {serverError BAD_ARGUMENTS}
 
 -- Should succeed and not return hive columns (as nothing else is in schema - then no columns at all). Distinct because maybe MinIO isn't cleaned up
 SELECT DISTINCT * FROM s3_table_half_schema_with_format;

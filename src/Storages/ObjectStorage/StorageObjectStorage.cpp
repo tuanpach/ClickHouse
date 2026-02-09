@@ -3,6 +3,7 @@
 #include <Common/Exception.h>
 #include <Common/Logger.h>
 #include <Common/logger_useful.h>
+#include "Core/LogsLevel.h"
 #include <Core/Settings.h>
 #include <Formats/FormatFactory.h>
 #include <Formats/ReadSchemaUtils.h>
@@ -272,9 +273,13 @@ StorageObjectStorage::StorageObjectStorage(
         auto metadata_snapshot = configuration->getStorageSnapshotMetadata(context);
         setInMemoryMetadata(metadata_snapshot);
     }
+
+    /// We don't need to process data lakes because tables may have "schema evolution" feature.
     if (!configuration->isDataLakeConfiguration() &&
         !columns_in_table_or_function_definition.empty() &&
-        !is_table_function && configuration_->format == "Parquet" &&
+        !is_table_function &&
+        configuration_->format != "CSV" &&
+        configuration_->format != "TSV" &&
         mode == LoadingStrictnessLevel::CREATE &&
         !do_lazy_init)
     {
@@ -286,7 +291,7 @@ StorageObjectStorage::StorageObjectStorage(
         }
         catch (...)
         {
-            tryLogCurrentException(log);
+            tryLogCurrentException(log, "", LogsLevel::debug);
         }
         if (schema_file)
         {
@@ -295,7 +300,12 @@ StorageObjectStorage::StorageObjectStorage(
                 hive_parititioning_columns.insert(column_name);
             for (const auto & column : columns_in_table_or_function_definition)
                 if (!schema_file->tryGet(column.name) && !hive_parititioning_columns.contains(column.name))
-                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cannot find column {} in schema {}", column.name, schema_file->toString(false));
+                {
+                    String hive_columns;
+                    for (const auto & hive_column : hive_parititioning_columns)
+                        hive_columns += hive_column + ";";
+                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cannot find column {} in schema {}, hive columns {}", column.name, schema_file->toString(false), hive_columns);
+                }
         }
     }
 }
@@ -627,9 +637,13 @@ std::unique_ptr<ReadBufferIterator> StorageObjectStorage::createReadBufferIterat
     ObjectInfos & read_keys,
     const ContextPtr & context)
 {
+    auto query_settings = configuration->getQuerySettings(context);
+    /// We don't want to throw an exception if there are no files with specified path during schema inference.
+    query_settings.ignore_non_existent_file = true;
+    
     auto file_iterator = StorageObjectStorageSource::createFileIterator(
         configuration,
-        configuration->getQuerySettings(context),
+        query_settings,
         object_storage,
         nullptr, /* storage_metadata */
         false, /* distributed_processing */

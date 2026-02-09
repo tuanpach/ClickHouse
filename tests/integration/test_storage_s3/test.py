@@ -1289,7 +1289,8 @@ def test_url_reconnect_in_the_middle(started_cluster):
 def test_check_parquet_schema(started_cluster):
     instance = started_cluster.instances["dummy"]  # type: ClickHouseInstance
     format_name = 'Parquet'
-    file_path = 'http://minio1:9001/root/test_parquet/test_check_parquet_schema.parquet'
+    idx = random.randint(0, 1000000)
+    file_path = f'http://minio1:9001/root/test_parquet/test_check_parquet_schema_{idx}.parquet'
     table_function = f"s3('{file_path}', structure='a Int32, b String', format='{format_name}')"
     expected_lines = 15000
     instance.query("DROP TABLE IF EXISTS t_s3_schema_test")
