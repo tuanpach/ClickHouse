@@ -91,5 +91,5 @@ LIMIT 1;
 ```
 
 ### Notes {#notes}
-- If you know how many rows you need, prefer bounded forms (`numbers(N)`, `numbers(N, M[, S])`) over unbounded `numbers()` / `system.numbers`.
+- For performance reasons, if you know how many rows you need, prefer bounded forms (`numbers(N)`, `numbers(N, M[, S])`) over unbounded `numbers()` / `system.numbers`.
 - For parallel generation, use `numbers_mt(...)` or the [`system.numbers_mt`](/operations/system-tables/numbers_mt) table. Note that results may be returned in any order.
