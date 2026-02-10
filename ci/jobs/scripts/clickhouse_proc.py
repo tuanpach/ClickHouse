@@ -1036,6 +1036,7 @@ quit
         TABLES = [
             "query_log",
             "zookeeper_log",
+            "aggregated_zookeeper_log",
             "trace_log",
             "transactions_info_log",
             "metric_log",
