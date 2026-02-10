@@ -10,8 +10,8 @@ from more_itertools import tail
 from ci.jobs.scripts.find_tests import Targeting
 from ci.jobs.scripts.integration_tests_configs import IMAGES_ENV, get_optimal_test_batch
 from ci.praktika.info import Info
-from ci.praktika.result import Result
-from ci.praktika.utils import Shell, Utils
+from ci.praktika.result import Result, ResultTranslator
+from ci.praktika.utils import ContextManager, Shell, Utils
 
 repo_dir = Utils.cwd()
 temp_path = f"{repo_dir}/ci/tmp"
@@ -230,6 +230,7 @@ def get_parallel_sequential_tests_to_run(
 
     return parallel_tests, sequential_tests
 
+
 def tail(filepath: str, buff_len: int = 1024) -> List[str]:
     with open(filepath, "rb") as f:
         f.seek(-buff_len, os.SEEK_END)
@@ -237,16 +238,49 @@ def tail(filepath: str, buff_len: int = 1024) -> List[str]:
         data = f.read()
         return data.decode(errors="replace")
 
+
 def run_pytest_and_collect_results(command: str, env: str, report_name: str) -> Result:
-    test_result = Result.from_pytest_run(
-        command=command,
-        env=env,
-        cwd="./tests/integration/",
-        pytest_report_file=f"{temp_path}/pytest_{report_name}.jsonl",
-        logfile=f"{temp_path}/pytest_{report_name}.log",
+    """
+    Runs a pytest command, captures results in jsonl format, and creates a Result object.
+    """
+
+    sw = Utils.Stopwatch()
+    pytest_report_file = f"{temp_path}/pytest_{report_name}.jsonl"
+
+    with ContextManager.cd(f"./tests/integration/"):
+        full_command = (
+            f"pytest {command} --report-log={pytest_report_file}"
+            f" --log-file={temp_path}/pytest_{report_name}.log"
+            f" | tee {temp_path}/pytest_{report_name}.stdout"
+        )
+
+        for key, value in (env or {}).items():
+            print(f"Setting environment variable {key} to {value}")
+            os.environ[key] = value
+
+        print(f"DEBUG: Running pytest with command: {full_command}")
+        Shell.run(full_command)
+
+    test_result = ResultTranslator.from_pytest_jsonl(
+        pytest_report_file=pytest_report_file
     )
 
-    if "!!!!!!! xdist.dsession.Interrupted: session-timeout:" in tail(f"{temp_path}/job.log"):
+    test_result = Result.create_from(
+        name="pytest_{command}",
+        results=test_result.results,
+        status=test_result.status,
+        stopwatch=sw,
+        info=test_result.info,
+        files=[
+            "{temp_path}/pytest_{report_name}.log",
+            "{temp_path}/pytest_{report_name}.jsonl",
+            "{temp_path}/pytest_{report_name}.stdout",
+        ],
+    )
+
+    if "!!!!!!! xdist.dsession.Interrupted: session-timeout:" in tail(
+        f"{temp_path}/pytest_{report_name}.stdout"
+    ):
         test_result.info = "[ERROR] session-timeout occurred during test execution"
         assert test_result.status == Result.Status.ERROR
         test_result.results.append(
@@ -257,6 +291,7 @@ def run_pytest_and_collect_results(command: str, env: str, report_name: str) -> 
             )
         )
     return test_result
+
 
 def main():
     sw = Utils.Stopwatch()
@@ -527,7 +562,7 @@ tar -czf ./ci/tmp/logs.tar.gz \
         session_timeout_sequential = 7200
 
     if args.session_timeout:
-        session_timeout_parallel =  args.session_timeout * 2
+        session_timeout_parallel = args.session_timeout * 2
         session_timeout_sequential = args.session_timeout
 
     error_info = []
@@ -634,7 +669,8 @@ tar -czf ./ci/tmp/logs.tar.gz \
         test_result_retries = run_pytest_and_collect_results(
             command=f"{' '.join(failed_test_cases)} --report-log-exclude-logs-on-passed-tests --tb=short -n 1 --dist=loadfile --session-timeout=1200",
             env=test_env,
-            report_name="retries")
+            report_name="retries",
+        )
         successful_retries = [t.name for t in test_result_retries.results if t.is_ok()]
         failed_retries = [t.name for t in test_result_retries.results if t.is_failure()]
         if successful_retries or failed_retries:
