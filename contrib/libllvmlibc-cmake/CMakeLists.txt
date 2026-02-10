@@ -5,6 +5,7 @@ if (NOT (ARCH_AMD64 OR ARCH_AARCH64))
     return()
 endif()
 
+# List of exported functions should be also updated in ci/jobs/compatibility_check.py
 set(SRCS
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/common_constants.cpp"
 

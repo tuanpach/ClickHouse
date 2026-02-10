@@ -24,7 +24,7 @@ LLVMLIBC_MATH_FUNCTIONS = {
     # float
     "asinf", "ldexpf", "sqrtf",
     # long double
-    "ceill", "frexpl", "ldexpl", "sqrtl",
+    "ceill", "floorl", "frexpl", "ldexpl", "sqrtl", "truncl",
     # long/long long
     "llround", "lround",
 }
