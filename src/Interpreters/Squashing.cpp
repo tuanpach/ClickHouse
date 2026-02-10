@@ -77,8 +77,7 @@ Chunk Squashing::squash(std::vector<Chunk> && input_chunks, Chunk::ChunkInfoColl
     {
         LOG_TEST(getLogger("squashing"), "Updating original block in deduplication info after squashing, rows: {}, input_chunks count {}, debug: {}",
             result.getNumRows(), input_chunks_size, deduplication_info->debug());
-        if (!deduplication_info->isDisabled())
-            deduplication_info->updateOriginalBlock(result, header);
+        deduplication_info->updateOriginalBlock(result, header);
     }
 
     result.setChunkInfos(std::move(result_info));

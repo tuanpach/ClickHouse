@@ -869,14 +869,14 @@ void DeduplicationInfo::updateOriginalBlock(const Chunk & chunk, SharedHeader he
 {
     chassert(!visited_views.empty());
 
-    LOG_TEST(
-        logger,
-        "updateOriginalBlock with chunk rows/col {}/{} debug: {}",
-        chunk.getNumRows(), chunk.getNumColumns(),
-        debug());
-
     if (!original_block)
         original_block_view_id = visited_views.back();
+
+    if (disabled)
+    {
+        chassert(!original_block);
+        return;
+    }
 
     original_block = std::make_shared<Block>(header->cloneWithColumns(chunk.getColumns()));
 }
@@ -910,7 +910,10 @@ void DeduplicationInfo::setViewID(const StorageID & id)
     chassert(level == Level::VIEW);
 
     if (!insert_dependencies || !insert_dependencies->deduplicate_blocks_in_dependent_materialized_views)
+    {
         disabled = true;
+        original_block.reset(); // do not hold original block if deduplication is disabled, to save memory
+    }
 
     addExtraPart(TokenDefinition::Extra::asViewID(id));
     visited_views.push_back(id);

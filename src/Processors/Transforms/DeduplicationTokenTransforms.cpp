@@ -141,8 +141,7 @@ void AddDeduplicationInfoTransform::transform(Chunk & chunk)
     info->setInsertDependencies(insert_dependencies);
     info->setRootViewID(root_view_id);
     info->setSourceBlockNumber(block_number++);
-    if (!info->isDisabled())
-        info->updateOriginalBlock(chunk, getInputPort().getSharedHeader());
+    info->updateOriginalBlock(chunk, getInputPort().getSharedHeader());
 }
 
 RedefineDeduplicationInfoWithDataHashTransform::RedefineDeduplicationInfoWithDataHashTransform(SharedHeader header_)
