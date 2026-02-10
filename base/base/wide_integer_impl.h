@@ -18,8 +18,11 @@
 
 // NOLINTBEGIN(*)
 
-/// Use same extended double for all platforms
-#if (LDBL_MANT_DIG == 64)
+/// Use same extended double for all platforms.
+/// `long double` has at least 64-bit mantissa on x86 (80-bit extended, LDBL_MANT_DIG=64)
+/// and on ARM (128-bit quad, LDBL_MANT_DIG=113). Only fall back to boost on platforms
+/// where `long double` has insufficient precision (e.g. LDBL_MANT_DIG=53).
+#if (LDBL_MANT_DIG >= 64)
 #define CONSTEXPR_FROM_DOUBLE constexpr
 using FromDoubleIntermediateType = long double;
 #else
@@ -375,7 +378,7 @@ struct integer<Bits, Signed>::_impl
         constexpr uint64_t max_int = std::numeric_limits<uint64_t>::max();
         static_assert(std::is_same_v<T, double> || std::is_same_v<T, FromDoubleIntermediateType>);
         /// Implementation specific behaviour on overflow (if we don't check here, stack overflow will triggered in bigint_cast).
-#if (LDBL_MANT_DIG == 64)
+#if (LDBL_MANT_DIG >= 64)
         if (!std::isfinite(t))
         {
             self = 0;
