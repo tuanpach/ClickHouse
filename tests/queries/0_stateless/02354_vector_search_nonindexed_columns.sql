@@ -1,6 +1,10 @@
 -- Tags: no-fasttest
 -- no-fasttest: vector search needs usearch 3rd party library
 
+-- Tests vector search behavior when some vector columns have indexes and others don't.
+-- Verifies behavior of filter strategies for both indexed and non-indexed vector columns
+-- in the same table.
+
 SET enable_analyzer = 1;
 SET parallel_replicas_local_plan = 1;
 
@@ -22,6 +26,11 @@ SELECT
     arrayMap(i -> randCanonical(i), range(16)),
     arrayMap(i -> randCanonical(i), range(32))
 FROM numbers(100);
+
+-- Test vector search on indexed column (vec1) with different filter strategies
+--
+-- Expect to use index search for auto and postfilter strategies, and PREWHERE
+-- filter + brute force distance calculation for the prefilter strategy
 
 SELECT '-- Search with index, strategy = auto';
 SELECT replaceRegexpAll(trimLeft(explain), '__set_Int32_\\d+_\\d+', '__set_Int32_XXX')
@@ -66,6 +75,11 @@ WHERE trimLeft(explain) LIKE 'Prewhere filter column: %'
    OR trimLeft(explain) LIKE 'Filter column: %';
 
 SELECT '-----';
+
+-- Test vector search on nonindexed column (vec2) with different filter strategies
+--
+-- PREWHERE key filters with further brute force distance calculation is expected
+-- regardless of filter strategy
 
 SELECT '-- Search without index, strategy = auto';
 SELECT replaceRegexpAll(trimLeft(explain), '__set_Int32_\\d+_\\d+', '__set_Int32_XXX')
