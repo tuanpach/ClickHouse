@@ -1266,7 +1266,7 @@ def test_merges_with_full_disk(started_cluster, engine, request):
 
     try:
         # This test checks that MERGE falls back to the available disk, if the target disk is full
-        # NOTE: MERGE operation is sensitive to not-having enough free space at 'jbod1' - it data sizes are imbalanced (or 'jbod1' is more full than expected), this test might flap by haning in OPTIMIZE
+        # NOTE: MERGE operation is sensitive to not-having enough free space at 'jbod1' - its data sizes are imbalanced (or 'jbod1' is more full than expected), this test might flap by hanging in OPTIMIZE
 
         # TEMP table to fill up the disk
         node1.query(f"""
