@@ -6,18 +6,10 @@
 #include <Common/CPUID.h>
 
 namespace {
-    // 0 = unknown, 1 = no FMA, 2 = has FMA
-    int g_fma_status = 0;
-
     __attribute__((always_inline))
     inline bool cpu_has_fma()
     {
-        int status = g_fma_status;
-        if (__builtin_expect(status != 0, 1))
-            return status == 2;
-
-        bool has_fma = DB::CPU::haveFMA();
-        g_fma_status = has_fma ? 2 : 1;
+        static const bool has_fma = DB::CPU::haveFMA();
         return has_fma;
     }
 }
