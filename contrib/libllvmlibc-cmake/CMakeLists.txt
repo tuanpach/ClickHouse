@@ -47,7 +47,22 @@ set(LLVMLIBC_DEFS_COMMON
 )
 
 if (ARCH_AMD64)
-    if (ENABLE_SSE42)
+    if (NO_SSE3_OR_HIGHER)
+        # Compat build: Single library without dispatch, minimal CPU features (SSE2 baseline)
+        add_library(libllvmlibc ${SRCS})
+        set_target_properties(libllvmlibc PROPERTIES FOLDER "contrib/libllvmlibc-cmake")
+        target_compile_definitions(libllvmlibc PRIVATE
+            ${LLVMLIBC_DEFS_COMMON}
+            LIBC_NAMESPACE=${LIBC_NAMESPACE}
+            LIBC_COPT_PUBLIC_PACKAGING=1
+            LIBC_TARGET_CPU_HAS_SSE2=1
+            LIBC_TARGET_CPU_HAS_FPU_FLOAT=1
+            LIBC_TARGET_CPU_HAS_FPU_DOUBLE=1
+        )
+        target_include_directories(libllvmlibc SYSTEM BEFORE
+            PRIVATE $<BUILD_INTERFACE:${LIBLLVMLIBC_SOURCE_DIR}>
+        )
+    else()
         # x86-64: Build two variants for runtime dispatch
         # v3 = AVX/AVX2/FMA (Haswell+)
         # v2 = SSE4.2 (Nehalem+)
@@ -103,21 +118,6 @@ if (ARCH_AMD64)
             llvmlibc_dispatch
             libllvmlibc_x86_64_v3
             libllvmlibc_x86_64_v2
-        )
-    else()
-        # Compat build: Single library without dispatch, minimal CPU features (SSE2 baseline)
-        add_library(libllvmlibc ${SRCS})
-        set_target_properties(libllvmlibc PROPERTIES FOLDER "contrib/libllvmlibc-cmake")
-        target_compile_definitions(libllvmlibc PRIVATE
-            ${LLVMLIBC_DEFS_COMMON}
-            LIBC_NAMESPACE=${LIBC_NAMESPACE}
-            LIBC_COPT_PUBLIC_PACKAGING=1
-            LIBC_TARGET_CPU_HAS_SSE2=1
-            LIBC_TARGET_CPU_HAS_FPU_FLOAT=1
-            LIBC_TARGET_CPU_HAS_FPU_DOUBLE=1
-        )
-        target_include_directories(libllvmlibc SYSTEM BEFORE
-            PRIVATE $<BUILD_INTERFACE:${LIBLLVMLIBC_SOURCE_DIR}>
         )
     endif()
 
