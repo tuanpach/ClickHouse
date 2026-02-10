@@ -218,7 +218,7 @@ public:
     ///  - `x IN (8, 0, 6)`                           -> { "[0, 0]", "[6, 6]", "[8, 8]" }
     ///  - `x NOT IN (2, 4)`                          -> { "(-Inf, 1]", "[3, 3]", "[5, +Inf)" }
     ///  - `NOT (x BETWEEN 2 AND 6) AND x < 10`       -> { "(-Inf, 1]", "[7, 9]" }
-    ///  - `isNull(x)`                                -> {}               (always false for keys)
+    ///  - `isNull(x)`                                -> {}               (for non-nullable keys)
     ///  - `x < 5 AND x > 10`                         -> {}               (always false / contradictory)
     ///  - `x % 2 = 0`                                -> { "(-Inf, +Inf)" } (no bounds inferred)
     ///
