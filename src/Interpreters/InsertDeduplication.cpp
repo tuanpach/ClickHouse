@@ -657,7 +657,7 @@ void DeduplicationInfo::redefineTokensWithDataHash()
 {
     LOG_TEST(logger, "redefineTokensWithDataHash, debug: {}", debug());
 
-    if (level != Level::SOURCE)
+    if (disabled || level != Level::SOURCE)
         return;
 
     for (size_t i = 0; i < tokens.size(); ++i)
