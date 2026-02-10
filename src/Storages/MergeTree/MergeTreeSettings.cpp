@@ -2071,7 +2071,7 @@ namespace ErrorCodes
     DECLARE(UInt64, distributed_index_analysis_min_parts_to_activate, 10, R"(
     Minimal number of parts to activated distributed index analysis
     )", 0) \
-    DECLARE(UInt64, distributed_index_analysis_min_indexes_size_to_activate, 1_GiB, R"(
+    DECLARE(UInt64, distributed_index_analysis_min_indexes_bytes_to_activate, 1_GiB, R"(
     Minimal index sizes (data skipping and primary key) on disk (but uncompressed) to activated distributed index analysis
     )", 0) \
     DECLARE(NonZeroUInt64, clone_replica_zookeeper_create_get_part_batch_size, zkutil::MULTI_BATCH_SIZE, R"(
