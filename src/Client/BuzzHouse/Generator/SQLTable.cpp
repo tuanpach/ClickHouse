@@ -21,9 +21,9 @@ static void collectNullable(SQLType * tp, const uint32_t flags, ColumnPathChain 
 
         tp = lc->subtype;
     }
-    if (tp && (flags & collect_generated) != 0
-        && (tp->getTypeClass() == SQLTypeClass::NULLABLE
-            || (tp->getTypeClass() == SQLTypeClass::TUPLE && dynamic_cast<TupleType *>(tp)->nullable)))
+    if ((flags & collect_generated) != 0
+        && (tp && tp->getTypeClass() == SQLTypeClass::NULLABLE
+            || (tp && tp->getTypeClass() == SQLTypeClass::TUPLE && dynamic_cast<TupleType *>(tp)->nullable)))
     {
         next.path.emplace_back(ColumnPathChainEntry("null", &(*null_tp)));
         paths.push_back(next);
