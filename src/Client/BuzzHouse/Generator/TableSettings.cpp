@@ -736,8 +736,23 @@ void loadFuzzerTableSettings(const FuzzConfig & fc)
                 },
                 {"'keep'", "'delete'", "'move'", "'tag'"},
                 false)},
+           {"buckets",
+            CHSetting(
+                [](RandomGenerator & rg, FuzzConfig &) { return std::to_string(rg.thresholdGenerator<uint64_t>(0.2, 0.2, 0, 3000)); },
+                {"0", "1", "2", "8", "10", "100", "1000"},
+                false)},
+           {"bucketing_mode",
+            CHSetting(
+                [](RandomGenerator & rg, FuzzConfig &)
+                {
+                    static const DB::Strings & choices = {"'path'", "'partition'"};
+                    return rg.pickRandomly(choices);
+                },
+                {"'path'", "'partition'"},
+                false)},
            {"commit_on_select", trueOrFalseSettingNoOracle},
            {"enable_hash_ring_filtering", trueOrFalseSetting},
+           {"enable_logging_to_queue_log", trueOrFalseSetting},
            {"list_objects_batch_size",
             CHSetting(
                 [](RandomGenerator & rg, FuzzConfig &) { return std::to_string(rg.thresholdGenerator<uint64_t>(0.2, 0.2, 0, 3000)); },
@@ -746,7 +761,22 @@ void loadFuzzerTableSettings(const FuzzConfig & fc)
            {"max_processed_bytes_before_commit", CHSetting(bytesRange, {}, false)},
            {"max_processed_files_before_commit", CHSetting(rowsRange, {}, false)},
            {"max_processed_rows_before_commit", CHSetting(rowsRange, {}, false)},
+           {"metadata_cache_size_bytes", CHSetting(bytesRange, {}, false)},
+           {"metadata_cache_size_elements", CHSetting(rowsRange, {}, false)},
+           {"min_insert_block_size_rows_for_materialized_views", CHSetting(bytesRange, {}, false)},
+           {"min_insert_block_size_bytes_for_materialized_views", CHSetting(rowsRange, {}, false)},
            {"parallel_inserts", trueOrFalseSetting},
+           {"partitioning_mode",
+            CHSetting(
+                [](RandomGenerator & rg, FuzzConfig &)
+                {
+                    static const DB::Strings & choices = {"'none'", "'hive'", "'regex'"};
+                    return rg.pickRandomly(choices);
+                },
+                {"'none'", "'hive'", "'regex'"},
+                false)},
+           {"processing_threads_num", threadSetting},
+           {"tracked_files_limit", CHSetting(rowsRange, {}, false)},
            {"use_hive_partitioning", trueOrFalseSetting},
            {"use_persistent_processing_nodes", trueOrFalseSettingNoOracle}};
     s3QueueTableSettings.insert(s3Settings.begin(), s3Settings.end());
