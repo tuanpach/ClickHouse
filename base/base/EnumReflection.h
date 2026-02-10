@@ -1,10 +1,16 @@
 #pragma once
 
-/// To cover ZooKeeperConstants -> See contrib/magic_enum/doc/limitations.md#enum-range
-#define MAGIC_ENUM_RANGE_MIN (-100)
-#define MAGIC_ENUM_RANGE_MAX 1000
 #include <magic_enum.hpp>
 #include <fmt/format.h>
+
+/// Only Coordination::OpNum needs a wider range (values from -11 to 997).
+/// The default range [-128, 127] covers all other enums.
+/// See contrib/magic_enum/doc/limitations.md#enum-range
+namespace Coordination { enum class OpNum : int32_t; }
+template <> struct magic_enum::customize::enum_range<Coordination::OpNum> {
+    static constexpr int min = -20;
+    static constexpr int max = 1000;
+};
 
 
 template <typename T> concept is_enum = std::is_enum_v<T>;
