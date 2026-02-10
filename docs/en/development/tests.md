@@ -47,7 +47,7 @@ There are also options to run tests in parallel or in random order.
 
 ### Running fast tests {#running-fast-tests}
 
-You may need a decently powerful machine to run all tests. The following works on `t3.2xlarge` AWS amd64 Ubuntu instance with 100 GB storage.
+You may need a decently powerful machine to run a subset of tests (called "Fast test"). The following works on `t3.2xlarge` AWS amd64 Ubuntu instance with 100 GB storage.
 
 1. Install prerequisites and re-login.
 ```sh
@@ -78,7 +78,7 @@ If you leave the run unattended, you may use `nohup` or `disown` to keep it runn
 
 ### Running stateless tests {#running-stateless-tests}
 
-You may need a decently powerful machine to run all tests. The following works on `m7i.8xlarge` AWS amd64 Ubuntu instance with 200 GB storage.
+You may need a decently powerful machine to run stateless tests. The following works on `m7i.8xlarge` AWS amd64 Ubuntu instance with 200 GB storage.
 
 1. Install prerequisites and re-login.
 ```sh
@@ -90,8 +90,8 @@ sudo tee /etc/docker/daemon.json <<'EOF'
   "ipv6": true,
   "ip6tables": true
 }
-sudo systemctl restart docker
 EOF
+sudo systemctl restart docker
 ```
 
 2. Get the source code.
