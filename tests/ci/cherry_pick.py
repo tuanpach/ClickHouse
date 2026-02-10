@@ -374,14 +374,25 @@ close it.
 
         if since_updated >= CLOSE_THRESHOLD:
             # Close the PR after 7 days
-            assignees = ", ".join(
-                f"@{user.login}" for user in self.cherrypick_pr.assignees
-            )
-            comment_body = (
-                f"Dear {assignees}, this cherry-pick PR has not been updated for {since_updated_str}. "
-                f"Closing automatically. If you still want to backport #{self.pr.number}, "
-                "please resolve the conflicts and reopen this PR."
-            )
+            if self.cherrypick_pr.assignees:
+                assignees = ", ".join(
+                    f"@{user.login}" for user in self.cherrypick_pr.assignees
+                )
+                comment_body = (
+                    f"Dear {assignees}, this cherry-pick PR has not been updated for {since_updated_str}. "
+                    f"Closing automatically. If you still want to backport #{self.pr.number}, "
+                    "please resolve the conflicts and reopen this PR."
+                )
+            else:
+                logging.warning(
+                    "Cherry-pick PR #%s has no assignees when closing",
+                    self.cherrypick_pr.number,
+                )
+                comment_body = (
+                    f"This cherry-pick PR has not been updated for {since_updated_str}. "
+                    f"Closing automatically. If you still want to backport #{self.pr.number}, "
+                    "please resolve the conflicts and reopen this PR."
+                )
             if dry_run:
                 logging.info(
                     "DRY RUN: would close cherry-pick PR #%s with comment:\n%s",
@@ -408,13 +419,27 @@ close it.
                 )
                 return
 
-        assignees = ", ".join(f"@{user.login}" for user in self.cherrypick_pr.assignees)
-        comment_body = (
-            f"Dear {assignees}, this cherry-pick PR has not been updated for {since_updated_str}. "
-            f"Please resolve the conflicts to backport #{self.pr.number}, "
-            "or close this PR if the backport is no longer needed. "
-            f"This PR will be automatically closed after {CLOSE_THRESHOLD // 86400} days of inactivity."
-        )
+        if self.cherrypick_pr.assignees:
+            assignees = ", ".join(
+                f"@{user.login}" for user in self.cherrypick_pr.assignees
+            )
+            comment_body = (
+                f"Dear {assignees}, this cherry-pick PR has not been updated for {since_updated_str}. "
+                f"Please resolve the conflicts to backport #{self.pr.number}, "
+                "or close this PR if the backport is no longer needed. "
+                f"This PR will be automatically closed after {CLOSE_THRESHOLD // 86400} days of inactivity."
+            )
+        else:
+            logging.warning(
+                "Cherry-pick PR #%s has no assignees when pinging",
+                self.cherrypick_pr.number,
+            )
+            comment_body = (
+                f"This cherry-pick PR has not been updated for {since_updated_str}. "
+                f"Please resolve the conflicts to backport #{self.pr.number}, "
+                "or close this PR if the backport is no longer needed. "
+                f"This PR will be automatically closed after {CLOSE_THRESHOLD // 86400} days of inactivity."
+            )
         if dry_run:
             logging.info(
                 "DRY RUN: would comment on cherry-pick PR #%s:\n%s",
@@ -783,13 +808,25 @@ class CherryPickPRs:
             # The original PR is not marked as backported, so nothing to do
             return
 
-        assignees = ", ".join(f"@{user.login}" for user in pr.assignees)
-        comment_body = (
-            f"Dear {assignees}, this PR is opened while #{original_pr.number} was "
-            f"marked as backported. The `{Labels.PR_BACKPORTS_CREATED}` is removed, so "
-            "the original PR can be processed again.\n\n"
-            "If the cherry-pick is not needed anymore, then just close this PR."
-        )
+        if pr.assignees:
+            assignees = ", ".join(f"@{user.login}" for user in pr.assignees)
+            comment_body = (
+                f"Dear {assignees}, this PR is opened while #{original_pr.number} was "
+                f"marked as backported. The `{Labels.PR_BACKPORTS_CREATED}` is removed, so "
+                "the original PR can be processed again.\n\n"
+                "If the cherry-pick is not needed anymore, then just close this PR."
+            )
+        else:
+            logging.warning(
+                "Cherry-pick PR #%s has no assignees when removing backported label",
+                pr.number,
+            )
+            comment_body = (
+                f"This PR is opened while #{original_pr.number} was "
+                f"marked as backported. The `{Labels.PR_BACKPORTS_CREATED}` is removed, so "
+                "the original PR can be processed again.\n\n"
+                "If the cherry-pick is not needed anymore, then just close this PR."
+            )
         logging.info(
             "Label %s should be removed from from #%s due opened cherry-pick PR #%s",
             Labels.PR_BACKPORTS_CREATED,
