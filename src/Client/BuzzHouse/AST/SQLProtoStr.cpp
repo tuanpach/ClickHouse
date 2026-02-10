@@ -3173,8 +3173,11 @@ CONV_FN(ColumnDef, cdf)
 CONV_FN(IndexDef, idef)
 {
     ret += "INDEX ";
-    IndexToString(ret, idef.idx());
-    ret += " ";
+    if (idef.has_idx())
+    {
+        IndexToString(ret, idef.idx());
+        ret += " ";
+    }
     ExprToString(ret, idef.expr());
     ret += " TYPE ";
     ret += IndexType_Name(idef.type()).substr(4);
@@ -3198,18 +3201,35 @@ CONV_FN(IndexDef, idef)
     }
 }
 
+CONV_FN(ProjectionSelectDef, psdef)
+{
+    ret += "(";
+    SelectToString(ret, psdef.select());
+    ret += ")";
+    if (psdef.has_setting_values())
+    {
+        ret += " WITH SETTINGS (";
+        SettingValuesToString(ret, psdef.setting_values());
+        ret += ")";
+    }
+}
+
 CONV_FN(ProjectionDef, proj_def)
 {
     ret += "PROJECTION ";
     ProjectionToString(ret, proj_def.proj());
-    ret += " (";
-    SelectToString(ret, proj_def.select());
-    ret += ")";
-    if (proj_def.has_setting_values())
+    ret += " ";
+    using ProjectionDefType = ProjectionDef::ProjectionOneofCase;
+    switch (proj_def.projection_oneof_case())
     {
-        ret += " WITH SETTINGS (";
-        SettingValuesToString(ret, proj_def.setting_values());
-        ret += ")";
+        case ProjectionDefType::kSelDef:
+            ProjectionSelectDefToString(ret, proj_def.sel_def());
+            break;
+        case ProjectionDefType::kIdxDef:
+            IndexDefToString(ret, proj_def.idx_def());
+            break;
+        default:
+            ret += "(SELECT c0 ORDER BY c0)";
     }
 }
 

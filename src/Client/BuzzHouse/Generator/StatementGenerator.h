@@ -452,7 +452,7 @@ private:
         ColumnDef * cd);
     void addTableColumn(
         RandomGenerator & rg, SQLTable & t, uint32_t cname, bool staged, bool modify, bool is_pk, ColumnSpecial special, ColumnDef * cd);
-    void addTableIndex(RandomGenerator & rg, SQLTable & t, bool staged, IndexDef * idef);
+    void addTableIndex(RandomGenerator & rg, SQLTable & t, bool staged, bool projection, IndexDef * idef);
     void addTableProjection(RandomGenerator & rg, SQLTable & t, bool staged, ProjectionDef * pdef);
     void addTableConstraint(RandomGenerator & rg, SQLTable & t, bool staged, ConstraintDef * cdef);
     void generateTableKey(RandomGenerator & rg, const SQLRelation & rel, const SQLBase & b, bool allow_asc_desc, TableKey * tkey);

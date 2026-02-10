@@ -2060,7 +2060,7 @@ std::optional<String> StatementGenerator::alterSingleTable(
         {
             AddIndex * add_index = ati->mutable_add_index();
 
-            addTableIndex(rg, t, true, add_index->mutable_new_idx());
+            addTableIndex(rg, t, true, false, add_index->mutable_new_idx());
             if (!t.idxs.empty())
             {
                 const uint32_t next_option = rg.nextSmallNumber();

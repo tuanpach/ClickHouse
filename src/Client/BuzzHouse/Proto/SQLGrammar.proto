@@ -3306,20 +3306,28 @@ enum IndexType {
     IDX_ngrambf_v1 = 6;
     IDX_tokenbf_v1 = 7;
     IDX_text = 8;
+    IDX_basic = 9;
 }
 
 message IndexDef {
-    required Index idx = 1;
+    optional Index idx = 1;
     required Expr expr = 2;
     required IndexType type = 3;
     repeated IndexParam params = 4;
     optional uint32 granularity = 5;
 }
 
+message ProjectionSelectDef {
+    required Select select = 1;
+    optional SettingValues setting_values = 2;
+}
+
 message ProjectionDef {
     required Projection proj = 1;
-    required Select select = 2;
-    optional SettingValues setting_values = 3;
+    oneof projection_oneof {
+        ProjectionSelectDef sel_def = 2;
+        IndexDef idx_def = 3;
+    }
 }
 
 message ConstraintDef {
