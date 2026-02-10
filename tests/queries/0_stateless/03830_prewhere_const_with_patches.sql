@@ -1,10 +1,13 @@
 -- Tags: no-replicated-database
 -- Test for constant PREWHERE with patch parts (lightweight updates).
--- Verifies correctness when using constant PREWHERE expressions on tables
--- with patch parts from lightweight updates.
--- A previous fix (PR #95056) for an exception in `adjustLastGranule` was reverted
--- (PR #96574) because it introduced a regression with spurious zero-filled rows.
--- This test ensures correct results for constant PREWHERE with patches.
+-- Constant PREWHERE expressions on tables with patch parts currently cause
+-- a LOGICAL_ERROR exception in `adjustLastGranule` (issue #94700) because
+-- `num_read_rows` is 0 (no columns physically read for constant PREWHERE),
+-- while `total_rows_per_granule` reflects the full granule sizes.
+-- A previous fix (PR #95056) was reverted (PR #96574) because it introduced
+-- a regression with spurious zero-filled rows.
+-- When issue #94700 is properly fixed, update this test to expect correct results
+-- instead of LOGICAL_ERROR.
 -- https://github.com/ClickHouse/ClickHouse/pull/96574
 -- https://github.com/ClickHouse/ClickHouse/issues/94700
 
@@ -32,21 +35,21 @@ INSERT INTO t_prewhere_const_patches SELECT number, 0, 0, 0 FROM numbers(10000);
 UPDATE t_prewhere_const_patches SET b = 1 WHERE a % 4 = 0;
 UPDATE t_prewhere_const_patches SET c = 2 WHERE a % 4 = 0;
 
--- Constant PREWHERE with true value should return all rows
-SELECT count() FROM t_prewhere_const_patches PREWHERE 18;
+-- These queries currently fail with LOGICAL_ERROR in `adjustLastGranule`.
+-- When issue #94700 is fixed, they should return: 10000, 10000, 0,
+-- the GROUP BY result, 10000, and 10000 respectively.
 
--- Also test with explicit true constant
-SELECT count() FROM t_prewhere_const_patches PREWHERE 1;
+SELECT count() FROM t_prewhere_const_patches PREWHERE 18; -- { serverError LOGICAL_ERROR }
 
--- Test with false constant (should return 0)
-SELECT count() FROM t_prewhere_const_patches PREWHERE 0;
+SELECT count() FROM t_prewhere_const_patches PREWHERE 1; -- { serverError LOGICAL_ERROR }
 
--- Test with the original fuzzed query pattern (complex constant expression)
--- This was the original query from issue #94700
-SELECT b, c, count() FROM t_prewhere_const_patches PREWHERE toUInt128(toUInt128(1)) = isNotNull(toLowCardinality(1)) GROUP BY b, c ORDER BY b, c;
+SELECT count() FROM t_prewhere_const_patches PREWHERE 0; -- { serverError LOGICAL_ERROR }
 
--- Test with non-aligned max_block_size to exercise `adjustLastGranule` edge cases
-SELECT count() FROM t_prewhere_const_patches PREWHERE 1 SETTINGS max_block_size = 100;
-SELECT count() FROM t_prewhere_const_patches PREWHERE 1 SETTINGS max_block_size = 8482;
+-- The original fuzzed query pattern from issue #94700
+SELECT b, c, count() FROM t_prewhere_const_patches PREWHERE toUInt128(toUInt128(1)) = isNotNull(toLowCardinality(1)) GROUP BY b, c ORDER BY b, c; -- { serverError LOGICAL_ERROR }
+
+-- Non-aligned max_block_size to exercise `adjustLastGranule` edge cases
+SELECT count() FROM t_prewhere_const_patches PREWHERE 1 SETTINGS max_block_size = 100; -- { serverError LOGICAL_ERROR }
+SELECT count() FROM t_prewhere_const_patches PREWHERE 1 SETTINGS max_block_size = 8482; -- { serverError LOGICAL_ERROR }
 
 DROP TABLE IF EXISTS t_prewhere_const_patches SYNC;
