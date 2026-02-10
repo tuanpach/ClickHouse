@@ -66,19 +66,6 @@ namespace Stage = BackupCoordinationStage;
 
 namespace
 {
-    /// Outputs "table <name>" or "temporary table <name>"
-    String tableNameWithTypeToString(const String & database_name, const String & table_name, bool first_upper)
-    {
-        String str;
-        if (database_name == DatabaseCatalog::TEMPORARY_DATABASE)
-            str = fmt::format("temporary table {}", backQuoteIfNeed(table_name));
-        else
-            str = fmt::format("table {}.{}", backQuoteIfNeed(database_name), backQuoteIfNeed(table_name));
-        if (first_upper)
-            str[0] = static_cast<char>(std::toupper(str[0]));
-        return str;
-    }
-
     /// Whether a specified name corresponds one of the tables backuping ACL.
     bool isSystemAccessTableName(const QualifiedTableName & table_name)
     {
@@ -692,8 +679,11 @@ void RestorerFromBackup::createTable(const QualifiedTableName & table_name)
             }
         }
 
-        LOG_TRACE(log, "Creating {}: {}",
-                  tableNameWithTypeToString(table_name.database, table_name.table, false), create_table_query->formatForLogging());
+        LOG_TRACE(
+            log,
+            "Creating {}: {}",
+            BackupMetadataFinder::tableNameWithTypeToString(table_name.database, table_name.table, false),
+            create_table_query->formatForLogging());
 
         if (!database)
         {

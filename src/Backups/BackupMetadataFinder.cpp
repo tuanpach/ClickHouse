@@ -32,22 +32,6 @@ extern const int CANNOT_RESTORE_TABLE;
 extern const int CANNOT_RESTORE_DATABASE;
 }
 
-namespace
-{
-/// Outputs "table <name>" or "temporary table <name>"
-String tableNameWithTypeToString(const String & database_name, const String & table_name, bool first_upper)
-{
-    String str;
-    if (database_name == DatabaseCatalog::TEMPORARY_DATABASE)
-        str = fmt::format("temporary table {}", backQuoteIfNeed(table_name));
-    else
-        str = fmt::format("table {}.{}", backQuoteIfNeed(database_name), backQuoteIfNeed(table_name));
-    if (first_upper)
-        str[0] = static_cast<char>(std::toupper(str[0]));
-    return str;
-}
-}
-
 BackupMetadataFinder::BackupMetadataFinder(
     const RestoreSettings & restore_settings_,
     const BackupPtr & backup_,
@@ -63,6 +47,18 @@ BackupMetadataFinder::BackupMetadataFinder(
     , tables_dependencies("BackupMetadataFinder")
     , thread_pool(thread_pool_)
 {
+}
+
+String BackupMetadataFinder::tableNameWithTypeToString(const String & database_name, const String & table_name, bool first_upper)
+{
+    String str;
+    if (database_name == DatabaseCatalog::TEMPORARY_DATABASE)
+        str = fmt::format("temporary table {}", backQuoteIfNeed(table_name));
+    else
+        str = fmt::format("table {}.{}", backQuoteIfNeed(database_name), backQuoteIfNeed(table_name));
+    if (first_upper)
+        str[0] = static_cast<char>(std::toupper(str[0]));
+    return str;
 }
 
 void BackupMetadataFinder::waitFutures(bool throw_if_error)

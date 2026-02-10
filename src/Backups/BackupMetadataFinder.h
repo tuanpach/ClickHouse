@@ -32,6 +32,16 @@ class BackupMetadataFinder : private boost::noncopyable
 public:
     virtual ~BackupMetadataFinder() = default;
 
+    /// Formats a table name with its type prefix for use in log messages and error messages.
+    /// @param database_name The name of the database containing the table.
+    ///                      If equals to DatabaseCatalog::TEMPORARY_DATABASE, the table is treated as temporary.
+    /// @param table_name The name of the table.
+    /// @param first_upper If true, capitalizes the first letter of the output (e.g., "Table" instead of "table").
+    /// @return A formatted string:
+    ///         - For temporary tables: "temporary table `<table_name>`" (or "Temporary table ..." if first_upper)
+    ///         - For regular tables: "table `<database>`.`<table_name>`" (or "Table ..." if first_upper)
+    static String tableNameWithTypeToString(const String & database_name, const String & table_name, bool first_upper);
+
 protected:
     BackupMetadataFinder(
         const RestoreSettings & restore_settings_,
