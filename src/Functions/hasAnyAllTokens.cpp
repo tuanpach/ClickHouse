@@ -54,16 +54,13 @@ TokensWithPosition initializeSearchTokens(const ColumnsWithTypeAndName & argumen
 
     TokensWithPosition search_tokens;
     column_needles = removeNullable(column_needles);
+    std::vector<String> tokens_array;
 
     if (const ColumnString * column_needles_string = getTypedColumn<ColumnString>(*column_needles))
     {
-        std::vector<String> tokens_array;
         auto tokens_str = column_needles_string->getDataAt(0);
         tokenizer.stringToTokens(tokens_str.data(), tokens_str.size(), tokens_array);
         tokens_array = tokenizer.compactTokens(tokens_array);
-
-        for (size_t i = 0; i < tokens_array.size(); ++i)
-            search_tokens.emplace(tokens_array[i], i);
     }
     else if (const ColumnArray * column_needles_array = getTypedColumn<ColumnArray>(*column_needles))
     {
@@ -77,13 +74,19 @@ TokensWithPosition initializeSearchTokens(const ColumnsWithTypeAndName & argumen
         const ColumnArray::Offsets & array_offsets = column_needles_array->getOffsets();
 
         for (size_t i = 0; i < array_offsets[0]; ++i)
-            search_tokens.emplace(needles_data_string.getDataAt(i), i);
+            tokens_array.emplace_back(needles_data_string.getDataAt(i));
     }
     else
     {
         throw Exception(ErrorCodes::BAD_ARGUMENTS, "Needles argument for function '{}' has unsupported type of column '{}'", function_name, column_needles->getName());
     }
 
+    size_t pos = 0;
+    for (const auto & token : tokens_array)
+    {
+        if (search_tokens.emplace(token, pos).second)
+            ++pos;
+    }
     return search_tokens;
 }
 
