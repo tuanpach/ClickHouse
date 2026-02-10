@@ -401,7 +401,16 @@ close it.
                 )
                 return
             self.cherrypick_pr.create_issue_comment(comment_body)
+            logging.info(
+                "Posted closing comment to cherry-pick PR #%s",
+                self.cherrypick_pr.number,
+            )
             self.cherrypick_pr.edit(state="closed")
+            logging.info(
+                "Closed cherry-pick PR #%s after %s of inactivity",
+                self.cherrypick_pr.number,
+                since_updated_str,
+            )
             return
 
         # Ping after 3 days
@@ -449,6 +458,11 @@ close it.
             return
 
         self.cherrypick_pr.create_issue_comment(comment_body)
+        logging.info(
+            "Posted ping comment to cherry-pick PR #%s after %s of inactivity",
+            self.cherrypick_pr.number,
+            since_updated_str,
+        )
 
     def _assign_new_pr(self, new_pr: PullRequest) -> None:
         """Assign `new_pr` to author, merger and assignees of an original PR"""
@@ -843,6 +857,12 @@ class CherryPickPRs:
 
         original_pr.remove_from_labels(Labels.PR_BACKPORTS_CREATED)
         pr.create_issue_comment(comment_body)
+        logging.info(
+            "Removed label %s from PR #%s and posted comment to cherry-pick PR #%s",
+            Labels.PR_BACKPORTS_CREATED,
+            original_pr.number,
+            pr.number,
+        )
 
 
 def parse_args():
