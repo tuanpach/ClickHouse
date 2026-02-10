@@ -2,6 +2,7 @@
 -- when joining on Tuple columns with Nullable subfields.
 
 SET allow_suspicious_low_cardinality_types = 1;
+SET enable_analyzer = 1;
 
 -- Simple reproducer
 SELECT * FROM
