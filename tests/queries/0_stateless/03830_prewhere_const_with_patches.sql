@@ -1,14 +1,9 @@
 -- Tags: no-replicated-database
 -- Test for constant PREWHERE with patch parts (lightweight updates).
--- Constant PREWHERE expressions on tables with patch parts currently cause
+-- Constant PREWHERE expressions on tables with patch parts previously caused
 -- a LOGICAL_ERROR exception in `adjustLastGranule` (issue #94700) because
 -- `num_read_rows` is 0 (no columns physically read for constant PREWHERE),
 -- while `total_rows_per_granule` reflects the full granule sizes.
--- A previous fix (PR #95056) was reverted (PR #96574) because it introduced
--- a regression with spurious zero-filled rows.
--- When issue #94700 is properly fixed, update this test to expect correct results
--- instead of LOGICAL_ERROR.
--- https://github.com/ClickHouse/ClickHouse/pull/96574
 -- https://github.com/ClickHouse/ClickHouse/issues/94700
 
 DROP TABLE IF EXISTS t_prewhere_const_patches SYNC;
@@ -35,21 +30,17 @@ INSERT INTO t_prewhere_const_patches SELECT number, 0, 0, 0 FROM numbers(10000);
 UPDATE t_prewhere_const_patches SET b = 1 WHERE a % 4 = 0;
 UPDATE t_prewhere_const_patches SET c = 2 WHERE a % 4 = 0;
 
--- These queries currently fail with LOGICAL_ERROR in `adjustLastGranule`.
--- When issue #94700 is fixed, they should return: 10000, 10000, 0,
--- the GROUP BY result, 10000, and 10000 respectively.
+SELECT count() FROM t_prewhere_const_patches PREWHERE 18;
 
-SELECT count() FROM t_prewhere_const_patches PREWHERE 18; -- { serverError LOGICAL_ERROR }
+SELECT count() FROM t_prewhere_const_patches PREWHERE 1;
 
-SELECT count() FROM t_prewhere_const_patches PREWHERE 1; -- { serverError LOGICAL_ERROR }
-
-SELECT count() FROM t_prewhere_const_patches PREWHERE 0; -- { serverError LOGICAL_ERROR }
+SELECT count() FROM t_prewhere_const_patches PREWHERE 0;
 
 -- The original fuzzed query pattern from issue #94700
-SELECT b, c, count() FROM t_prewhere_const_patches PREWHERE toUInt128(toUInt128(1)) = isNotNull(toLowCardinality(1)) GROUP BY b, c ORDER BY b, c; -- { serverError LOGICAL_ERROR }
+SELECT b, c, count() FROM t_prewhere_const_patches PREWHERE toUInt128(toUInt128(1)) = isNotNull(toLowCardinality(1)) GROUP BY b, c ORDER BY b, c;
 
 -- Non-aligned max_block_size to exercise `adjustLastGranule` edge cases
-SELECT count() FROM t_prewhere_const_patches PREWHERE 1 SETTINGS max_block_size = 100; -- { serverError LOGICAL_ERROR }
-SELECT count() FROM t_prewhere_const_patches PREWHERE 1 SETTINGS max_block_size = 8482; -- { serverError LOGICAL_ERROR }
+SELECT count() FROM t_prewhere_const_patches PREWHERE 1 SETTINGS max_block_size = 100;
+SELECT count() FROM t_prewhere_const_patches PREWHERE 1 SETTINGS max_block_size = 8482;
 
 DROP TABLE IF EXISTS t_prewhere_const_patches SYNC;
