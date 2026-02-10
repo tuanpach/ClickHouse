@@ -1188,6 +1188,10 @@ CONV_FN_QUOTE(TopTypeName, ttn)
         case TopTypeNameType::kTuple: {
             const TupleTypeDef & tt = ttn.tuple();
 
+            if (tt.is_nullable())
+            {
+                ret += "Nullable(";
+            }
             ret += "Tuple";
             if (tt.has_with_names())
             {
@@ -1200,6 +1204,10 @@ CONV_FN_QUOTE(TopTypeName, ttn)
             else
             {
                 ret += "()";
+            }
+            if (tt.is_nullable())
+            {
+                ret += ")";
             }
         }
         break;

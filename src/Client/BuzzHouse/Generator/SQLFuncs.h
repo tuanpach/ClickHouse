@@ -834,6 +834,7 @@ const std::vector<CHFunction> CHFuncs = {
     CHFunction(SQLFunc::FUNCextractAllGroups, 0, 0, 2, 2),
     CHFunction(SQLFunc::FUNCngrams, 0, 0, 2, 2),
     CHFunction(SQLFunc::FUNCtokens, 0, 0, 1, 4),
+    CHFunction(SQLFunc::FUNCreverseBySeparator, 0, 0, 1, 2),
     /// Strings
     CHFunction(SQLFunc::FUNClengthUTF8, 0, 0, 1, 1),
     CHFunction(SQLFunc::FUNCleft, 0, 0, 2, 2),
