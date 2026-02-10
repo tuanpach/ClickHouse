@@ -16,6 +16,7 @@ set(SRCS
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/cbrt.cpp"
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/ceill.cpp"
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/cos.cpp"
+    "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/floorl.cpp"
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/fma.cpp"
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/fmod.cpp"
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/frexp.cpp"
@@ -35,6 +36,7 @@ set(SRCS
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/sqrtf.cpp"
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/sqrtl.cpp"
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/tan.cpp"
+    "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/truncl.cpp"
 )
 
 set(LIBC_NAMESPACE "__llvm_libc")

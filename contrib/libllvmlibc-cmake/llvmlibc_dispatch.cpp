@@ -63,7 +63,9 @@ DISPATCH_1(float, asinf, float)
 DISPATCH_1(float, sqrtf, float)
 
 DISPATCH_1(long double, ceill, long double)
+DISPATCH_1(long double, floorl, long double)
 DISPATCH_1(long double, sqrtl, long double)
+DISPATCH_1(long double, truncl, long double)
 
 DISPATCH_1(long, lround, double)
 DISPATCH_1(long long, llround, double)
