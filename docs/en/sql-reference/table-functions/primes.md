@@ -70,7 +70,7 @@ SELECT prime FROM primes() WHERE prime > toUInt64(1e15) LIMIT 1;
   └──────────────────┘
 ```
 
-Solve a modular constraint over primes in a very large range: find the first prime `p` ≥ `10^15` such that `p` ≡ `1 (mod 65537)`.
+Solve a modular constraint over primes in a very large range: find the first prime `p >= 10^15` such that `p` modulo `65537` equals `1`.
 ```sql
 SELECT prime
 FROM primes()
