@@ -728,7 +728,7 @@ std::unordered_map<String, CHSetting> serverSettings = {
     {"distributed_index_analysis", trueOrFalseSetting},
     {"distributed_index_analysis_for_non_shared_merge_tree", trueOrFalseSetting},
     {"distributed_cache_file_cache_name",
-     CHSetting([](RandomGenerator &, FuzzConfig & fc) { return fc.getRandomFileSystemCacheValue(); }, {}, false)},
+     CHSetting([](RandomGenerator &, FuzzConfig & fc) { return "'" + fc.getRandomFileSystemCacheValue() + "'"; }, {}, false)},
     {"insert_distributed_one_random_shard", trueOrFalseSettingNoOracle},
     {"insert_null_as_default", trueOrFalseSettingNoOracle},
     {"insert_quorum",
