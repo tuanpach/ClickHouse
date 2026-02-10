@@ -76,8 +76,8 @@ ASTPtr convertASTForIndexColumn(const IndexDescription & index, const ASTPtr & e
             : index.expression_list_ast->children.front();
 
         /// Pack preprocessor expression into lambda.
-        auto lambda_args = makeASTFunction("tuple", make_intrusive<ASTIdentifier>(preprocessor_lambda_arg));
-        auto lambda_ast = makeASTFunction("lambda", lambda_args, new_expression);
+        auto lambda_arg = makeASTFunction("tuple", make_intrusive<ASTIdentifier>(preprocessor_lambda_arg));
+        auto lambda_ast = makeASTFunction("lambda", lambda_arg, new_expression);
         return makeASTFunction("arrayMap", lambda_ast, array_map_arg);
     }
 

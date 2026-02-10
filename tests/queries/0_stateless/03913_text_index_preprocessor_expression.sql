@@ -14,15 +14,18 @@ CREATE TABLE tab
     s2 String,
     s3 String,
     m Map(String, String),
-    INDEX idx_concat(concat(s1, s2)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(concat(s1, s2))),
-    INDEX idx_valid_utf8(toValidUTF8(s3)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(toValidUTF8(s3))),
-    INDEX idx_map(mapKeys(m)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(mapKeys(m)))
 )
 ENGINE = MergeTree
 ORDER BY key;
 
 INSERT INTO tab VALUES
-    (1, 'foo', ' bar', 'Hello World and more', {'Alpha': '1', 'Beta': '2'}),
+    (1, 'foo', ' bar', 'Hello World and more', {'Alpha': '1', 'Beta': '2'});
+
+ALTER TABLE tab ADD INDEX idx_concat(concat(s1, s2)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(concat(s1, s2)));
+ALTER TABLE tab ADD INDEX idx_valid_utf8(toValidUTF8(s3)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(toValidUTF8(s3)));
+ALTER TABLE tab ADD INDEX idx_map(mapKeys(m)) TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lower(mapKeys(m)));
+
+INSERT INTO tab VALUES
     (2, 'BAZ', ' QUX', 'FOO BAR and stuff', {'GAMMA': '3', 'delta': '4'}),
     (3, 'Hello', ' World', 'test data plus extra', {'Epsilon': '5'});
 

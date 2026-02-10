@@ -1,3 +1,4 @@
+#include <Functions/FunctionsMiscellaneous.h>
 #include <Functions/IFunction.h>
 #include <Interpreters/ActionsDAG.h>
 #include <Interpreters/Context.h>
@@ -193,14 +194,33 @@ ASTPtr convertNodeToAST(const ActionsDAG::Node & node)
                 return nullptr;
 
             auto function = make_intrusive<ASTFunction>();
-            function->name = node.function_base->getName();
             function->arguments = make_intrusive<ASTExpressionList>();
-            function->children.push_back(function->arguments);
 
-            for (const auto * child : node.children)
+            if (const auto * function_capture = dynamic_cast<const FunctionCapture *>(node.function_base.get()))
             {
-                if (auto arg_ast = convertNodeToAST(*child))
-                    function->arguments->children.push_back(arg_ast);
+                const auto & capture_dag = function_capture->getAcionsDAG();
+                if (capture_dag.getOutputs().size() != 1)
+                    return nullptr;
+
+                auto required_columns = capture_dag.getRequiredColumnsNames();
+                if (required_columns.size() != 1)
+                    return nullptr;
+
+                function->name = "lambda";
+                function->arguments->children.push_back(makeASTFunction("tuple", make_intrusive<ASTIdentifier>(required_columns.front())));
+                function->arguments->children.push_back(convertNodeToAST(*capture_dag.getOutputs().front()));
+            }
+            else
+            {
+                function->name = node.function_base->getName();
+                function->arguments = make_intrusive<ASTExpressionList>();
+                function->children.push_back(function->arguments);
+
+                for (const auto * child : node.children)
+                {
+                    if (auto arg_ast = convertNodeToAST(*child))
+                        function->arguments->children.push_back(arg_ast);
+                }
             }
 
             return function;
