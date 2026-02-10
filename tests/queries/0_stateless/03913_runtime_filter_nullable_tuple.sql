@@ -3,6 +3,14 @@
 
 SET allow_suspicious_low_cardinality_types = 1;
 
+-- Simple reproducer
+SELECT * FROM
+    (SELECT (toNullable(42), 43) AS c FROM numbers(1)) AS t1
+    JOIN
+    (SELECT (42, 43) AS c FROM numbers(1)) AS t2
+    USING (c);
+
+-- Original reproducer by fuzzer
 DROP TABLE IF EXISTS test_table__fuzz_2;
 DROP TABLE IF EXISTS test_table__fuzz_4;
 
