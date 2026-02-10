@@ -117,7 +117,6 @@ You should get
 Failed: 0, Passed: 8497, Skipped: 103
 ```
 
-
 ### Adding a new test {#adding-a-new-test}
 
 To add new test, first create a `.sql` or `.sh` file in `queries/0_stateless` directory.
