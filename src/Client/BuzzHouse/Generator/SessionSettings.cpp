@@ -822,6 +822,7 @@ static std::unordered_map<String, CHSetting> serverSettings2 = {
     {"materialized_views_ignore_errors", trueOrFalseSettingNoOracle},
     {"materialized_views_squash_parallel_inserts", trueOrFalseSettingNoOracle},
     {"max_download_threads", threadSetting},
+    {"max_dynamic_subcolumns_in_json_type_parsing", CHSetting(columnsRange, {"0", "1", "2", "16", "64"}, false)},
     {"max_final_threads", threadSetting},
     {"max_insert_delayed_streams_for_parallel_write",
      CHSetting([](RandomGenerator & rg, FuzzConfig &) { return std::to_string(UINT32_C(1) << (rg.nextLargeNumber() % 12)); }, {}, false)},
@@ -1388,7 +1389,7 @@ void loadFuzzerServerSettings(const FuzzConfig & fc)
             "max_insert_block_size",
             "min_compress_block_size"/*,
             "output_format_orc_compression_block_size" can give std::exception */};
-    DB::Strings max_columns_values = {"max_dynamic_subcolumns_in_json_type_parsing"};
+    DB::Strings max_columns_values;
 
     if (!fc.allow_query_oracles)
     {
