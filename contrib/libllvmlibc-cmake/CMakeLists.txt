@@ -1,5 +1,10 @@
 set(LIBLLVMLIBC_SOURCE_DIR "${ClickHouse_SOURCE_DIR}/contrib/llvm-project/libc")
 
+# Only build on supported architectures
+if (NOT (ARCH_AMD64 OR ARCH_AARCH64))
+    return()
+endif()
+
 set(SRCS
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/common_constants.cpp"
 
@@ -31,11 +36,6 @@ set(SRCS
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/sqrtl.cpp"
     "${LIBLLVMLIBC_SOURCE_DIR}/src/math/generic/tan.cpp"
 )
-
-# Only build on supported architectures
-if (NOT (ARCH_AMD64 OR ARCH_AARCH64))
-    return()
-endif()
 
 set(LIBC_NAMESPACE "__llvm_libc")
 set(LLVMLIBC_DEFS_COMMON
