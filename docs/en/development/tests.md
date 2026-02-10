@@ -107,7 +107,7 @@ python3 -m ci.praktika run "Build (amd_debug)"
 cp ci/tmp/build/programs/clickhouse ci/tmp
 ```
 
-4. Run tests.
+4. Run stateless tests which can be run in parallel.
 ```sh
 python3 -m ci.praktika run "Stateless tests (amd_debug, parallel)"
 ```
