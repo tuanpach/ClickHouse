@@ -2447,6 +2447,17 @@ try
             if (global_context->isServerCompletelyStarted())
                 CannotAllocateThreadFaultInjector::setFaultProbability(new_server_settings[ServerSetting::cannot_allocate_thread_fault_injection_probability]);
 
+            /// Update core dump size limit.
+            {
+                rlimit rlim;
+                if (getrlimit(RLIMIT_CORE, &rlim) == 0)
+                {
+                    rlim.rlim_cur = config->getUInt64("core_dump.size_limit", 1024 * 1024 * 1024);
+                    if (setrlimit(RLIMIT_CORE, &rlim))
+                        LOG_WARNING(log, "Cannot set max size of core file to {}", rlim.rlim_cur);
+                }
+            }
+
             ProfileEvents::increment(ProfileEvents::MainConfigLoads);
 
             /// Must be the last.

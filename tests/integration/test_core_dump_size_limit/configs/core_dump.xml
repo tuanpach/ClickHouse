@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<clickhouse>
+    <core_dump>
+        <size_limit>1073741824</size_limit>
+    </core_dump>
+</clickhouse>
