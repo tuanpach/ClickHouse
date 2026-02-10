@@ -138,7 +138,7 @@ Chunk MySQLWithFailoverSource::generate()
 {
     try
     {
-        if (!is_initialized)
+        if (!is_initialized.load())
         {
             onStart();
             is_initialized = true;
@@ -161,21 +161,28 @@ void MySQLWithFailoverSource::onCancel() noexcept
 {
     try
     {
-        if (mysql_connection_id == 0)
+        /// The code is executed only if onStart() was not finished because of freezing
+        if (is_initialized.load())
+        {
+            return;
+        }
+
+        uint64_t connection_id = mysql_connection_id.load();
+        if (connection_id == 0)
         {
             LOG_DEBUG(log, "No valid MySQL connection ID to cancel");
             return;
         }
 
-        LOG_DEBUG(log, "Attempting to cancel MySQL query with connection ID {}", mysql_connection_id);
+        LOG_DEBUG(log, "Attempting to cancel MySQL query with connection ID {}", connection_id);
 
-        std::string kill_query = "KILL QUERY " + std::to_string(mysql_connection_id);
+        std::string kill_query = "KILL QUERY " + std::to_string(connection_id);
 
         try
         {
             auto cancel_connection = std::make_unique<Connection>(pool->get(), kill_query);
             cancel_connection->query.execute();
-            LOG_DEBUG(log, "Successfully cancelled MySQL query with connection ID {}", mysql_connection_id);
+            LOG_DEBUG(log, "Successfully cancelled MySQL query with connection ID {}", connection_id);
         }
         catch (const mysqlxx::ConnectionFailed & e)
         {

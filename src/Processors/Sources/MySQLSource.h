@@ -82,8 +82,8 @@ private:
 
     mysqlxx::PoolWithFailoverPtr pool;
     std::string query_str;
-    bool is_initialized = false;
-    uint64_t mysql_connection_id = 0;
+    std::atomic<bool> is_initialized{false};
+    std::atomic<uint64_t> mysql_connection_id{0};
 };
 
 }
