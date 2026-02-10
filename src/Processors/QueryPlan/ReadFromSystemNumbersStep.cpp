@@ -421,6 +421,22 @@ Pipe ReadFromSystemNumbersStep::makePipe()
 
     auto add_null_source = [&] { NumbersLikeUtils::addNullSource(pipe, header); };
 
+    /// Pushdown rationale:
+    /// - Filter pushdown:
+    ///   - `numbers` is a value-domain source. For bounded sources (`numbers(limit)` / `numbers(offset, limit[, step])`),
+    ///     storage arguments define the table domain (with step and possible wrap), and extracted ranges are intersected
+    ///     with that domain to preserve semantics while reducing generation.
+    ///     Example: `SELECT number FROM numbers(10, 10) WHERE number >= 15` should read only `[15, 19]`.
+    ///   - For unbounded sources (`system.numbers(_mt)` / `numbers(_mt)()`), if no useful bounds are extracted
+    ///     and query LIMIT/OFFSET cannot be safely pushed down, we keep the fast unbounded generator.
+    ///     Otherwise we use ranged generation from extracted ranges/bounds (or from pushed query LIMIT/OFFSET).
+    ///     Example: `SELECT number FROM system.numbers WHERE number BETWEEN 100 AND 130`.
+    /// - LIMIT/OFFSET pushdown:
+    ///   - Safe only when extracted ranges are exact. With conservative bounds, pre-filter LIMIT may stop too early.
+    ///     Example: `SELECT number FROM system.numbers WHERE number % 3 = 1 AND number < 100 LIMIT 5`.
+    ///     Here `number < 100` gives only a conservative bound, so pushing LIMIT first could return too few rows
+    ///     (e.g. from `[0, 1, 2, 3, 4]` we keep only `[1, 4]` instead of `[1, 4, 7, 10, 13]`).
+    ///
     /// Storage-level LIMIT 0 (`numbers(..., 0, ...)`) is an empty table regardless of the WHERE clause.
     if (numbers_storage.limit.has_value() && (numbers_storage.limit.value() == 0))
     {

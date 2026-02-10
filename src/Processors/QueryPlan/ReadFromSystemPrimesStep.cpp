@@ -181,9 +181,29 @@ Pipe ReadFromSystemPrimesStep::makePipe()
 
     auto add_null_source = [&] { NumbersLikeUtils::addNullSource(pipe, header); };
 
+    /// Pushdown rationale:
+    /// - Filter pushdown:
+    ///   - Bounded sources (`primes(N)` / `primes(offset, length[, step])`) define a prime-index domain.
+    ///     Value-space filtering is a later step; applying it during generation would change that domain and alter results.
+    ///     Example: `SELECT prime FROM primes(100) WHERE prime > 1000`.
+    ///     Correct behavior is to generate `primes(100)` first (the first 100 primes) and then filter, which is empty.
+    ///     If we pushed `prime > 1000` into generation, we would switch to a value-domain scan and lose index-domain semantics.
+    ///   - Unbounded sources (`primes()` / `system.primes`) have no bounded prime-index domain to preserve.
+    ///     Therefore extracted value ranges/bounds can be applied during generation; if none are extractable, we scan normally.
+    ///     Example: `SELECT prime FROM primes() WHERE prime BETWEEN 100 AND 130`.
+    ///     This is equivalent to post-filtering because the source is unbounded in index space.
+    /// - LIMIT/OFFSET pushdown:
+    ///   - Safe only when generated rows already satisfy WHERE (no filter, or exact extracted ranges).
+    ///     Otherwise pre-filter LIMIT can cut off rows that would match later.
+    ///     Example: `SELECT prime FROM system.primes WHERE prime % 10 = 1 LIMIT 5`.
+    ///     If LIMIT were pushed first, we would take `[2, 3, 5, 7, 11]`, filter to `[11]`, and return too few rows.
+    ///     Correct output is `[11, 31, 41, 61, 71]`.
+    ///     With conservative ranges (e.g. `prime % 3 = 1 AND prime < 100`), bounds only restrict generation domain;
+    ///     they do not guarantee all generated rows satisfy WHERE, so LIMIT still cannot be pushed down.
+    ///
     /// This is the row-limit we pass down to the source.
     /// It starts as the storage/table-function limit (`primes(N)`), and may be additionally capped
-    /// by the query LIMIT/OFFSET when it is safe to push that down (see below).
+    /// by the query LIMIT/OFFSET when it is safe to push that down.
     std::optional<UInt64> effective_limit = primes_storage.limit;
 
     /// Storage-level LIMIT 0 (e.g. `primes(0)`) is an empty table regardless of the WHERE clause.
