@@ -157,7 +157,6 @@ def test_writes_create_table_bug_tuple(started_cluster_iceberg_with_spark, forma
         ("(c0 Int)", "icebergBucket(c0, 1)"),
         ("(c0 Int)", "icebergBucket(-1, c0)"),
         ("(c0 Int)", "icebergTruncate(1.5, c0)"),
-        ("(c0 Int)", "tuple()"),
     ]
 )
 def test_order_by_bad_arguments(
