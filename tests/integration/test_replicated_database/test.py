@@ -1864,14 +1864,18 @@ def test_block_system_database_replicas(started_cluster):
             f"ATTACH DATABASE {prefix}_db_{i}"
         )
 
-    expected = TSV([
-        [f"{prefix}_db_1", 1, 1],
-        [f"{prefix}_db_2", 1, 1],
-        [f"{prefix}_db_3", 1, 1],
-        [f"{prefix}_db_4", 0, 1],
-        [f"{prefix}_db_5", 0, 1],
-        [f"{prefix}_db_6", 0, 1],
-    ])
+    # When attaching database, if the db keeper path is remove, it does not recreate DB nodes on Keeper
+    # So max_log_ptr is zero because it is never updated.
+    expected = TSV(
+        [
+            [f"{prefix}_db_1", 1, 0],
+            [f"{prefix}_db_2", 1, 0],
+            [f"{prefix}_db_3", 1, 0],
+            [f"{prefix}_db_4", 0, 1],
+            [f"{prefix}_db_5", 0, 1],
+            [f"{prefix}_db_6", 0, 1],
+        ]
+    )
 
     assert (
         main_node.query(
