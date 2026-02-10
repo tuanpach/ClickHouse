@@ -41,6 +41,7 @@
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/ASTFunction.h>
 #include <Parsers/ASTDataType.h>
+#include <Common/FailPoint.h>
 
 namespace DB
 {
@@ -684,9 +685,10 @@ DatabaseTablesIteratorPtr DatabaseDataLake::getTablesIterator(
             pool.scheduleOrThrow(
                 [this, table_name, skip_not_loaded, context_, promise=promises.back()]() mutable
                 {
+                    StoragePtr storage = nullptr;
                     try
                     {
-                        auto storage = tryGetTableImpl(table_name, context_, false, skip_not_loaded);
+                        storage = tryGetTableImpl(table_name, context_, false, skip_not_loaded);
                     }
                     catch (...)
                     {
