@@ -98,6 +98,9 @@
     M(IcebergMetadataFilesCacheMisses, "Number of times iceberg metadata files have not been found in the iceberg metadata cache and had to be read from (remote) disk.", ValueType::Number) \
     M(IcebergMetadataFilesCacheWeightLost, "Approximate number of bytes evicted from the iceberg metadata cache.", ValueType::Number) \
     M(IcebergMetadataReadWaitTimeMicroseconds, "Total time data readers spend waiting for iceberg metadata files to be read and parsed, summed across all reader threads.", ValueType::Microseconds) \
+    M(ParquetMetadataCacheHits, "Number of times parquet metadata has been found in the cache.", ValueType::Number) \
+    M(ParquetMetadataCacheMisses, "Number of times parquet metadata has not been found in the cache and had to be read from disk.", ValueType::Number) \
+    M(ParquetMetadataCacheWeightLost, "Approximate number of bytes evicted from the parquet metadata cache.", ValueType::Number) \
     M(IcebergIteratorInitializationMicroseconds, "Total time spent on synchronous initialization of iceberg data iterators.", ValueType::Microseconds) \
     M(IcebergMetadataUpdateMicroseconds, "Total time spent on synchronous initialization of iceberg data iterators.", ValueType::Microseconds) \
     M(IcebergMetadataReturnedObjectInfos, "Total number of returned object infos from iceberg iterator.", ValueType::Number) \
@@ -872,6 +875,22 @@ The server successfully detected this situation and will download merged part fr
     M(MetadataFromKeeperBackgroundCleanupTransactions, "Number of times old transaction idempotency token was cleaned up by background task", ValueType::Number) \
     M(MetadataFromKeeperBackgroundCleanupErrors, "Number of times an error was encountered in background cleanup task", ValueType::Number) \
     \
+    M(BlobKillerThreadRuns, "Number of BlobKiller thread executes", ValueType::Number) \
+    M(BlobKillerThreadLockedBlobs, "Number of blobs returned from metadata storage", ValueType::Number) \
+    M(BlobKillerThreadRemoveTasks, "Number of remove tasks created by BlobKiller", ValueType::Number) \
+    M(BlobKillerThreadRemovedBlobs, "Number of blobs removed by BlobKiller", ValueType::Number) \
+    M(BlobKillerThreadRecordedBlobs, "Number of blobs which removal by BlobKiller was recorded in metadata storage", ValueType::Number) \
+    M(BlobKillerThreadLockBlobsErrors, "Number of blobs lock errors occurred during BlobKiller execution", ValueType::Number) \
+    M(BlobKillerThreadRemoveBlobsErrors, "Number of blobs removal errors occurred during BlobKiller execution", ValueType::Number) \
+    M(BlobKillerThreadRecordBlobsErrors, "Number of blobs recording errors occurred during BlobKiller execution", ValueType::Number) \
+    M(BlobCopierThreadRuns, "Number of BlobCopier thread executes", ValueType::Number) \
+    M(BlobCopierThreadLockedBlobs, "Number of blobs returned from metadata storage", ValueType::Number) \
+    M(BlobCopierThreadReplicatedBlobs, "Number of blobs replicated by BlobCopier", ValueType::Number) \
+    M(BlobCopierThreadRecordedBlobs, "Number of blobs which replication by BlobCopier was recorded in metadata storage", ValueType::Number) \
+    M(BlobCopierThreadLockBlobsErrors, "Number of blobs lock errors occurred during BlobCopier execution", ValueType::Number) \
+    M(BlobCopierThreadReplicateBlobsErrors, "Number of blobs replication errors occurred during BlobCopier execution", ValueType::Number) \
+    M(BlobCopierThreadRecordBlobsErrors, "Number of blobs recording errors occurred during BlobCopier execution", ValueType::Number) \
+    \
     M(SharedMergeTreeMetadataCacheHintLoadedFromCache, "Number of times metadata cache hint was found without going to Keeper", ValueType::Number) \
     \
     M(KafkaRebalanceRevocations, "Number of partition revocations (the first stage of consumer group rebalance)", ValueType::Number) \
@@ -953,7 +972,6 @@ The server successfully detected this situation and will download merged part fr
     M(ObjectStorageQueueProcessedFiles, "Number of files which were processed", ValueType::Number) \
     M(ObjectStorageQueueCleanupMaxSetSizeOrTTLMicroseconds, "Time spent to set file as failed", ValueType::Microseconds) \
     M(ObjectStorageQueuePullMicroseconds, "Time spent to read file data", ValueType::Microseconds) \
-    M(ObjectStorageQueueLockLocalFileStatusesMicroseconds, "Time spent to lock local file statuses", ValueType::Microseconds) \
     M(ObjectStorageQueueFailedToBatchSetProcessing, "Number of times batched set processing request failed", ValueType::Number) \
     M(ObjectStorageQueueTrySetProcessingRequests, "The number of times we tried to make set processing request", ValueType::Number) \
     M(ObjectStorageQueueTrySetProcessingSucceeded, "The number of times we successfully set file as processing", ValueType::Number) \
@@ -1134,7 +1152,7 @@ The server successfully detected this situation and will download merged part fr
     M(SharedMergeTreeOutdatedPartsHTTPRequest, "How many HTTP requests were send to confirm outdated parts", ValueType::Number) \
     M(SharedMergeTreeOutdatedPartsHTTPResponse, "How many HTTP responses were send to confirm outdated parts", ValueType::Number) \
     M(SharedMergeTreeCondemnedPartsKillRequest, "How many ZooKeeper requests were used to remove condemned parts", ValueType::Number) \
-    M(SharedMergeTreeCondemnedPartsLockConfict, "How many times we failed to acquite lock because of conflict", ValueType::Number) \
+    M(SharedMergeTreeCondemnedPartsLockConflict, "How many times we failed to acquite lock because of conflict", ValueType::Number) \
     M(SharedMergeTreeCondemnedPartsRemoved, "How many condemned parts were removed", ValueType::Number) \
     M(SharedMergeTreePartsKillerRuns, "How many times parts killer has been running", ValueType::Number) \
     M(SharedMergeTreePartsKillerMicroseconds, "How much time does parts killer main thread takes", ValueType::Microseconds) \
@@ -1154,6 +1172,13 @@ The server successfully detected this situation and will download merged part fr
     M(SharedMergeTreeGetPartsBatchToLoadMicroseconds, "Time of getPartsBatchToLoad in scheduleDataProcessingJob", ValueType::Number) \
     M(SharedMergeTreeTryUpdateDiskMetadataCacheForPartMicroseconds, "Time of tryUpdateDiskMetadataCacheForPart in scheduleDataProcessingJob", ValueType::Number) \
     M(SharedMergeTreeLoadChecksumAndIndexesMicroseconds, "Time of loadColumnsChecksumsIndexes only for SharedMergeTree", ValueType::Number)                                                                                                                                                                                                             \
+    \
+    M(SharedMergeTreeSnapshotPartsCleanRequest, "How many times SnapshotCleanerThread decides to clean a part", ValueType::Number) \
+    M(SharedMergeTreeSnapshotPartsCleanerParts, "How long time SnapshotCleanerThread tries to clean a part", ValueType::Number) \
+    M(SharedMergeTreeSnapshotPartsRemoved, "How many times SnapshotCleanerThread successfully clean a part", ValueType::Number) \
+    M(SharedMergeTreeSnapshotPartsCleanerRuns, "How many times SnapshotCleanerThread runs", ValueType::Number) \
+    M(SharedMergeTreeSnapshotPartsCleanerMicroseconds, "How long time SnapshotCleanerThread has run", ValueType::Number) \
+    M(SharedMergeTreeSnapshotPartsCleanerPartsMicroseconds, "How long time SnapshotCleanerThread takes to clean parts", ValueType::Number) \
     \
     M(SharedMergeTreeDataPartsFetchAttempt, "How many times we tried to fetch data parts", ValueType::Number) \
     M(SharedMergeTreeDataPartsFetchFromPeer, "How many times we fetch data parts from peer", ValueType::Number) \
