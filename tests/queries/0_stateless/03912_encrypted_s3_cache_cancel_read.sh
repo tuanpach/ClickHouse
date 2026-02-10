@@ -32,7 +32,7 @@ function thread_read_cancel {
         # Start a heavy read and let it be killed by timeout.
         $CLICKHOUSE_CLIENT --max_execution_time 0.05 --query "
             SELECT * FROM ${TABLE} WHERE NOT ignore(value) FORMAT Null
-        " 2>&1 | grep -v -e 'Received exception from server' -e '^(query: ' -e '^\s*)$' | grep -v -e UNKNOWN_TABLE -e TIMEOUT_EXCEEDED -e MEMORY_LIMIT_EXCEEDED
+        " 2>&1 | grep -v -e 'Received exception from server' -e '^(query: ' -e '^\s*)$' | grep -v -e UNKNOWN_TABLE -e TIMEOUT_EXCEEDED -e MEMORY_LIMIT_EXCEEDED -e QUERY_WAS_CANCELLED
     done
 }
 
