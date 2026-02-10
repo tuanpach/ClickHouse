@@ -263,14 +263,14 @@ Pipe ReadFromSystemPrimesStep::makePipe()
         if (effective_limit)
             NumbersLikeUtils::checkLimits(context->getSettingsRef(), static_cast<size_t>(*effective_limit));
 
-        auto intervals_opt = intersect_ranges(extracted_ranges.ranges);
-        if (!intervals_opt)
+        auto maybe_intervals = intersect_ranges(extracted_ranges.ranges);
+        if (!maybe_intervals)
         {
             add_null_source();
             return pipe;
         }
 
-        auto intervals = std::move(*intervals_opt);
+        auto intervals = std::move(*maybe_intervals);
 
         /// Fast path: offset=0/step=1 means we can use a value-range prime sieve directly.
         if (primes_storage.offset == 0 && primes_storage.step == 1)
@@ -309,14 +309,14 @@ Pipe ReadFromSystemPrimesStep::makePipe()
     /// survive the full filter.
     if (!primes_storage.limit && !NumbersLikeUtils::isUniverse(extracted_ranges.ranges))
     {
-        auto intervals_opt = intersect_ranges(extracted_ranges.ranges);
-        if (!intervals_opt)
+        auto maybe_intervals = intersect_ranges(extracted_ranges.ranges);
+        if (!maybe_intervals)
         {
             add_null_source();
             return pipe;
         }
 
-        auto intervals = std::move(*intervals_opt);
+        auto intervals = std::move(*maybe_intervals);
 
         if (primes_storage.offset == 0 && primes_storage.step == 1)
         {

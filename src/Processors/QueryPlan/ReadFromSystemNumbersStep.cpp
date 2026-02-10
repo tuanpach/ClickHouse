@@ -493,13 +493,13 @@ Pipe ReadFromSystemNumbersStep::makePipe()
         /// that matches the sequence `x ≡ domain_remainder (mod step)`.
         for (const auto & r : extracted_ranges.ranges)
         {
-            auto intersected_range = domain_range.intersectWith(r);
-            if (!intersected_range)
+            auto maybe_intersected_range = domain_range.intersectWith(r);
+            if (!maybe_intersected_range)
                 continue;
 
-            auto range_with_step = steppedRangeFromRange(*intersected_range, step, domain_remainder);
-            if (range_with_step)
-                intersected_ranges.push_back(*range_with_step);
+            auto maybe_range_with_step = steppedRangeFromRange(*maybe_intersected_range, step, domain_remainder);
+            if (maybe_range_with_step)
+                intersected_ranges.push_back(*maybe_range_with_step);
         }
     };
 
