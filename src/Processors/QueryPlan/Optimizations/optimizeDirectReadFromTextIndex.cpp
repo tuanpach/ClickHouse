@@ -175,6 +175,9 @@ void collectTextIndexReadInfos(const ReadFromMergeTree * read_from_merge_tree_st
     }
 }
 
+/// Converts an ActionsDAG node to an AST node.
+/// It is not correct in the general case, but is
+/// sufficient for expressions that can be used with a text index.
 ASTPtr convertNodeToAST(const ActionsDAG::Node & node)
 {
     switch (node.type)
@@ -196,6 +199,7 @@ ASTPtr convertNodeToAST(const ActionsDAG::Node & node)
             auto function = make_intrusive<ASTFunction>();
             function->arguments = make_intrusive<ASTExpressionList>();
 
+            /// Unwrap arguments of lambda function.
             if (const auto * function_capture = dynamic_cast<const FunctionCapture *>(node.function_base.get()))
             {
                 const auto & capture_dag = function_capture->getAcionsDAG();
@@ -213,7 +217,6 @@ ASTPtr convertNodeToAST(const ActionsDAG::Node & node)
             else
             {
                 function->name = node.function_base->getName();
-                function->arguments = make_intrusive<ASTExpressionList>();
                 function->children.push_back(function->arguments);
 
                 for (const auto * child : node.children)
@@ -246,9 +249,13 @@ ASTPtr convertNodeToAST(const ActionsDAG::Node & node)
 /// then this class replaces some nodes in the ActionsDAG (and references to them) to generate an equivalent query:
 ///     SELECT count() FROM table where __text_index_text_col_idx_hasToken_0
 ///
-/// This class is a (C++) friend of ActionsDAG and can therefore access its private members.
-/// Some of the functions implemented here could be added to ActionsDAG directly, but this wrapper approach
-/// simplifies the work by avoiding conflicts and minimizing coupling between this optimization and ActionsDAG.
+/// Also this class processes text index functions (hasToken, hasAllTokens, hasAnyTokens):
+/// applies tokenizer and preprocessors (lower, upper, etc.) for the haystack and needles arguments.
+/// It allows their stadalone executions without the direct read from text index.
+/// It is required to return the the same results as with the direct read.
+///
+/// For example, for the index `idx_s (s) type = text(tokenizer = 'splitByNonAlpha', preprocessor = lower(s))`
+/// the function `hasAllTokens(s, 'some needles')` will be replaced by `hasAllTokens(lower(s), ['some', 'needles'], 'splitByNonAlpha')`.
 class TextIndexDAGReplacer
 {
 public:
@@ -268,12 +275,16 @@ public:
 
     /// Replaces text-search functions by virtual columns.
     /// Example: hasToken(text_col, 'token') -> __text_index_text_col_idx_hasToken_0.
+    ///
+    /// Applies preprocessor and tokenizer for text-search functions.
+    /// Example: hasAllTokens(text_col, 'token1 token2') -> hasToken(lower(text_col), ['token1', 'token2'], 'splitByNonAlpha').
     ResultReplacement replace(const ContextPtr & context, const String & filter_column_name)
     {
         ResultReplacement result;
         NodesReplacementMap replacements;
         Names original_inputs = actions_dag.getRequiredColumnsNames();
         const auto * filter_node = &actions_dag.findInOutputs(filter_column_name);
+
         /// Cache for added input nodes for each virtual column.
         std::unordered_map<String, const ActionsDAG::Node *> virtual_column_to_node;
         /// Copy pointers to nodes to avoid the modification of nodes in the dag while iterating over them.
@@ -356,7 +367,7 @@ private:
             auto & text_index_condition = typeid_cast<MergeTreeIndexConditionText &>(*info.index->condition);
             const auto & index_header = text_index_condition.getHeader();
 
-            /// Do not optimize if there are multiple text indexes set for the same expression.
+            /// Take the first text index if there are multiple text indexes set for the same expression.
             /// It is ambiguous which index to use. However, we allow to use several indexes for different expressions.
             /// for example, we can use indexes both for mapKeys(m) and mapValues(m) in one function m['key'] = 'value'.
             if (index_header.columns() != 1 || used_index_columns.contains(index_header.begin()->name))
@@ -377,7 +388,6 @@ private:
         return selected_conditions;
     }
 
-    /// Attempts to add a new node with the replacement virtual column.
     NodeReplacement processFunctionNode(
         const ActionsDAG::Node & function_node,
         std::unordered_map<String, const ActionsDAG::Node *> & virtual_column_to_node,
@@ -396,6 +406,7 @@ private:
         auto function_name = function_node.function_base->getName();
         bool need_preprocess_function = needApplyTokenizer(function_name) || needApplyPreprocessor(function_name);
 
+        /// Early exit if there is nothig to process.
         if (!need_preprocess_function && !direct_read_from_text_index)
             return replacement;
 
@@ -418,6 +429,7 @@ private:
         return replacement;
     }
 
+    /// Applies preprocessor and tokenizer for text-search functions.
     void preprocessTextIndexFunction(
         NodeReplacement & replacement,
         const std::vector<SelectedCondition> & selected_conditions,
@@ -444,14 +456,16 @@ private:
         const auto & condition_text = typeid_cast<MergeTreeIndexConditionText &>(*condition.info->index->condition);
         auto preprocessor = condition_text.getPreprocessor();
         const auto * tokenizer = condition_text.getTokenExtractor();
+        auto function_name = replacement.node->function_base->getName();
 
-        if (needApplyPreprocessor(replacement.node->function_base->getName()) && preprocessor && preprocessor->hasActions())
+        if (needApplyPreprocessor(function_name) && preprocessor && preprocessor->hasActions())
         {
             const auto & preprocessor_dag = preprocessor->getOriginalActionsDAG();
             chassert(preprocessor_dag.getOutputs().size() == 1);
             const auto & preprocessor_output = preprocessor_dag.getOutputs().front();
             auto haystack_name = getNameWithoutAliases(arg_haystack);
 
+            /// Check that preprocessor contains current expression as its argument.
             if (hasSubexpression(preprocessor_output, haystack_name))
             {
                 ActionsDAG::NodeRawConstPtrs merged_outputs;
@@ -460,6 +474,7 @@ private:
                 chassert(merged_outputs.size() == 1);
                 new_children[0] = merged_outputs.front();
 
+                /// Needles in array are not processed and passed as is.
                 if (needles_field.getType() == Field::Types::String)
                 {
                     needles_field = preprocessor->processConstant(needles_field.safeGet<String>());
@@ -472,12 +487,14 @@ private:
         {
             auto tokenizer_description = tokenizer->getDescription();
 
+            /// Add argument with tokenizer definition.
             ColumnWithTypeAndName arg;
             arg.type = std::make_shared<DataTypeString>();
             arg.column = arg.type->createColumnConst(1, Field(tokenizer_description));
             arg.name = quoteString(tokenizer_description);
             new_children.push_back(&actions_dag.addColumn(std::move(arg)));
 
+            /// Convert needles to array if they are a string by applying a tokenizer.
             if (needles_field.getType() == Field::Types::String)
             {
                 std::vector<String> needles_array;
@@ -489,13 +506,15 @@ private:
             }
         }
 
+        /// Recreate an argument with needles.
         ColumnWithTypeAndName arg;
         arg.type = needles_type;
         arg.column = needles_type->createColumnConst(1, needles_field);
         arg.name = applyVisitor(FieldVisitorToString(), needles_field);
         new_children[1] = &actions_dag.addColumn(std::move(arg));
 
-        auto new_function_base = FunctionFactory::instance().get(function_node.function_base->getName(), context);
+        /// Recreate a function object because we have modified the arguments.
+        auto new_function_base = FunctionFactory::instance().get(function_name, context);
         const auto * new_function_node = &actions_dag.addFunction(new_function_base, new_children, "");
 
         if (!new_function_node->result_type->equals(*function_node.result_type))
@@ -504,6 +523,7 @@ private:
         replacement.node = &actions_dag.addAlias(*new_function_node, function_node.result_name);
     }
 
+    /// Optimizes text-search functions by replacing them with virtual columns.
     void replaceFunctionsToVirtualColumns(
         NodeReplacement & replacement,
         const std::vector<SelectedCondition> & selected_conditions,
@@ -520,6 +540,7 @@ private:
             has_exact_search |= condition.search_query->direct_read_mode == TextIndexDirectReadMode::Exact;
         }
 
+        /// It doesn't make sense to optimize if index is not materialized in any data part.
         if (!has_materialized_index)
             return;
 
@@ -529,6 +550,8 @@ private:
 
             if (inserted)
             {
+                /// Create a default expression for the virtual column.
+                /// It will be executed by merge tree reader when index is not materialized in the data part.
                 ASTPtr default_expression;
 
                 if (condition.search_query->direct_read_mode == TextIndexDirectReadMode::Exact)
@@ -605,7 +628,6 @@ static const ActionsDAG::Node * processAndOptimizeTextIndexDAG(
     return result.filter_node;
 }
 
-/// Replaces text-search functions in the PREWHERE clause with virtual columns for direct index reads.
 static bool processAndOptimizeTextIndexFunctionsInPrewhere(
     ReadFromMergeTree & read_from_merge_tree_step,
     const PrewhereInfoPtr & prewhere_info,
@@ -622,7 +644,6 @@ static bool processAndOptimizeTextIndexFunctionsInPrewhere(
         return false;
     }
 
-    /// Finally, assign the corrected PrewhereInfo back to the plan node.
     cloned_prewhere_info.prewhere_column_name = result_filter_node->result_name;
     auto modified_prewhere_info = std::make_shared<PrewhereInfo>(std::move(cloned_prewhere_info));
     read_from_merge_tree_step.updatePrewhereInfo(modified_prewhere_info);
@@ -636,6 +657,8 @@ static bool processAndOptimizeTextIndexFunctionsInPrewhere(
 ///
 /// When `direct_read_from_text_index` is true, also replaces text-search functions
 /// with virtual columns for direct index reads (both WHERE and PREWHERE clauses).
+///
+/// See TextIndexDAGReplacer class for more details.
 void processAndOptimizeTextIndexFunctions(const Stack & stack, QueryPlan::Nodes & /*nodes*/, bool direct_read_from_text_index)
 {
     const auto & frame = stack.back();

@@ -19,12 +19,11 @@ public:
     /// The transformation is only applied in the range [start_row, start_row + n_rows)
     /// If the expression is empty this functions is just a no-op.
     /// Returns a pair with the result column and the starting position where results were written.
-    /// If the expression is empty this just returns the input column and start_row.
     std::pair<ColumnPtr, size_t> processColumn(const ColumnWithTypeAndName & column, size_t start_row, size_t n_rows) const;
 
-    /// Applies the internal expression to an input string.
-    /// Kind of equivalent to 'SELECT expression(const_string)'.
+    /// Applies the preprocessor expression to a constant string.
     String processConstant(const String & input) const;
+
     bool hasActions() const { return !original_actions.getActions().empty(); }
     const ActionsDAG & getOriginalActionsDAG() const { return original_actions.getActionsDAG(); }
 
