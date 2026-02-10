@@ -190,7 +190,12 @@ bool ReadBufferFromEncryptedFile::nextImpl()
     /// so after deciphering the numbers of bytes will be still `count`.
     chassert(count <= internal_buffer.size());
     chassert(internal_buffer.begin() != nullptr);
-    working_buffer.resize(count);
+
+    /// Reset working_buffer to start at internal_buffer.begin() before resizing.
+    /// This is needed because ReadBuffer::next can set working_buffer = Buffer(pos, pos) on EOF,
+    /// moving working_buffer.begin() past internal_buffer.begin(). If the buffer is then revived
+    /// (e.g. after setReadUntilPosition extends the range), working_buffer.begin() would be wrong.
+    working_buffer = Buffer(internal_buffer.begin(), internal_buffer.begin() + count);
 
     chassert(working_buffer.begin() != nullptr);
     chassert(working_buffer.size() == count);
