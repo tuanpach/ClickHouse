@@ -427,7 +427,7 @@ private:
 
         if (needApplyPreprocessor(replacement.node->function_base->getName()) && preprocessor && preprocessor->hasActions())
         {
-            const auto & preprocessor_dag = preprocessor->getHaystackActionsDAG();
+            const auto & preprocessor_dag = preprocessor->getOriginalActionsDAG();
             chassert(preprocessor_dag.getOutputs().size() == 1);
             const auto & preprocessor_output = preprocessor_dag.getOutputs().front();
             auto haystack_name = getNameWithoutAliases(arg_haystack);

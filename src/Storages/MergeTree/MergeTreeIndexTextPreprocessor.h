@@ -25,19 +25,21 @@ public:
     /// Applies the internal expression to an input string.
     /// Kind of equivalent to 'SELECT expression(const_string)'.
     String processConstant(const String & input) const;
-    bool hasActions() const { return !haystack_actions.getActions().empty(); }
-
-    const ActionsDAG & getHaystackActionsDAG() const { return haystack_actions.getActionsDAG(); }
-    const ActionsDAG & getNeedlesActionsDAG() const { return needles_actions.getActionsDAG(); }
+    bool hasActions() const { return !original_actions.getActions().empty(); }
+    const ActionsDAG & getOriginalActionsDAG() const { return original_actions.getActionsDAG(); }
 
 private:
-    /// Preprocessor is applied to the source column (haystack) and to constant string (needles).
-    /// Column name and type, and expression actions for haystack and needles may differ.
-    NameAndTypePair haystack_column;
-    ExpressionActions haystack_actions;
-
-    NameAndTypePair needles_column;
-    ExpressionActions needles_actions;
+    /// The name of the column on which the index is defined.
+    String index_column_name;
+    /// The type of the column on which the index is defined.
+    DataTypePtr index_column_type;
+    /// The original expression actions that executes the preprocessor expression
+    /// and the index expression from the required index column.
+    ExpressionActions original_actions;
+    /// The expression actions that executes the preprocessor expression on top the ready index column.
+    ExpressionActions actions_for_index_column;
+    /// The expression actions that executes the preprocessor expression on top the constant string with needles.
+    ExpressionActions actions_for_constant;
 };
 
 }

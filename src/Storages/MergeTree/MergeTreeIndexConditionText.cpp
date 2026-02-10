@@ -486,9 +486,10 @@ bool MergeTreeIndexConditionText::traverseFunctionNode(
     const String function_name = function_node.getFunctionName();
     auto direct_read_mode = getDirectReadMode(function_name);
 
-    bool has_index_column = header.has(index_column_node.getColumnName());
-    bool has_map_keys_column = header.has(fmt::format("mapKeys({})", index_column_node.getColumnName()));
-    bool has_map_values_column = header.has(fmt::format("mapValues({})", index_column_node.getColumnName()));
+    auto index_column_name = index_column_node.getColumnName();
+    bool has_index_column = header.has(index_column_name);
+    bool has_map_keys_column = header.has(fmt::format("mapKeys({})", index_column_name));
+    bool has_map_values_column = header.has(fmt::format("mapValues({})", index_column_name));
 
     if (traverseMapElementValueNode(index_column_node, value_field))
     {
