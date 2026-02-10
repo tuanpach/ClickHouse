@@ -460,7 +460,7 @@ size_t HashJoin::getTotalRowCount() const
     if (data->type == Type::CROSS)
     {
         for (const auto & columns : data->columns)
-            res += columns.columns_info.columns.at(0)->size();
+            res += columns.selector.size();
     }
     else
     {
@@ -976,9 +976,8 @@ IJoinResult::JoinResultBlock CrossJoinResult::next()
         if (enough_data())
             break;
 
-        auto process_right_block = [&](const ColumnsInfo & columns_info)
+        auto process_right_block = [&](const ColumnsInfo & columns_info, size_t rows_right)
         {
-            size_t rows_right = columns_info.columns.at(0)->size();
             rows_added += rows_right;
 
             for (size_t col_num = 0; col_num < num_existing_columns; ++col_num)
@@ -1019,17 +1018,18 @@ IJoinResult::JoinResultBlock CrossJoinResult::next()
             /// The following statement cannot be substituted with `process_right_block(!have_compressed ? block_right : block_right.decompress())`
             /// because it will lead to copying of `block_right` even if its branch is taken (because common type of `block_right` and `block_right.decompress()` is `Block`).
             if (!join.have_compressed)
-                process_right_block(scattered_columns.columns_info);
+                process_right_block(scattered_columns.columns_info, scattered_columns.selector.size());
             else
             {
-                chassert(scattered_columns.selector.size() == scattered_columns.columns_info.columns.at(0)->size()); /// Compression only happens for cross join and scattering only for concurrent hash
+                chassert(scattered_columns.columns_info.columns.empty()
+                    || scattered_columns.selector.size() == scattered_columns.columns_info.columns.at(0)->size()); /// Compression only happens for cross join and scattering only for concurrent hash
 
                 Columns new_columns;
                 new_columns.reserve(scattered_columns.columns_info.columns.size());
                 for (const auto & column : scattered_columns.columns_info.columns)
                     new_columns.emplace_back(column->decompress());
 
-                process_right_block(ColumnsInfo(std::move(new_columns)));
+                process_right_block(ColumnsInfo(std::move(new_columns)), scattered_columns.selector.size());
             }
         }
 
@@ -1053,7 +1053,7 @@ IJoinResult::JoinResultBlock CrossJoinResult::next()
                     break;
                 }
 
-                process_right_block(ColumnsInfo(block_right.getColumns()));
+                process_right_block(ColumnsInfo(block_right.getColumns()), block_right.rows());
             }
         }
 
