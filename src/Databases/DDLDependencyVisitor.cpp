@@ -154,13 +154,18 @@ namespace
                         auto select_copy = create.select->clone();
                         ApplyWithSubqueryVisitor(global_context).visit(select_copy);
 
-                        /// Use the database where the materialized view is created to resolve nested views
+                        /// Use the database where the materialized view is created to resolve nested views.
+                        /// The database name can be empty when the AST has been mutated by SharedDatabaseCatalog::serializeCreateQuery
+                        /// (which strips the database before serialization). In that case, keep the global context's current database.
                         ContextMutablePtr mv_db_context = Context::createCopy(global_context);
-                        /// During bootstrap/restore scenarios, the database may not exist yet, so we provide a way to skip this validation
-                        if (validate_current_database)
-                            mv_db_context->setCurrentDatabase(table_name.database);
-                        else
-                            mv_db_context->setCurrentDatabaseUnchecked(table_name.database);
+                        if (!table_name.database.empty())
+                        {
+                            /// During bootstrap/restore scenarios, the database may not exist yet, so we provide a way to skip this validation
+                            if (validate_current_database)
+                                mv_db_context->setCurrentDatabase(table_name.database);
+                            else
+                                mv_db_context->setCurrentDatabaseUnchecked(table_name.database);
+                        }
                         auto select_query = SelectQueryDescription::getSelectQueryFromASTForMatView(select_copy, create.refresh_strategy != nullptr /*refresheable*/, mv_db_context);
                         if (!select_query.select_table_id.empty())
                         {
