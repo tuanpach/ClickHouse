@@ -5116,6 +5116,10 @@ CONV_FN(SystemCommand, cmd)
             ret += "DROP TEXT INDEX CACHES";
             can_set_cluster = true;
             break;
+        case CmdType::kResetDdlWorker:
+            ret += "RESET DDL WORKER";
+            can_set_cluster = true;
+            break;
         default:
             ret += "FLUSH LOGS";
     }
