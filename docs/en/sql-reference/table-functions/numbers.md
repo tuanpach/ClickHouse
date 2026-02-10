@@ -15,7 +15,7 @@ doc_type: 'reference'
 
 - `numbers(N, M)` – Returns a table with a single `number` column (UInt64) that contains `M` integers from `N` to `N + M - 1`.
 
-- `numbers(N, M, S)` – Returns a table with a single `number` column (UInt64) that contains `M` integers from `N` to `N + M - 1` with step `S`. `S` must be ≥ 1.
+- `numbers(N, M, S)` – Returns a table with a single `number` column (UInt64) that contains values in `[N, N + M)` with step `S` (about `M / S` rows, rounded up). `S` must be ≥ 1.
 
 This is similar to the [`system.numbers`](/operations/system-tables/numbers) system table. It can be used for testing and generating successive values.
 
