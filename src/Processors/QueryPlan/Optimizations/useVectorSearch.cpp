@@ -196,27 +196,25 @@ size_t tryUseVectorSearch(QueryPlan::Node * parent_node, QueryPlan::Nodes & /*no
     if (search_column.empty() || reference_vector.empty())
         return no_layers_updated;
 
-    /// Check if the table has vector similarity index built on top of search column
+    /// Check if a vector similarity index exists on top of the search column.
+    /// Multi-column indexes cannot be used
     const auto & indexes = read_from_mergetree_step->getStorageMetadata()->getSecondaryIndices();
-
-    bool has_required_vector_similarity_index = false;
+    bool has_vector_similarity_index = false;
     for (const auto & index : indexes)
     {
         if (index.type != "vector_similarity")
             continue;
 
-        if (index.expression)
+        chassert(index.expression);
+        auto required_columns = index.expression->getRequiredColumns();
+        if (required_columns.size() == 1 && required_columns[0] == search_column)
         {
-            const auto required_columns = index.expression->getRequiredColumns();
-            if (required_columns.size() == 1 && required_columns[0] == search_column)
-            {
-                has_required_vector_similarity_index = true;
-                break;
-            }
+            has_vector_similarity_index = true;
+            break;
         }
     }
 
-    if (!has_required_vector_similarity_index)
+    if (!has_vector_similarity_index)
         return no_layers_updated;
 
     /// All set for 2nd pass

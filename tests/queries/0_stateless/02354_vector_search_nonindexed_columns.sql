@@ -29,7 +29,7 @@ FROM numbers(100);
 
 -- Test vector search on indexed column (vec1) with different filter strategies
 --
--- Expect to use index search for auto and postfilter strategies, and PREWHERE
+-- Expect to use index lookups for auto and postfilter strategies, and PREWHERE
 -- filter + brute force distance calculation for the prefilter strategy
 
 SELECT '-- Search with index, strategy = auto';
@@ -78,8 +78,7 @@ SELECT '-----';
 
 -- Test vector search on nonindexed column (vec2) with different filter strategies
 --
--- PREWHERE key filters with further brute force distance calculation is expected
--- regardless of filter strategy
+-- Regardless of filter strategy, prewhere (brute force) distance calculation is expected
 
 SELECT '-- Search without index, strategy = auto';
 SELECT replaceRegexpAll(trimLeft(explain), '__set_Int32_\\d+_\\d+', '__set_Int32_XXX')
