@@ -867,8 +867,6 @@ bool ParserCreateTableQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expe
         return ParserKeyword{Keyword::AS}.ignore(pos, expected);
     };
 
-    ASTPtr comment;
-
     /// List of columns.
     if (s_lparen.ignore(pos, expected))
     {
@@ -884,8 +882,6 @@ bool ParserCreateTableQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expe
             return false;
 
         auto storage_parse_result = parse_storage();
-
-        comment = parseComment(pos, expected);
 
         if ((storage_parse_result || is_temporary) && need_parse_as_select())
         {
@@ -908,9 +904,6 @@ bool ParserCreateTableQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expe
     else
     {
         parse_storage();
-
-        if (!comment)
-            comment = parseComment(pos, expected);
 
         /// CREATE|ATTACH TABLE ... AS ...
         if (need_parse_as_select())
@@ -939,8 +932,7 @@ bool ParserCreateTableQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expe
         }
     }
 
-    if (!comment)
-        comment = parseComment(pos, expected);
+    auto comment = parseComment(pos, expected);
 
     auto query = make_intrusive<ASTCreateQuery>();
     node = query;
@@ -1172,8 +1164,6 @@ bool ParserCreateWindowViewQuery::parseImpl(Pos & pos, ASTPtr & node, Expected &
     else if (s_empty.ignore(pos, expected))
         is_create_empty = true;
 
-    auto comment = parseComment(pos, expected);
-
     /// AS SELECT ...
     if (!s_as.ignore(pos, expected))
         return false;
@@ -1181,8 +1171,7 @@ bool ParserCreateWindowViewQuery::parseImpl(Pos & pos, ASTPtr & node, Expected &
     if (!select_p.parse(pos, select, expected))
         return false;
 
-    if (!comment)
-        comment = parseComment(pos, expected);
+    auto comment = parseComment(pos, expected);
 
     auto query = make_intrusive<ASTCreateQuery>();
     node = query;
@@ -1621,8 +1610,6 @@ bool ParserCreateViewQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expec
     if (!sql_security)
         sql_security_p.parse(pos, sql_security, expected);
 
-    auto comment = parseComment(pos, expected);
-
     /// AS SELECT ...
     if (!s_as.ignore(pos, expected))
         return false;
@@ -1630,8 +1617,7 @@ bool ParserCreateViewQuery::parseImpl(Pos & pos, ASTPtr & node, Expected & expec
     if (!select_p.parse(pos, select, expected))
         return false;
 
-    if (!comment)
-        comment = parseComment(pos, expected);
+    auto comment = parseComment(pos, expected);
 
     auto query = make_intrusive<ASTCreateQuery>();
     node = query;
