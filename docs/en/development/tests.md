@@ -101,7 +101,7 @@ git clone --single-branch https://github.com/ClickHouse/ClickHouse
 cd ClickHouse
 ```
 
-3. Build code.
+3. Build the code.
 ```sh
 python3 -m ci.praktika run "Build (amd_debug)"
 cp ci/tmp/build/programs/clickhouse ci/tmp
