@@ -609,12 +609,7 @@ profiles:
 set -e
 set -o pipefail
 
-# TSAN builds are significantly slower, use a higher timeout for data loading
-if [[ -n "$TSAN_OPTIONS" ]]; then
-    MAX_EXECUTION_TIME=1800
-else
-    MAX_EXECUTION_TIME=600
-fi
+MAX_EXECUTION_TIME=1800
 
 clickhouse-client --query "SHOW DATABASES"
 clickhouse-client --query "CREATE DATABASE datasets"
