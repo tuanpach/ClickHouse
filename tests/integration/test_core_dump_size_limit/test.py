@@ -39,3 +39,11 @@ def test_core_dump_size_limit_hot_reload(start_cluster):
     node.query("SYSTEM RELOAD CONFIG")
 
     assert get_core_dump_limit() == 536870912
+
+    # Restore original config so the test is repeatable
+    node.replace_in_config(
+        "/etc/clickhouse-server/config.d/core_dump.xml",
+        "<size_limit>536870912</size_limit>",
+        "<size_limit>1073741824</size_limit>",
+    )
+    node.query("SYSTEM RELOAD CONFIG")
