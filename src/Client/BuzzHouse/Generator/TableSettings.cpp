@@ -95,6 +95,7 @@ static std::unordered_map<String, CHSetting> mergeTreeTableSettings = {
     {"check_sample_column_is_correct", trueOrFalseSetting},
     {"cleanup_thread_preferred_points_per_iteration", rowsRangeSetting},
     {"cleanup_threads", threadSetting},
+    {"clone_replica_zookeeper_create_get_part_batch_size", highRangeSetting},
     {"columns_and_secondary_indices_sizes_lazy_calculation", trueOrFalseSetting},
     {"compact_parts_max_bytes_to_buffer", bytesRangeSetting},
     {"compact_parts_max_granules_to_buffer", highRangeSetting},
@@ -128,6 +129,16 @@ static std::unordered_map<String, CHSetting> mergeTreeTableSettings = {
     {"disable_detach_partition_for_zero_copy_replication", trueOrFalseSetting},
     {"disable_fetch_partition_for_zero_copy_replication", trueOrFalseSetting},
     {"disable_freeze_partition_for_zero_copy_replication", trueOrFalseSetting},
+    {"distributed_index_analysis_min_parts_to_activate",
+     CHSetting(
+         [](RandomGenerator & rg, FuzzConfig &) { return std::to_string(rg.thresholdGenerator<uint64_t>(0.2, 0.2, 0, 128)); },
+         {"0", "1"},
+         false)},
+    {"distributed_index_analysis_min_indexes_size_to_activate",
+     CHSetting(
+         [](RandomGenerator & rg, FuzzConfig &) { return std::to_string(rg.thresholdGenerator<uint64_t>(0.2, 0.2, 0, 128)); },
+         {"0", "1"},
+         false)},
     {"dynamic_serialization_version",
      CHSetting(
          [](RandomGenerator & rg, FuzzConfig &)
@@ -146,6 +157,7 @@ static std::unordered_map<String, CHSetting> mergeTreeTableSettings = {
     {"enable_the_endpoint_id_with_zookeeper_name_prefix", trueOrFalseSetting},
     {"enable_vertical_merge_algorithm", trueOrFalseSetting},
     {"enforce_index_structure_match_on_partition_manipulation", trueOrFalseSetting},
+    {"escape_index_filenames", trueOrFalseSetting},
     {"exclude_deleted_rows_for_part_size_in_merge", trueOrFalseSetting},
     {"exclude_materialize_skip_indexes_on_merge",
      CHSetting(
@@ -232,6 +244,11 @@ static std::unordered_map<String, CHSetting> mergeTreeTableSettings = {
     {"merge_max_block_size", highRangeSetting},
     {"merge_max_block_size_bytes", bytesRangeSetting},
     {"merge_max_bytes_to_prewarm_cache", bytesRangeSetting},
+    {"merge_max_dynamic_subcolumns_in_compact_part",
+     CHSetting(
+         [](RandomGenerator & rg, FuzzConfig &) { return std::to_string(rg.thresholdGenerator<uint64_t>(0.2, 0.2, 0, 100)); },
+         {"0", "1", "2", "8", "10", "100"},
+         false)},
     {"merge_max_dynamic_subcolumns_in_wide_part",
      CHSetting(
          [](RandomGenerator & rg, FuzzConfig &) { return std::to_string(rg.thresholdGenerator<uint64_t>(0.2, 0.2, 0, 100)); },
