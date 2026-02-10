@@ -186,6 +186,7 @@ StatementGenerator::StatementGenerator(
               {0.01, 0.05}, /// LambdaExpr
               {0.01, 0.05}, /// ProjectionExpr
               {0.01, 0.05}, /// DictExpr
+              {0.01, 0.05}, /// JoinExpr
               {0.01, 0.02} /// StarExpr
           }}))
     , predGen(ProbabilityGenerator(

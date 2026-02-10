@@ -201,7 +201,8 @@ const std::vector<CHAggregate> CHAggrs = {
     CHAggregate(SQLFunc::FUNCgroupArraySample, 1, 2, 1, 1, false)};
 
 const std::vector<CHFunction> CommonCHFuncs
-    = {CHFunction(SQLFunc::FUNCmaterialize, 0, 0, 1, 1),
+    = {CHFunction(SQLFunc::FUNCarrayJoin, 0, 0, 1, 1),
+       CHFunction(SQLFunc::FUNCmaterialize, 0, 0, 1, 1),
        CHFunction(SQLFunc::FUNCtoNullable, 0, 0, 1, 1),
        CHFunction(SQLFunc::FUNCtoLowCardinality, 0, 0, 1, 1)};
 
@@ -285,7 +286,6 @@ const std::vector<CHFunction> CHFuncs = {
     CHFunction(SQLFunc::FUNCarrayPartialReverseSort, 0, 1, 2, ulimited_params),
     CHFunction(SQLFunc::FUNCarrayReverseSort, 0, 0, 1, 1),
     CHFunction(SQLFunc::FUNCarrayUniq, 0, 0, 1, ulimited_params),
-    CHFunction(SQLFunc::FUNCarrayJoin, 0, 0, 1, 1),
     CHFunction(SQLFunc::FUNCarrayDifference, 0, 0, 1, 1),
     CHFunction(SQLFunc::FUNCarrayDistinct, 0, 0, 1, 1),
     CHFunction(SQLFunc::FUNCarrayEnumerateDense, 0, 0, 1, 1),
@@ -516,6 +516,7 @@ const std::vector<CHFunction> CHFuncs = {
     CHFunction(SQLFunc::FUNCLinfNormalize, 0, 0, 1, 1),
     CHFunction(SQLFunc::FUNCLpNormalize, 0, 0, 2, 2),
     CHFunction(SQLFunc::FUNCcosineDistance, 0, 0, 2, 2),
+    CHFunction(SQLFunc::FUNCcosineDistanceTransposed, 0, 0, 3, 3),
     /// Encoding
     CHFunction(SQLFunc::FUNCchar, 0, 0, 1, ulimited_params),
     CHFunction(SQLFunc::FUNChex, 0, 0, 1, 1),

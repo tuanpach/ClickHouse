@@ -547,6 +547,7 @@ std::unordered_map<String, CHSetting> backupSettings
        {"allow_s3_native_copy", trueOrFalseSettingNoOracle},
        {"async", trueOrFalseSettingNoOracle},
        {"azure_attempt_to_create_container", trueOrFalseSettingNoOracle},
+       {"backup_data_from_refreshable_materialized_view_targets", trueOrFalseSettingNoOracle},
        {"check_parts", trueOrFalseSettingNoOracle},
        {"check_projection_parts", trueOrFalseSettingNoOracle},
        {"decrypt_files_from_encrypted_disks", trueOrFalseSettingNoOracle},

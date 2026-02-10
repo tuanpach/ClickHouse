@@ -262,6 +262,7 @@ private:
         LambdaExpr,
         ProjectionExpr,
         DictExpr,
+        JoinExpr,
         StarExpr
     };
 
