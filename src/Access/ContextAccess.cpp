@@ -509,7 +509,7 @@ RowPolicyFilterPtr ContextAccess::getRowPolicyFilter(const String & database, co
 
     if (filter && filter->policies.empty())
     {
-        if (access_control->shouldThrowIfNoRowPolicies())
+        if (access_control->shouldThrowOnUnmatchedRowPolicies())
         {
             throw Exception(ErrorCodes::ACCESS_DENIED,
                             "{}: Table {}.{} has row policies, but none of them are for the current user",
