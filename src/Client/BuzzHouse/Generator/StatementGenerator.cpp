@@ -213,7 +213,7 @@ StatementGenerator::StatementGenerator(
               {0.15, 0.80}, /// Table
               {0.10, 0.40}, /// View
               {0.05, 0.15}, /// RemoteUDF
-              {0.02, 0.20}, /// GenerateSeriesUDF
+              {0.02, 0.20}, /// NumbersUDF
               {0.02, 0.05}, /// SystemTable
               {0.01, 0.05}, /// MergeUDF
               {0.05, 0.15}, /// ClusterUDF
@@ -1365,14 +1365,14 @@ void StatementGenerator::generateInsertToTable(
             bool first = true;
             bool has_aggr = false;
             SelectStatementCore * ssc = sel->mutable_select_core();
-            GenerateSeriesFunc * gsf = ssc->mutable_from()
-                                           ->mutable_tos()
-                                           ->mutable_join_clause()
-                                           ->mutable_tos()
-                                           ->mutable_joined_table()
-                                           ->mutable_tof()
-                                           ->mutable_tfunc()
-                                           ->mutable_gseries();
+            NumbersFunc * gsf = ssc->mutable_from()
+                                    ->mutable_tos()
+                                    ->mutable_join_clause()
+                                    ->mutable_tos()
+                                    ->mutable_joined_table()
+                                    ->mutable_tof()
+                                    ->mutable_tfunc()
+                                    ->mutable_numbers();
             const uint32_t nested_nrows = static_cast<uint32_t>(nested_rows_dist(rg.generator));
 
             for (const auto & entry : this->entries)
@@ -1390,7 +1390,7 @@ void StatementGenerator::generateInsertToTable(
                 has_aggr |= entry.getBottomType()->getTypeClass() == SQLTypeClass::AGGREGATEFUNCTION;
             }
             ssc->add_result_columns()->mutable_eca()->mutable_expr()->mutable_lit_val()->set_no_quote_str(std::move(buf));
-            gsf->set_fname(GenerateSeriesFunc_GSName::GenerateSeriesFunc_GSName_numbers);
+            gsf->set_fname(NumbersFunc_NumbersName::NumbersFunc_NumbersName_numbers);
             gsf->mutable_expr1()->mutable_lit_val()->mutable_int_lit()->set_uint_lit(nrows);
             if (has_aggr || rg.nextMediumNumber() < 21)
             {

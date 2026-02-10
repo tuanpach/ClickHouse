@@ -2022,9 +2022,9 @@ CONV_FN(FormatFunc, ff)
     ret += "$$)";
 }
 
-CONV_FN(GenerateSeriesFunc, gsf)
+CONV_FN(NumbersFunc, gsf)
 {
-    ret += GenerateSeriesFunc_GSName_Name(gsf.fname());
+    ret += NumbersFunc_NumbersName_Name(gsf.fname());
     ret += "(";
     ExprToString(ret, gsf.expr1());
     if (gsf.has_expr2())
@@ -2440,8 +2440,8 @@ CONV_FN(TableFunction, tf)
         case TableFunctionType::kFormat:
             FormatFuncToString(ret, tf.format());
             break;
-        case TableFunctionType::kGseries:
-            GenerateSeriesFuncToString(ret, tf.gseries());
+        case TableFunctionType::kNumbers:
+            NumbersFuncToString(ret, tf.numbers());
             break;
         case TableFunctionType::kRemote:
             RemoteFuncToString(ret, tf.remote());

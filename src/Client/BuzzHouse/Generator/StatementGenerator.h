@@ -287,7 +287,7 @@ private:
         Table,
         View,
         RemoteUDF,
-        GenerateSeriesUDF,
+        NumbersUDF,
         SystemTable,
         MergeUDF,
         ClusterUDF,

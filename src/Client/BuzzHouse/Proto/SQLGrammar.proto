@@ -1731,23 +1731,24 @@ enum SQLTableFunc {
     TFpaimonS3 = 54;
     TFpaimonS3Cluster = 55;
     TFpostgresql = 56;
-    TFprometheusQuery = 57;
-    TFprometheusQueryRange = 58;
-    TFredis = 59;
-    TFremote = 60;
-    TFremoteSecure = 61;
-    TFs3 = 62;
-    TFs3Cluster = 63;
-    TFsqlite = 64;
-    TFtimeSeriesData = 65;
-    TFtimeSeriesMetrics = 66;
-    TFtimeSeriesSelector = 67;
-    TFtimeSeriesTags = 68;
-    TFurl = 69;
-    TFurlCluster = 70;
-    TFvalues = 71;
-    TFview = 72;
-    TFytsaurus = 73;
+    TFprimes = 57;
+    TFprometheusQuery = 58;
+    TFprometheusQueryRange = 59;
+    TFredis = 60;
+    TFremote = 61;
+    TFremoteSecure = 62;
+    TFs3 = 63;
+    TFs3Cluster = 64;
+    TFsqlite = 65;
+    TFtimeSeriesData = 66;
+    TFtimeSeriesMetrics = 67;
+    TFtimeSeriesSelector = 68;
+    TFtimeSeriesTags = 69;
+    TFurl = 70;
+    TFurlCluster = 71;
+    TFvalues = 72;
+    TFview = 73;
+    TFytsaurus = 74;
 }
 
 message Database {
@@ -2638,14 +2639,15 @@ message FormatFunc {
     required string data = 3;
 }
 
-message GenerateSeriesFunc {
-    enum GSName {
+message NumbersFunc {
+    enum NumbersName {
         generate_series = 1;
         generateSeries = 2;
         numbers = 3;
         numbers_mt = 4;
+        primes = 5;
     }
-    required GSName fname = 1;
+    required NumbersName fname = 1;
     required Expr expr1 = 2;
     optional Expr expr2 = 3;
     optional Expr expr3 = 4;
@@ -2810,7 +2812,7 @@ message TableFunction {
     oneof jtf_oneof {
         FileFunc file = 1;
         FormatFunc format = 2;
-        GenerateSeriesFunc gseries = 3;
+        NumbersFunc numbers = 3;
         RemoteFunc remote = 4;
         MySQLFunc mysql = 5;
         PostgreSQLFunc postgresql = 6;

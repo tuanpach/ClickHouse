@@ -1477,6 +1477,7 @@ const std::vector<CHFunction> CHTableFuncs = {
     CHFunction(SQLTableFunc::TFpaimonS3, 0, 0, 2, 7),
     CHFunction(SQLTableFunc::TFpaimonS3Cluster, 0, 0, 2, 7),
     CHFunction(SQLTableFunc::TFpostgresql, 0, 0, 5, 7),
+    CHFunction(SQLTableFunc::TFprimes, 0, 0, 1, 3),
     CHFunction(SQLTableFunc::TFprometheusQuery, 0, 0, 3, 4),
     CHFunction(SQLTableFunc::TFprometheusQueryRange, 0, 0, 5, 6),
     CHFunction(SQLTableFunc::TFredis, 0, 0, 3, 6),
