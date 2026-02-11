@@ -28,8 +28,10 @@ struct PrometheusQueryEvaluationSettings
     /// The lookback period. If not set then 5 minutes are used by default.
     std::optional<DurationType> lookback_delta;
 
-    /// The default subquery resolution. If not set then 15 seconds are used by default.
-    std::optional<DurationType> default_resolution;
+    /// The default subquery step is used for subqueries specified without explicit step,
+    /// for example "http_requests_total[10m:]"
+    /// (If a step is given in the subquery, as in "http_requests_total[10m:1m]", then the given step is used.)
+    std::optional<DurationType> default_subquery_step;
 };
 
 }

@@ -20,8 +20,8 @@ namespace
     /// By default the lookback period is 5 minutes.
     constexpr const Int64 DEFAULT_LOOKBACK_SECONDS = 5 * 60;
 
-    /// By default the default resolution is 15 seconds.
-    constexpr const Int64 DEFAULT_RESOLUTION_SECONDS = 15;
+    /// The default subquery step is 15 seconds.
+    constexpr const Int64 DEFAULT_SUBQUERY_STEP_SECONDS = 15;
 }
 
 NodeEvaluationRangeGetter::NodeEvaluationRangeGetter(std::shared_ptr<const PrometheusQueryTree> promql_tree_,
@@ -42,11 +42,11 @@ NodeEvaluationRangeGetter::NodeEvaluationRangeGetter(std::shared_ptr<const Prome
     else
         lookback_delta = DEFAULT_LOOKBACK_SECONDS * DecimalUtils::scaleMultiplier<DurationType>(timestamp_scale);
 
-    /// By default the default resolution is 15 seconds.
-    if (settings_.default_resolution)
-        default_resolution = *settings_.default_resolution;
+    /// The default subquery step is 15 seconds.
+    if (settings_.default_subquery_step)
+        default_subquery_step = *settings_.default_subquery_step;
     else
-        default_resolution = DEFAULT_RESOLUTION_SECONDS * DecimalUtils::scaleMultiplier<DurationType>(timestamp_scale);
+        default_subquery_step = DEFAULT_SUBQUERY_STEP_SECONDS * DecimalUtils::scaleMultiplier<DurationType>(timestamp_scale);
 
     const auto * root = promql_tree->getRoot();
     if (!root)
@@ -118,10 +118,10 @@ void NodeEvaluationRangeGetter::visitChildren(const Node * node, const NodeEvalu
             auto subquery_range = subquery_node->range;
 
             DurationType step;
-            if (auto resolution = subquery_node->resolution)
-                step = *subquery_node->resolution;
+            if (auto subquery_step = subquery_node->step)
+                step = *subquery_step;
             else
-                step = default_resolution;
+                step = default_subquery_step;
 
             const auto * expression = subquery_node->getExpression();
             NodeEvaluationRange expression_range = range;

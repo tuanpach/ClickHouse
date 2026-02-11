@@ -30,7 +30,7 @@ private:
     DataTypePtr timestamp_data_type;
     UInt32 timestamp_scale;
     DurationType lookback_delta;
-    DurationType default_resolution;
+    DurationType default_subquery_step;
     std::unordered_map<const Node *, NodeEvaluationRange> map;
 };
 
