@@ -175,7 +175,9 @@ bool ReadBufferFromEncryptedFile::nextImpl()
         }
         bytes_to_read = std::min(bytes_to_read, static_cast<size_t>(*read_until_position - offset));
     }
-    chassert(bytes_to_read != 0);
+
+    if (bytes_to_read == 0)
+        return false;
 
     /// Read up to the size of `encrypted_buffer`.
     chassert(encrypted_buffer.data() != nullptr);
