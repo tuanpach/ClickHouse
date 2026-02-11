@@ -8104,6 +8104,10 @@ void MergeTreeData::Transaction::rollback(DataPartsLock & lock)
                 String tmp_name = "tmp_broken_merge_" + part->name;
                 LOG_WARNING(data.log, "Renaming rolled-back part {} to {} on disk", part->name, tmp_name);
                 part->renameTo(tmp_name, /* remove_new_dir_if_exists= */ true);
+                /// Mark part as probably removed from disk so that `assertHasValidVersionMetadata`
+                /// in `remove` does not try to read `txn_version.txt` from the renamed directory
+                /// (which may be concurrently deleted by `clearOldTemporaryDirectories`).
+                part->part_is_probably_removed_from_disk = true;
             }
             catch (...)
             {

@@ -5,6 +5,9 @@ CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=../shell_config.sh
 . "$CURDIR"/../shell_config.sh
 
+# Creation of a database with Ordinary engine emits a warning.
+CLICKHOUSE_CLIENT_SERVER_LOGS_LEVEL=fatal
+
 # Test for a bug where failed merge transaction rollback left renamed parts on disk,
 # causing intersecting parts on ATTACH TABLE.
 # When implicit_transaction=1 is used with a table in Ordinary database,
