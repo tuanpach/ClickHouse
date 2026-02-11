@@ -460,7 +460,9 @@ size_t HashJoin::getTotalRowCount() const
     if (data->type == Type::CROSS)
     {
         for (const auto & columns : data->columns)
+        {
             res += columns.selector.size();
+        }
     }
     else
     {
@@ -617,6 +619,18 @@ bool HashJoin::addBlockToJoin(const Block & source_block, bool check_limits)
 {
     auto materialized = materializeColumnsFromRightBlock(source_block);
     return addBlockToJoin(materialized, ScatteredBlock::Selector(materialized.rows()), check_limits);
+}
+
+bool HashJoin::addBlockToJoin(const Block & source_block, size_t num_rows, bool check_limits)
+{
+    auto materialized = materializeColumnsFromRightBlock(source_block);
+    /// When PREWHERE consumes all columns from the right table (e.g., in a cross join),
+    /// the block has zero columns and Block::rows() returns 0 even though the chunk
+    /// contained actual rows. Use the provided num_rows from the Chunk in this case.
+    size_t rows = materialized.rows();
+    if (rows == 0 && num_rows != 0 && !materialized.columns())
+        rows = num_rows;
+    return addBlockToJoin(materialized, ScatteredBlock::Selector(rows), check_limits);
 }
 
 bool HashJoin::addBlockToJoin(const Block & block, ScatteredBlock::Selector selector, bool check_limits)
