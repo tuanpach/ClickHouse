@@ -679,7 +679,6 @@ private:
         }
     }
 
-private:
     const char * function_name;
     bool is_utf8;
 };
