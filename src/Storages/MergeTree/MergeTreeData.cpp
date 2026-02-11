@@ -8107,7 +8107,7 @@ void MergeTreeData::Transaction::rollback(DataPartsLock & lock)
                 /// Mark part as probably removed from disk so that `assertHasValidVersionMetadata`
                 /// in `remove` does not try to read `txn_version.txt` from the renamed directory
                 /// (which may be concurrently deleted by `clearOldTemporaryDirectories`).
-                part->part_is_probably_removed_from_disk = true;
+                part->setProbablyRemovedFromDisk();
             }
             catch (...)
             {
