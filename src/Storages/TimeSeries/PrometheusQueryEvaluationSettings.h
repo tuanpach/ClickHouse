@@ -27,6 +27,9 @@ struct PrometheusQueryEvaluationSettings
     using DurationType = Decimal64;
 
     StorageID time_series_storage_id = StorageID::createEmpty();
+
+    /// Data types of the corresponding columns in the TimeSeries table.
+    /// We use these data types for the columns we read from table function prometheusQuery().
     DataTypePtr timestamp_data_type;
     DataTypePtr scalar_data_type;
 

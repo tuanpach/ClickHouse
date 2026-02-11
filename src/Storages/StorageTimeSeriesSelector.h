@@ -14,13 +14,16 @@ public:
     struct Configuration
     {
         StorageID time_series_storage_id = StorageID::createEmpty();
+
+        /// Data types of the corresponding columns in the TimeSeries table.
+        /// We use these data types for the columns we read from table function timeSeriesSelector().
         DataTypePtr id_data_type;
         DataTypePtr timestamp_data_type;
         DataTypePtr scalar_data_type;
 
         PrometheusQueryTree selector;
 
-        /// The scale for these fields is the same as the scale used in `timestamp_data_type`.
+        /// The scale of these fields is the same as the scale used in `timestamp_data_type`.
         DateTime64 min_time;
         DateTime64 max_time;
     };
