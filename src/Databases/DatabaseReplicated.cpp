@@ -796,8 +796,9 @@ bool DatabaseReplicated::waitForReplicaToProcessAllEntries(UInt64 timeout_ms, Sy
         if (!ddl_worker || is_probably_dropped)
             return false;
     }
-        if (mode == SyncReplicaMode::DEFAULT)
-            return ddl_worker->waitForReplicaToProcessAllEntries(timeout_ms);
+
+    if (mode == SyncReplicaMode::DEFAULT)
+        return ddl_worker->waitForReplicaToProcessAllEntries(timeout_ms);
 
     Stopwatch elapsed;
     while (true)
@@ -2036,8 +2037,6 @@ void DatabaseReplicated::restoreDatabaseInKeeper(ContextPtr)
     /// Force the database to recover to update the restored metadata
     auto current_zookeeper = getContext()->getZooKeeper();
     current_zookeeper->set(replica_path + "/digest", DatabaseReplicatedDDLWorker::FORCE_AUTO_RECOVERY_DIGEST);
-
-    zookeeper->set(replica_path + "/digest", DatabaseReplicatedDDLWorker::FORCE_AUTO_RECOVERY_DIGEST);
     reinitializeDDLWorker();
 }
 
