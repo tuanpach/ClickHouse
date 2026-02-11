@@ -272,9 +272,9 @@ def run_pytest_and_collect_results(command: str, env: str, report_name: str) -> 
         stopwatch=sw,
         info=test_result.info,
         files=[
-            "{temp_path}/pytest_{report_name}.log",
-            "{temp_path}/pytest_{report_name}.jsonl",
-            "{temp_path}/pytest_{report_name}.stdout",
+            f"{temp_path}/pytest_{report_name}.log",
+            f"{temp_path}/pytest_{report_name}.jsonl",
+            f"{temp_path}/pytest_{report_name}.stdout",
         ],
     )
 
