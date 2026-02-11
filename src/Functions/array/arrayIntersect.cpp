@@ -63,7 +63,7 @@ public:
 
 private:
     const char * function_name;
-    ArraySetMode mode;
+    const ArraySetMode mode;
     ContextPtr context;
 
     /// Initially allocate a piece of memory for 64 elements. NOTE: This is just a guess.

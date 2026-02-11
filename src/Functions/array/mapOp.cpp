@@ -50,7 +50,7 @@ public:
     explicit FunctionMapOp(OpTypes op_type_) : op_type(op_type_) {}
 
 private:
-    OpTypes op_type;
+    const OpTypes op_type;
 
     String getName() const override { return (op_type == OpTypes::ADD) ? "mapAdd" : "mapSubtract"; }
 

@@ -309,9 +309,9 @@ public:
     }
 private:
     const char * function_name;
-    bool is_pr;
-    size_t array_partial_offsets_arg_index = is_pr ? 2 : 3;
-    size_t array_partial_offsets_size = is_pr ? 3 : 4;
+    const bool is_pr;
+    const size_t array_partial_offsets_arg_index = is_pr ? 2 : 3;
+    const size_t array_partial_offsets_size = is_pr ? 3 : 4;
 
     static bool isConstBoolColumn(ColumnWithTypeAndName argument)
     {
