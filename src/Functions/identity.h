@@ -19,8 +19,12 @@ namespace ErrorCodes
 class FunctionIdentityBase : public IFunction
 {
 public:
-    FunctionIdentityBase(const char * name_, bool is_identity_)
-        : function_name(name_), is_identity(is_identity_) {}
+    FunctionIdentityBase(const char * name_, [[maybe_unused]] bool is_identity_)
+        : function_name(name_)
+#if USE_EMBEDDED_COMPILER
+        , is_identity(is_identity_)
+#endif
+    {}
 
     static FunctionPtr create(ContextPtr, const char * name, bool is_identity)
     {
@@ -57,7 +61,9 @@ public:
 
 private:
     const char * function_name;
+#if USE_EMBEDDED_COMPILER
     bool is_identity;
+#endif
 };
 
 
