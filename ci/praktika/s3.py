@@ -614,7 +614,9 @@ class S3:
         try:
             if version == 0:
                 # DESTRUCTIVE: Version 0 uploads without conditions (NOT safe for concurrent use)
-                print(f"Uploading file with version 0 (destructive reset) using AWS CLI")
+                print(
+                    f"Uploading file with version 0 (destructive reset) using AWS CLI"
+                )
                 result_uploaded = cls.put(
                     s3_path=s3_path,
                     local_path=local_path,
