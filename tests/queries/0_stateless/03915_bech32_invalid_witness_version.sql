@@ -1,3 +1,4 @@
+-- Tags: no-fasttest
 -- Test valid witness versions (0-16)
 SELECT bech32Encode('bc', 'test', 0);
 SELECT bech32Encode('bc', 'test', 1);
