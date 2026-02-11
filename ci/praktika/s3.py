@@ -565,12 +565,12 @@ class S3:
                                 )
                                 return False
 
-                            # Read file content for put_object (needed for If-Match)
+                            # Stream file content for put_object (needed for If-Match)
                             with open(local_path, "rb") as f:
                                 client.put_object(
                                     Bucket=bucket,
                                     Key=key,
-                                    Body=f.read(),
+                                    Body=f,
                                     ContentType=(
                                         "text/plain"
                                         if text
