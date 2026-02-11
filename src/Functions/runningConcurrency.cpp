@@ -163,6 +163,15 @@ namespace DB
                 throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Function {} must be called with two arguments having the same type.", getName());
             }
 
+            // Validate the argument type early so that unsupported types
+            // (e.g. NULL literals) are rejected before execution.
+            WhichDataType which(arguments[0].type);
+            if (!which.isDate() && !which.isDateTime() && !which.isDateTime64())
+            {
+                throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
+                    "Arguments for function {} must be Date, DateTime, or DateTime64.", getName());
+            }
+
             DataTypes argument_types = { arguments[0].type, arguments[1].type };
             return std::make_unique<FunctionBaseRunningConcurrency>(argument_types, return_type);
         }
