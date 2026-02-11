@@ -8096,6 +8096,7 @@ void MergeTreeData::Transaction::rollback(DataPartsLock & lock)
         /// Rename parts that were already renamed from tmp to final names
         /// back to a tmp prefix, so they are skipped by `loadDataParts`
         /// and cleaned up by `clearOldTemporaryDirectories`.
+        std::exception_ptr first_exception;
         for (const auto & part : parts_renamed)
         {
             try
@@ -8107,8 +8108,12 @@ void MergeTreeData::Transaction::rollback(DataPartsLock & lock)
             catch (...)
             {
                 tryLogCurrentException(data.log, "Failed to rename rolled-back part " + part->name + " to tmp prefix");
+                if (!first_exception)
+                    first_exception = std::current_exception();
             }
         }
+        if (first_exception)
+            std::rethrow_exception(first_exception);
 
         auto non_detached_precommitted_parts = precommitted_parts;
 
