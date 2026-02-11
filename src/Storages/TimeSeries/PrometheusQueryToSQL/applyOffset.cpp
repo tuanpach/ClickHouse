@@ -7,7 +7,7 @@
 #include <Parsers/Prometheus/stepsInTimeSeriesRange.h>
 #include <Storages/TimeSeries/PrometheusQueryToSQL/ConverterContext.h>
 #include <Storages/TimeSeries/PrometheusQueryToSQL/NodeEvaluationRange.h>
-#include <Storages/TimeSeries/PrometheusQueryToSQL/buildSelectQuery.h>
+#include <Storages/TimeSeries/PrometheusQueryToSQL/SelectQueryBuilder.h>
 #include <Storages/TimeSeries/timeSeriesTypesToAST.h>
 
 
@@ -52,9 +52,9 @@ namespace
             {
                 /// SELECT group, timestamp + INTERVAL X, value
                 /// FROM <raw_data>
-                SelectQueryParams params;
+                SelectQueryBuilder builder;
 
-                params.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
+                builder.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
 
                 ASTPtr new_timestamp;
                 if (isDateTime64(context.timestamp_data_type))
@@ -83,15 +83,15 @@ namespace
                 }
 
                 new_timestamp->setAlias(ColumnNames::Timestamp);
-                params.select_list.push_back(std::move(new_timestamp));
+                builder.select_list.push_back(std::move(new_timestamp));
 
-                params.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Value));
+                builder.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Value));
 
                 auto & subqueries = context.subqueries;
                 subqueries.emplace_back(subqueries.size(), std::move(expression.select_query), SQLSubqueryType::TABLE);
-                params.from_table = subqueries.back().name;
+                builder.from_table = subqueries.back().name;
 
-                expression.select_query = buildSelectQuery(std::move(params));
+                expression.select_query = builder.getSelectQuery();
 
                 return std::move(expression);
             }
@@ -145,10 +145,10 @@ namespace
                 /// SELECT group,
                 ///        arrayResize([], <count_of_time_steps>, values[1])) AS values
                 /// FROM <vector_grid>
-                SelectQueryParams params;
+                SelectQueryBuilder builder;
 
                 if (expression.store_method == StoreMethod::VECTOR_GRID)
-                    params.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
+                    builder.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
 
                 auto new_values = makeASTFunction(
                     "arrayResize",
@@ -158,13 +158,13 @@ namespace
                     makeASTFunction("arrayElement", make_intrusive<ASTIdentifier>(ColumnNames::Values), make_intrusive<ASTLiteral>(1u)));
 
                 new_values->setAlias(ColumnNames::Values);
-                params.select_list.push_back(std::move(new_values));
+                builder.select_list.push_back(std::move(new_values));
 
                 auto & subqueries = context.subqueries;
                 subqueries.emplace_back(subqueries.size(), std::move(expression.select_query), SQLSubqueryType::TABLE);
-                params.from_table = subqueries.back().name;
+                builder.from_table = subqueries.back().name;
 
-                expression.select_query = buildSelectQuery(std::move(params));
+                expression.select_query = builder.getSelectQuery();
 
                 expression.start_time = evaluation_range.start_time;
                 expression.end_time = evaluation_range.end_time;
@@ -178,9 +178,9 @@ namespace
                 ///        arrayJoin(timeSeriesRange(<start_time>, <end_time>, <step>)) AS timestamp,
                 ///        value
                 /// FROM <raw_data>
-                SelectQueryParams params;
+                SelectQueryBuilder builder;
 
-                params.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
+                builder.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
 
                 auto new_timestamp = makeASTFunction(
                     "arrayJoin",
@@ -191,15 +191,15 @@ namespace
                         timeSeriesDurationToAST(evaluation_range.step, context.timestamp_data_type)));
 
                 new_timestamp->setAlias(ColumnNames::Timestamp);
-                params.select_list.push_back(std::move(new_timestamp));
+                builder.select_list.push_back(std::move(new_timestamp));
 
-                params.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Value));
+                builder.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Value));
 
                 auto & subqueries = context.subqueries;
                 subqueries.emplace_back(subqueries.size(), std::move(expression.select_query), SQLSubqueryType::TABLE);
-                params.from_table = subqueries.back().name;
+                builder.from_table = subqueries.back().name;
 
-                expression.select_query = buildSelectQuery(std::move(params));
+                expression.select_query = builder.getSelectQuery();
 
                 return std::move(expression);
             }

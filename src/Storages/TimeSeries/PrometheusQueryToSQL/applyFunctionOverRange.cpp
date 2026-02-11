@@ -7,7 +7,7 @@
 #include <Parsers/Prometheus/stepsInTimeSeriesRange.h>
 #include <Storages/TimeSeries/PrometheusQueryToSQL/ConverterContext.h>
 #include <Storages/TimeSeries/PrometheusQueryToSQL/NodeEvaluationRange.h>
-#include <Storages/TimeSeries/PrometheusQueryToSQL/buildSelectQuery.h>
+#include <Storages/TimeSeries/PrometheusQueryToSQL/SelectQueryBuilder.h>
 #include <Storages/TimeSeries/timeSeriesTypesToAST.h>
 
 
@@ -146,7 +146,7 @@ SQLQueryPiece applyFunctionOverRange(
         {
             /// SELECT <aggregate_function>(timeSeriesRange(<start_time>, <end_time>, <step>),
             ///                             arrayResize([], <count_of_time_steps>, <scalar_value>)) AS values
-            SelectQueryParams params;
+            SelectQueryBuilder builder;
 
             auto new_values = makeExpressionForResultVector(
                 function_name,
@@ -164,9 +164,9 @@ SQLQueryPiece applyFunctionOverRange(
                 context);
 
             new_values->setAlias(ColumnNames::Values);
-            params.select_list.push_back(std::move(new_values));
+            builder.select_list.push_back(std::move(new_values));
 
-            res.select_query = buildSelectQuery(std::move(params));
+            res.select_query = builder.getSelectQuery();
             res.scalar_value = {};
 
             res.store_method = StoreMethod::SCALAR_GRID;
@@ -189,10 +189,10 @@ SQLQueryPiece applyFunctionOverRange(
             ///        <aggregate_function>((timeSeriesFromGrid(<start_time>, <end_time>, <step>, values) AS time_series).1, time_series.2) AS values
             /// FROM <vector_grid>
             /// GROUP BY group
-            SelectQueryParams params;
+            SelectQueryBuilder builder;
 
             if (argument.store_method == StoreMethod::VECTOR_GRID)
-                params.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
+                builder.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
 
             ASTPtr timestamps_argument;
             ASTPtr values_argument;
@@ -223,16 +223,16 @@ SQLQueryPiece applyFunctionOverRange(
                 function_name, evaluation_range, std::move(timestamps_argument), std::move(values_argument), context);
 
             new_values->setAlias(ColumnNames::Values);
-            params.select_list.push_back(std::move(new_values));
+            builder.select_list.push_back(std::move(new_values));
 
             if (argument.store_method == StoreMethod::VECTOR_GRID)
-                params.group_by.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
+                builder.group_by.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
 
             auto & subqueries = context.subqueries;
             subqueries.emplace_back(subqueries.size(), std::move(argument.select_query), SQLSubqueryType::TABLE);
-            params.from_table = subqueries.back().name;
+            builder.from_table = subqueries.back().name;
 
-            res.select_query = buildSelectQuery(std::move(params));
+            res.select_query = builder.getSelectQuery();
             res.start_time = start_time;
             res.end_time = end_time;
             res.step = step;
@@ -246,9 +246,9 @@ SQLQueryPiece applyFunctionOverRange(
             ///        <aggregate_function>(timestamps, values) AS values
             /// FROM <raw_data>
             /// GROUP BY group
-            SelectQueryParams params;
+            SelectQueryBuilder builder;
 
-            params.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
+            builder.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
 
             auto new_values = makeExpressionForResultVector(
                 function_name,
@@ -258,15 +258,15 @@ SQLQueryPiece applyFunctionOverRange(
                 context);
 
             new_values->setAlias(ColumnNames::Values);
-            params.select_list.push_back(std::move(new_values));
+            builder.select_list.push_back(std::move(new_values));
 
-            params.group_by.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
+            builder.group_by.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
 
             auto & subqueries = context.subqueries;
             subqueries.emplace_back(subqueries.size(), std::move(argument.select_query), SQLSubqueryType::TABLE);
-            params.from_table = subqueries.back().name;
+            builder.from_table = subqueries.back().name;
 
-            res.select_query = buildSelectQuery(std::move(params));
+            res.select_query = builder.getSelectQuery();
 
             res.store_method = StoreMethod::VECTOR_GRID;
             res.start_time = start_time;

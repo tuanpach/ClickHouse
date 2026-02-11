@@ -5,8 +5,8 @@
 #include <Parsers/ASTLiteral.h>
 #include <Storages/TimeSeries/PrometheusQueryToSQL/ConverterContext.h>
 #include <Storages/TimeSeries/PrometheusQueryToSQL/NodeEvaluationRange.h>
+#include <Storages/TimeSeries/PrometheusQueryToSQL/SelectQueryBuilder.h>
 #include <Storages/TimeSeries/PrometheusQueryToSQL/applyFunctionOverRange.h>
-#include <Storages/TimeSeries/PrometheusQueryToSQL/buildSelectQuery.h>
 #include <Storages/TimeSeries/timeSeriesTypesToAST.h>
 
 
@@ -28,18 +28,18 @@ namespace
 
         /// SELECT timeSeriesIdToGroup(id) AS group, timestamp, value
         /// FROM timeSeriesSelectorToGrid(<selector>, <start_time>, <end_time>, <step>, <window>)
-        SelectQueryParams params;
+        SelectQueryBuilder builder;
 
-        params.select_list.push_back(makeASTFunction("timeSeriesIdToGroup", make_intrusive<ASTIdentifier>(ColumnNames::ID)));
-        params.select_list.back()->setAlias(ColumnNames::Group);
+        builder.select_list.push_back(makeASTFunction("timeSeriesIdToGroup", make_intrusive<ASTIdentifier>(ColumnNames::ID)));
+        builder.select_list.back()->setAlias(ColumnNames::Group);
 
-        params.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Timestamp));
-        params.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Value));
+        builder.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Timestamp));
+        builder.select_list.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Value));
 
         TimestampType min_time = evaluation_range.start_time - evaluation_range.window + 1;
         TimestampType max_time = evaluation_range.end_time;
 
-        params.from_table_function = makeASTFunction(
+        builder.from_table_function = makeASTFunction(
             "timeSeriesSelector",
             make_intrusive<ASTLiteral>(context.time_series_storage_id.getDatabaseName()),
             make_intrusive<ASTLiteral>(context.time_series_storage_id.getTableName()),
@@ -47,7 +47,7 @@ namespace
             timeSeriesTimestampToAST(min_time, context.timestamp_data_type),
             timeSeriesTimestampToAST(max_time, context.timestamp_data_type));
 
-        res.select_query = buildSelectQuery(std::move(params));
+        res.select_query = builder.getSelectQuery();
         return res;
     }
 }

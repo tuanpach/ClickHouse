@@ -6,7 +6,7 @@
 #include <Parsers/Prometheus/stepsInTimeSeriesRange.h>
 #include <Storages/ColumnsDescription.h>
 #include <Storages/TimeSeries/PrometheusQueryToSQL/ConverterContext.h>
-#include <Storages/TimeSeries/PrometheusQueryToSQL/buildSelectQuery.h>
+#include <Storages/TimeSeries/PrometheusQueryToSQL/SelectQueryBuilder.h>
 #include <Storages/TimeSeries/timeSeriesTypesToAST.h>
 
 
@@ -39,15 +39,15 @@ namespace
             {
                 /// SELECT <start_time> AS timestamp, <scalar_value> AS value
                 /// [LIMIT ...]
-                SelectQueryParams params;
+                SelectQueryBuilder builder;
 
-                params.select_list.push_back(timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type));
-                params.select_list.back()->setAlias(ColumnNames::Timestamp);
+                builder.select_list.push_back(timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type));
+                builder.select_list.back()->setAlias(ColumnNames::Timestamp);
 
-                params.select_list.push_back(timeSeriesScalarToAST(result.scalar_value, context.scalar_data_type));
-                params.select_list.back()->setAlias(ColumnNames::Value);
+                builder.select_list.push_back(timeSeriesScalarToAST(result.scalar_value, context.scalar_data_type));
+                builder.select_list.back()->setAlias(ColumnNames::Value);
 
-                return buildSelectQuery(std::move(params));
+                return builder.getSelectQuery();
             }
 
             case StoreMethod::SCALAR_GRID:
@@ -55,21 +55,21 @@ namespace
                 /// SELECT <start_time> AS timestamp, values[1] AS value
                 /// FROM <scalar_grid>
                 /// [LIMIT ...]
-                SelectQueryParams params;
+                SelectQueryBuilder builder;
 
-                params.select_list.push_back(timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type));
-                params.select_list.back()->setAlias(ColumnNames::Timestamp);
+                builder.select_list.push_back(timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type));
+                builder.select_list.back()->setAlias(ColumnNames::Timestamp);
 
-                params.select_list.push_back(timeSeriesScalarASTCast(
+                builder.select_list.push_back(timeSeriesScalarASTCast(
                     makeASTFunction("arrayElement", make_intrusive<ASTIdentifier>(ColumnNames::Values), make_intrusive<ASTLiteral>(1u)),
                     context.scalar_data_type));
-                params.select_list.back()->setAlias(ColumnNames::Value);
+                builder.select_list.back()->setAlias(ColumnNames::Value);
 
-                params.with = std::move(context.subqueries);
-                params.with.emplace_back(SQLSubquery{params.with.size(), std::move(result.select_query), SQLSubqueryType::TABLE});
-                params.from_table = params.with.back().name;
+                builder.with = std::move(context.subqueries);
+                builder.with.emplace_back(SQLSubquery{builder.with.size(), std::move(result.select_query), SQLSubqueryType::TABLE});
+                builder.from_table = builder.with.back().name;
 
-                return buildSelectQuery(std::move(params));
+                return builder.getSelectQuery();
             }
 
             case StoreMethod::EMPTY:
@@ -107,15 +107,15 @@ namespace
 
         /// SELECT <start_time> AS timestamp, 'string_value' AS value
         /// [LIMIT ...]
-        SelectQueryParams params;
+        SelectQueryBuilder builder;
 
-        params.select_list.push_back(timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type));
-        params.select_list.back()->setAlias(ColumnNames::Timestamp);
+        builder.select_list.push_back(timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type));
+        builder.select_list.back()->setAlias(ColumnNames::Timestamp);
 
-        params.select_list.push_back(make_intrusive<ASTLiteral>(result.string_value));
-        params.select_list.back()->setAlias(ColumnNames::Value);
+        builder.select_list.push_back(make_intrusive<ASTLiteral>(result.string_value));
+        builder.select_list.back()->setAlias(ColumnNames::Value);
 
-        return buildSelectQuery(std::move(params));
+        return builder.getSelectQuery();
     }
 
 
@@ -138,23 +138,23 @@ namespace
                 /// SELECT arrayJoin([]::Array(Array(Tuple(String, String))) AS tags,
                 ///        defaultValueOfTypeName(timestamp_data_type) AS timestamp,
                 ///        defaultValueOfTypeName(scalar_data_type) AS value
-                SelectQueryParams params;
+                SelectQueryBuilder builder;
 
-                params.select_list.push_back(makeASTFunction(
+                builder.select_list.push_back(makeASTFunction(
                     "arrayJoin",
                     makeASTFunction(
                         "CAST", make_intrusive<ASTLiteral>(Array{}), make_intrusive<ASTLiteral>("Array(Array(Tuple(String, String)))"))));
-                params.select_list.back()->setAlias(ColumnNames::Tags);
+                builder.select_list.back()->setAlias(ColumnNames::Tags);
 
-                params.select_list.push_back(
+                builder.select_list.push_back(
                     makeASTFunction("defaultValueOfTypeName", make_intrusive<ASTLiteral>(context.timestamp_data_type->getName())));
-                params.select_list.back()->setAlias(ColumnNames::Timestamp);
+                builder.select_list.back()->setAlias(ColumnNames::Timestamp);
 
-                params.select_list.push_back(
+                builder.select_list.push_back(
                     makeASTFunction("defaultValueOfTypeName", make_intrusive<ASTLiteral>(context.scalar_data_type->getName())));
-                params.select_list.back()->setAlias(ColumnNames::Value);
+                builder.select_list.back()->setAlias(ColumnNames::Value);
 
-                return buildSelectQuery(std::move(params));
+                return builder.getSelectQuery();
             }
 
             case StoreMethod::CONST_SCALAR:
@@ -163,19 +163,19 @@ namespace
                 ///        <start_time> AS timestamp,
                 ///        <scalar_value> AS value
                 /// [LIMIT ...]
-                SelectQueryParams params;
+                SelectQueryBuilder builder;
 
-                params.select_list.push_back(makeASTFunction(
+                builder.select_list.push_back(makeASTFunction(
                     "CAST", make_intrusive<ASTLiteral>(Array{}), make_intrusive<ASTLiteral>("Array(Tuple(String, String))")));
-                params.select_list.back()->setAlias(ColumnNames::Tags);
+                builder.select_list.back()->setAlias(ColumnNames::Tags);
 
-                params.select_list.push_back(timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type));
-                params.select_list.back()->setAlias(ColumnNames::Timestamp);
+                builder.select_list.push_back(timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type));
+                builder.select_list.back()->setAlias(ColumnNames::Timestamp);
 
-                params.select_list.push_back(timeSeriesScalarToAST(result.scalar_value, context.scalar_data_type));
-                params.select_list.back()->setAlias(ColumnNames::Value);
+                builder.select_list.push_back(timeSeriesScalarToAST(result.scalar_value, context.scalar_data_type));
+                builder.select_list.back()->setAlias(ColumnNames::Value);
 
-                return buildSelectQuery(std::move(params));
+                return builder.getSelectQuery();
             }
 
             case StoreMethod::SCALAR_GRID:
@@ -185,25 +185,25 @@ namespace
                 ///        values[1] AS value
                 /// FROM <scalar_grid>
                 /// [LIMIT ...]
-                SelectQueryParams params;
+                SelectQueryBuilder builder;
 
-                params.select_list.push_back(makeASTFunction(
+                builder.select_list.push_back(makeASTFunction(
                     "CAST", make_intrusive<ASTLiteral>(Array{}), make_intrusive<ASTLiteral>("Array(Tuple(String, String))")));
-                params.select_list.back()->setAlias(ColumnNames::Tags);
+                builder.select_list.back()->setAlias(ColumnNames::Tags);
 
-                params.select_list.push_back(timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type));
-                params.select_list.back()->setAlias(ColumnNames::Timestamp);
+                builder.select_list.push_back(timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type));
+                builder.select_list.back()->setAlias(ColumnNames::Timestamp);
 
-                params.select_list.push_back(timeSeriesScalarASTCast(
+                builder.select_list.push_back(timeSeriesScalarASTCast(
                     makeASTFunction("arrayElement", make_intrusive<ASTIdentifier>(ColumnNames::Values), make_intrusive<ASTLiteral>(1u)),
                     context.scalar_data_type));
-                params.select_list.back()->setAlias(ColumnNames::Value);
+                builder.select_list.back()->setAlias(ColumnNames::Value);
 
-                params.with = std::move(context.subqueries);
-                params.with.emplace_back(SQLSubquery{params.with.size(), std::move(result.select_query), SQLSubqueryType::TABLE});
-                params.from_table = params.with.back().name;
+                builder.with = std::move(context.subqueries);
+                builder.with.emplace_back(SQLSubquery{builder.with.size(), std::move(result.select_query), SQLSubqueryType::TABLE});
+                builder.from_table = builder.with.back().name;
 
-                return buildSelectQuery(std::move(params));
+                return builder.getSelectQuery();
             }
 
             case StoreMethod::VECTOR_GRID:
@@ -215,30 +215,30 @@ namespace
                 /// WHERE isNotNull(values[1])
                 /// [ORDER BY tags/value]
                 /// [LIMIT ...]
-                SelectQueryParams params;
+                SelectQueryBuilder builder;
 
-                params.select_list.push_back(
+                builder.select_list.push_back(
                     makeASTFunction("timeSeriesGroupToTags", make_intrusive<ASTIdentifier>(ColumnNames::Group)));
-                params.select_list.back()->setAlias(ColumnNames::Tags);
+                builder.select_list.back()->setAlias(ColumnNames::Tags);
 
-                params.select_list.push_back(timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type));
-                params.select_list.back()->setAlias(ColumnNames::Timestamp);
+                builder.select_list.push_back(timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type));
+                builder.select_list.back()->setAlias(ColumnNames::Timestamp);
 
-                params.select_list.push_back(timeSeriesScalarASTCast(
+                builder.select_list.push_back(timeSeriesScalarASTCast(
                     makeASTFunction("arrayElement", make_intrusive<ASTIdentifier>(ColumnNames::Values), make_intrusive<ASTLiteral>(1u)),
                     context.scalar_data_type));
-                params.select_list.back()->setAlias(ColumnNames::Value);
+                builder.select_list.back()->setAlias(ColumnNames::Value);
 
-                params.with = std::move(context.subqueries);
-                params.with.emplace_back(SQLSubquery{params.with.size(), std::move(result.select_query), SQLSubqueryType::TABLE});
-                params.from_table = params.with.back().name;
+                builder.with = std::move(context.subqueries);
+                builder.with.emplace_back(SQLSubquery{builder.with.size(), std::move(result.select_query), SQLSubqueryType::TABLE});
+                builder.from_table = builder.with.back().name;
 
-                params.where = makeASTFunction(
+                builder.where = makeASTFunction(
                     "isNotNull",
                     makeASTFunction(
                         "arrayElement", make_intrusive<ASTIdentifier>(ColumnNames::Values), make_intrusive<ASTLiteral>(1u)));
 
-                return buildSelectQuery(std::move(params));
+                return builder.getSelectQuery();
             }
 
             case StoreMethod::CONST_STRING:
@@ -265,21 +265,21 @@ namespace
             {
                 /// SELECT arrayJoin([]::Array(Array(Tuple(String, String)))) AS tags,
                 ///        defaultValueOfTypeName(Array(Tuple(timestamp_data_type, scalar_data_type))) AS time_series
-                SelectQueryParams params;
+                SelectQueryBuilder builder;
 
-                params.select_list.push_back(makeASTFunction(
+                builder.select_list.push_back(makeASTFunction(
                     "arrayJoin",
                     makeASTFunction(
                         "CAST", make_intrusive<ASTLiteral>(Array{}), make_intrusive<ASTLiteral>("Array(Array(Tuple(String, String)))"))));
-                params.select_list.back()->setAlias(ColumnNames::Tags);
+                builder.select_list.back()->setAlias(ColumnNames::Tags);
 
-                params.select_list.push_back(makeASTFunction(
+                builder.select_list.push_back(makeASTFunction(
                     "defaultValueOfTypeName",
                     make_intrusive<ASTLiteral>(
                         fmt::format("Array(Tuple({}, {}))", context.timestamp_data_type->getName(), context.scalar_data_type->getName()))));
-                params.select_list.back()->setAlias(ColumnNames::TimeSeries);
+                builder.select_list.back()->setAlias(ColumnNames::TimeSeries);
 
-                return buildSelectQuery(std::move(params));
+                return builder.getSelectQuery();
             }
 
             case StoreMethod::CONST_SCALAR:
@@ -288,13 +288,13 @@ namespace
                 ///        timeSeriesFromGrid(<start_time>, <end_time>, <step>,
                 ///                           arrayResize([], <count_of_time_steps>, <scalar_value>)) AS time_series
                 /// [LIMIT ...]
-                SelectQueryParams params;
+                SelectQueryBuilder builder;
 
-                params.select_list.push_back(makeASTFunction(
+                builder.select_list.push_back(makeASTFunction(
                     "CAST", make_intrusive<ASTLiteral>(Array{}), make_intrusive<ASTLiteral>("Array(Tuple(String, String))")));
-                params.select_list.back()->setAlias(ColumnNames::Tags);
+                builder.select_list.back()->setAlias(ColumnNames::Tags);
 
-                params.select_list.push_back(makeASTFunction(
+                builder.select_list.push_back(makeASTFunction(
                     "timeSeriesFromGrid",
                     timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type),
                     timeSeriesTimestampToAST(result.end_time, context.timestamp_data_type),
@@ -305,9 +305,9 @@ namespace
                         make_intrusive<ASTLiteral>(stepsInTimeSeriesRange(result.start_time, result.end_time, result.step)),
                         timeSeriesScalarToAST(result.scalar_value, context.scalar_data_type))));
 
-                params.select_list.back()->setAlias(ColumnNames::TimeSeries);
+                builder.select_list.back()->setAlias(ColumnNames::TimeSeries);
 
-                return buildSelectQuery(std::move(params));
+                return builder.getSelectQuery();
             }
 
             case StoreMethod::SCALAR_GRID:
@@ -317,13 +317,13 @@ namespace
                 ///                           CAST(values, Array(scalar_data_type))) AS time_series
                 /// FROM <scalar_grid>
                 /// [LIMIT ...]
-                SelectQueryParams params;
+                SelectQueryBuilder builder;
 
-                params.select_list.push_back(makeASTFunction(
+                builder.select_list.push_back(makeASTFunction(
                     "CAST", make_intrusive<ASTLiteral>(Array{}), make_intrusive<ASTLiteral>("Array(Tuple(String, String))")));
-                params.select_list.back()->setAlias(ColumnNames::Tags);
+                builder.select_list.back()->setAlias(ColumnNames::Tags);
 
-                params.select_list.push_back(makeASTFunction(
+                builder.select_list.push_back(makeASTFunction(
                     "timeSeriesFromGrid",
                     timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type),
                     timeSeriesTimestampToAST(result.end_time, context.timestamp_data_type),
@@ -333,13 +333,13 @@ namespace
                         make_intrusive<ASTIdentifier>(ColumnNames::Values),
                         make_intrusive<ASTLiteral>(fmt::format("Array({})", context.scalar_data_type->getName())))));
 
-                params.select_list.back()->setAlias(ColumnNames::TimeSeries);
+                builder.select_list.back()->setAlias(ColumnNames::TimeSeries);
 
-                params.with = std::move(context.subqueries);
-                params.with.emplace_back(SQLSubquery{params.with.size(), std::move(result.select_query), SQLSubqueryType::TABLE});
-                params.from_table = params.with.back().name;
+                builder.with = std::move(context.subqueries);
+                builder.with.emplace_back(SQLSubquery{builder.with.size(), std::move(result.select_query), SQLSubqueryType::TABLE});
+                builder.from_table = builder.with.back().name;
 
-                return buildSelectQuery(std::move(params));
+                return builder.getSelectQuery();
             }
 
             case StoreMethod::VECTOR_GRID:
@@ -350,13 +350,13 @@ namespace
                 /// FROM <vector_grid>
                 /// [ORDER BY tags]
                 /// [LIMIT ...]
-                SelectQueryParams params;
+                SelectQueryBuilder builder;
 
-                params.select_list.push_back(
+                builder.select_list.push_back(
                     makeASTFunction("timeSeriesGroupToTags", make_intrusive<ASTIdentifier>(ColumnNames::Group)));
-                params.select_list.back()->setAlias(ColumnNames::Tags);
+                builder.select_list.back()->setAlias(ColumnNames::Tags);
 
-                params.select_list.push_back(makeASTFunction(
+                builder.select_list.push_back(makeASTFunction(
                     "timeSeriesFromGrid",
                     timeSeriesTimestampToAST(result.start_time, context.timestamp_data_type),
                     timeSeriesTimestampToAST(result.end_time, context.timestamp_data_type),
@@ -366,19 +366,19 @@ namespace
                         make_intrusive<ASTIdentifier>(ColumnNames::Values),
                         make_intrusive<ASTLiteral>(fmt::format("Array(Nullable({}))", context.scalar_data_type->getName())))));
 
-                params.select_list.back()->setAlias(ColumnNames::TimeSeries);
+                builder.select_list.back()->setAlias(ColumnNames::TimeSeries);
 
-                params.with = std::move(context.subqueries);
-                params.with.emplace_back(SQLSubquery{params.with.size(), std::move(result.select_query), SQLSubqueryType::TABLE});
-                params.from_table = params.with.back().name;
+                builder.with = std::move(context.subqueries);
+                builder.with.emplace_back(SQLSubquery{builder.with.size(), std::move(result.select_query), SQLSubqueryType::TABLE});
+                builder.from_table = builder.with.back().name;
 
-                params.where = makeASTFunction("notEmpty", make_intrusive<ASTIdentifier>(ColumnNames::TimeSeries));
+                builder.where = makeASTFunction("notEmpty", make_intrusive<ASTIdentifier>(ColumnNames::TimeSeries));
 
                 /// Data from range queries comes sorted alphabetically by tags.
-                params.order_by.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Tags));
-                params.order_direction = 1;
+                builder.order_by.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Tags));
+                builder.order_direction = 1;
 
-                return buildSelectQuery(std::move(params));
+                return builder.getSelectQuery();
             }
 
             case StoreMethod::RAW_DATA:
@@ -389,30 +389,30 @@ namespace
                 /// GROUP BY group
                 /// [ORDER BY tags]
                 /// [LIMIT ...]
-                SelectQueryParams params;
+                SelectQueryBuilder builder;
 
-                params.select_list.push_back(
+                builder.select_list.push_back(
                     makeASTFunction("timeSeriesGroupToTags", make_intrusive<ASTIdentifier>(ColumnNames::Group)));
-                params.select_list.back()->setAlias(ColumnNames::Tags);
+                builder.select_list.back()->setAlias(ColumnNames::Tags);
 
-                params.select_list.push_back(makeASTFunction(
+                builder.select_list.push_back(makeASTFunction(
                     "timeSeriesGroupArray",
                     timeSeriesTimestampASTCast(make_intrusive<ASTIdentifier>(ColumnNames::Timestamp), context.timestamp_data_type),
                     timeSeriesScalarASTCast(make_intrusive<ASTIdentifier>(ColumnNames::Value), context.scalar_data_type)));
 
-                params.select_list.back()->setAlias(ColumnNames::TimeSeries);
+                builder.select_list.back()->setAlias(ColumnNames::TimeSeries);
 
-                params.with = std::move(context.subqueries);
-                params.with.emplace_back(SQLSubquery{params.with.size(), std::move(result.select_query), SQLSubqueryType::TABLE});
-                params.from_table = params.with.back().name;
+                builder.with = std::move(context.subqueries);
+                builder.with.emplace_back(SQLSubquery{builder.with.size(), std::move(result.select_query), SQLSubqueryType::TABLE});
+                builder.from_table = builder.with.back().name;
 
-                params.group_by.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
+                builder.group_by.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Group));
 
                 /// Data from range queries comes sorted alphabetically by tags.
-                params.order_by.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Tags));
-                params.order_direction = 1;
+                builder.order_by.push_back(make_intrusive<ASTIdentifier>(ColumnNames::Tags));
+                builder.order_direction = 1;
 
-                return buildSelectQuery(std::move(params));
+                return builder.getSelectQuery();
             }
 
             case StoreMethod::CONST_STRING:

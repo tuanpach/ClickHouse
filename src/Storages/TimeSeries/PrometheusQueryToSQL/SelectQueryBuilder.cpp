@@ -1,4 +1,4 @@
-#include <Storages/TimeSeries/PrometheusQueryToSQL/buildSelectQuery.h>
+#include <Storages/TimeSeries/PrometheusQueryToSQL/SelectQueryBuilder.h>
 
 #include <Parsers/ASTExpressionList.h>
 #include <Parsers/ASTIdentifier.h>
@@ -14,25 +14,26 @@
 namespace DB::PrometheusQueryToSQL
 {
 
-ASTPtr buildSelectQuery(SelectQueryParams && params)
+ASTPtr SelectQueryBuilder::getSelectQuery()
 {
     auto select_query = make_intrusive<ASTSelectQuery>();
 
+    chassert(!select_list.empty());
     auto select_list_exp = make_intrusive<ASTExpressionList>();
-    select_list_exp->children = params.select_list;
+    select_list_exp->children = select_list;
     select_query->setExpression(ASTSelectQuery::Expression::SELECT, std::move(select_list_exp));
 
-    if (!params.from_table.empty() || params.from_table_function)
+    if (!from_table.empty() || from_table_function)
     {
         auto table_exp = make_intrusive<ASTTableExpression>();
-        if (!params.from_table.empty())
+        if (!from_table.empty())
         {
-            table_exp->database_and_table_name = make_intrusive<ASTTableIdentifier>(std::move(params.from_table));
+            table_exp->database_and_table_name = make_intrusive<ASTTableIdentifier>(std::move(from_table));
             table_exp->children.emplace_back(table_exp->database_and_table_name);
         }
-        else if (params.from_table_function)
+        else if (from_table_function)
         {
-            table_exp->table_function = std::move(params.from_table_function);
+            table_exp->table_function = std::move(from_table_function);
             table_exp->children.emplace_back(table_exp->table_function);
         }
         auto table = make_intrusive<ASTTablesInSelectQueryElement>();
@@ -42,16 +43,16 @@ ASTPtr buildSelectQuery(SelectQueryParams && params)
         auto tables = make_intrusive<ASTTablesInSelectQuery>();
         tables->children.push_back(std::move(table));
 
-        if (!params.join_table.empty())
+        if (!join_table.empty())
         {
             auto table_join = make_intrusive<ASTTableJoin>();
-            table_join->kind = params.join_kind;
-            table_join->strictness = params.join_strictness;
-            table_join->on_expression = std::move(params.join_on);
+            table_join->kind = join_kind;
+            table_join->strictness = join_strictness;
+            table_join->on_expression = std::move(join_on);
             table_join->children.emplace_back(table_join->on_expression);
 
             table_exp = make_intrusive<ASTTableExpression>();
-            table_exp->database_and_table_name = make_intrusive<ASTTableIdentifier>(std::move(params.join_table));
+            table_exp->database_and_table_name = make_intrusive<ASTTableIdentifier>(std::move(join_table));
             table_exp->children.emplace_back(table_exp->database_and_table_name);
 
             table = make_intrusive<ASTTablesInSelectQueryElement>();
@@ -66,37 +67,37 @@ ASTPtr buildSelectQuery(SelectQueryParams && params)
         select_query->setExpression(ASTSelectQuery::Expression::TABLES, std::move(tables));
     }
 
-    if (!params.group_by.empty())
+    if (!group_by.empty())
     {
         auto group_by_list = make_intrusive<ASTExpressionList>();
-        group_by_list->children = std::move(params.group_by);
+        group_by_list->children = std::move(group_by);
         select_query->setExpression(ASTSelectQuery::Expression::GROUP_BY, std::move(group_by_list));
     }
 
-    if (!params.order_by.empty())
+    if (!order_by.empty())
     {
         auto order_by_list = make_intrusive<ASTExpressionList>();
-        for (auto & order_by_expression : params.order_by)
+        for (auto & order_by_expression : order_by)
         {
             auto order_by_element = make_intrusive<ASTOrderByElement>();
             order_by_element->children.push_back(std::move(order_by_expression));
-            chassert(abs(params.order_direction) == 1); /// `direction` must be set either to 1 or -1
-            order_by_element->direction = params.order_direction;
+            chassert(abs(order_direction) == 1); /// `direction` must be set either to 1 or -1
+            order_by_element->direction = order_direction;
             order_by_list->children.push_back(std::move(order_by_element));
         }
         select_query->setExpression(ASTSelectQuery::Expression::ORDER_BY, std::move(order_by_list));
     }
 
-    if (params.where)
-        select_query->setExpression(ASTSelectQuery::Expression::WHERE, std::move(params.where));
+    if (where)
+        select_query->setExpression(ASTSelectQuery::Expression::WHERE, std::move(where));
 
-    if (params.limit)
-        select_query->setExpression(ASTSelectQuery::Expression::LIMIT_LENGTH, make_intrusive<ASTLiteral>(*params.limit));
+    if (limit)
+        select_query->setExpression(ASTSelectQuery::Expression::LIMIT_LENGTH, make_intrusive<ASTLiteral>(*limit));
 
-    if (!params.with.empty())
+    if (!with.empty())
     {
         auto with_expression_list_ast = make_intrusive<ASTExpressionList>();
-        for (auto & subquery : params.with)
+        for (auto & subquery : with)
         {
             auto subquery_ast = make_intrusive<ASTSubquery>(std::move(subquery.ast));
             if (subquery.subquery_type == SQLSubqueryType::TABLE)
@@ -120,13 +121,13 @@ ASTPtr buildSelectQuery(SelectQueryParams && params)
     list_of_selects->children.push_back(std::move(select_query));
     std::optional<SelectUnionMode> union_mode;
 
-    if (!params.union_table.empty())
+    if (!union_table.empty())
     {
         select_query = make_intrusive<ASTSelectQuery>();
 
         select_list_exp = make_intrusive<ASTExpressionList>();
-        select_list_exp->children.reserve(params.select_list.size());
-        for (const auto & select_exp : params.select_list)
+        select_list_exp->children.reserve(select_list.size());
+        for (const auto & select_exp : select_list)
             select_list_exp->children.push_back(select_exp->clone());
         select_query->setExpression(ASTSelectQuery::Expression::SELECT, std::move(select_list_exp));
 
@@ -134,7 +135,7 @@ ASTPtr buildSelectQuery(SelectQueryParams && params)
         auto table = make_intrusive<ASTTablesInSelectQueryElement>();
 
         auto table_exp = make_intrusive<ASTTableExpression>();
-        table_exp->database_and_table_name = make_intrusive<ASTTableIdentifier>(std::move(params.union_table));
+        table_exp->database_and_table_name = make_intrusive<ASTTableIdentifier>(std::move(union_table));
         table_exp->children.emplace_back(table_exp->database_and_table_name);
         table->table_expression = table_exp;
         table->children.push_back(std::move(table_exp));
@@ -155,6 +156,9 @@ ASTPtr buildSelectQuery(SelectQueryParams && params)
         select_with_union_query->union_mode = *union_mode;
         select_with_union_query->is_normalized = true;
     }
+
+    /// We moved some fields so the builder can't be used again.
+    select_list.clear();
 
     return select_with_union_query;
 }

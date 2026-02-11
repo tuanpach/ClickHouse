@@ -9,8 +9,10 @@
 namespace DB::PrometheusQueryToSQL
 {
 
-struct SelectQueryParams
+/// Builds a SELECT query reading or calculating something as a part of evaluation of a prometheus query.
+class SelectQueryBuilder
 {
+public:
     ASTs select_list;
     String from_table;
     ASTPtr from_table_function;
@@ -25,9 +27,8 @@ struct SelectQueryParams
     ASTPtr join_on;
     String union_table;
     SQLSubqueries with;
-};
 
-/// Builds a SELECT query reading or calculating something as a part of evaluation of a prometheus query.
-ASTPtr buildSelectQuery(SelectQueryParams && params);
+    ASTPtr getSelectQuery();
+};
 
 }
