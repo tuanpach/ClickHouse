@@ -214,4 +214,6 @@ SELECT hasAllTokens('foo bar baz', ['foo', 'foo', 'foo', 'bar', 'bar', 'bar']);
 1
 SELECT hasAnyTokens('foo bar baz', ['foo', 'foo', 'foo', 'bar', 'bar', 'bar']);
 1
+SELECT hasAllTokens(lower(materialize('Hello world')), [lower(toLowCardinality('Hello'))]);
+1
 --- negative: invalid tokenizer ---

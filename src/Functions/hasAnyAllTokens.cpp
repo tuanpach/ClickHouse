@@ -4,6 +4,7 @@
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnNothing.h>
 #include <Common/FunctionDocumentation.h>
+#include <DataTypes/DataTypeLowCardinality.h>
 #include <Core/Settings.h>
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypesNumber.h>
@@ -31,50 +32,39 @@ constexpr size_t arg_input = 0;
 constexpr size_t arg_needles = 1;
 constexpr size_t arg_tokenizer = 2;
 
-template <typename ColumnType>
-const ColumnType * getTypedColumn(const IColumn & column)
-{
-    if (const auto * column_const = checkAndGetColumn<ColumnConst>(&column))
-        return getTypedColumn<ColumnType>(*column_const->getDataColumnPtr());
-
-    if (const auto * column_nullable = checkAndGetColumn<ColumnNullable>(&column))
-        return getTypedColumn<ColumnType>(*column_nullable->getNestedColumnPtr());
-
-    return checkAndGetColumn<ColumnType>(&column);
-}
-
 TokensWithPosition initializeSearchTokens(const ColumnsWithTypeAndName & arguments, const ITokenExtractor & tokenizer, std::string_view function_name)
 {
     if (arguments.size() < 2)
         return {};
 
     auto column_needles = arguments[arg_needles].column;
-    if (!column_needles || column_needles->empty() || column_needles->isNullAt(0))
+    if (!column_needles || column_needles->empty())
+        return {};
+
+    Field needles_field = (*column_needles)[0];
+    if (needles_field.isNull())
         return {};
 
     TokensWithPosition search_tokens;
-    column_needles = removeNullable(column_needles);
     std::vector<String> tokens_array;
 
-    if (const ColumnString * column_needles_string = getTypedColumn<ColumnString>(*column_needles))
+    if (needles_field.getType() == Field::Types::String)
     {
-        auto tokens_str = column_needles_string->getDataAt(0);
+        auto tokens_str = needles_field.safeGet<String>();
         tokenizer.stringToTokens(tokens_str.data(), tokens_str.size(), tokens_array);
         tokens_array = tokenizer.compactTokens(tokens_array);
     }
-    else if (const ColumnArray * column_needles_array = getTypedColumn<ColumnArray>(*column_needles))
+    else if (needles_field.getType() == Field::Types::Array)
     {
-        const IColumn & array_data = column_needles_array->getData();
+        Array array_data = needles_field.safeGet<Array>();
 
-        /// Argument has Array(Nothing) type if a constant array is empty.
-        if (checkAndGetColumn<ColumnNothing>(&array_data))
-            return {};
+        for (const auto & element : array_data)
+        {
+            if (element.getType() != Field::Types::String)
+                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Needles argument for function '{}' has unsupported type of column '{}'", function_name, column_needles->getName());
 
-        const ColumnString & needles_data_string = checkAndGetColumn<ColumnString>(array_data);
-        const ColumnArray::Offsets & array_offsets = column_needles_array->getOffsets();
-
-        for (size_t i = 0; i < array_offsets[0]; ++i)
-            tokens_array.emplace_back(needles_data_string.getDataAt(i));
+            tokens_array.emplace_back(element.safeGet<String>());
+        }
     }
     else
     {

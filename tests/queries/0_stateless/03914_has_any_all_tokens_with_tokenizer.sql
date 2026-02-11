@@ -153,6 +153,7 @@ SELECT '--- duplicate needles ---';
 
 SELECT hasAllTokens('foo bar baz', ['foo', 'foo', 'foo', 'bar', 'bar', 'bar']);
 SELECT hasAnyTokens('foo bar baz', ['foo', 'foo', 'foo', 'bar', 'bar', 'bar']);
+SELECT hasAllTokens(lower(materialize('Hello world')), [lower(toLowCardinality('Hello'))]);
 
 -- { echoOff }
 
