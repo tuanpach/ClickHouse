@@ -80,7 +80,7 @@ def run_fuzz_job(check_name: str):
     Shell.check(command=run_command, verbose=True)
 
     # Fix file ownership after running docker as root
-    logging.info("Buzzhouse: Fixing file ownership after running docker as root")
+    logging.info("Fuzzer: Fixing file ownership after running docker as root")
     uid = os.getuid()
     gid = os.getgid()
     chown_cmd = f"docker run --rm --user root --volume {cwd}:/repo --workdir=/repo {docker_image} chown -R {uid}:{gid} /repo"
