@@ -58,7 +58,7 @@ NodeEvaluationRangeGetter::NodeEvaluationRangeGetter(std::shared_ptr<const Prome
             .start_time = settings_.evaluation_range->start_time,
             .end_time = settings_.evaluation_range->end_time,
             .step = settings_.evaluation_range->step,
-            .window = instant_selector_window};
+            .window = 0};
         visitNode(root, range);
     }
     else
@@ -74,11 +74,11 @@ NodeEvaluationRangeGetter::NodeEvaluationRangeGetter(std::shared_ptr<const Prome
             .start_time = evaluation_time,
             .end_time = evaluation_time,
             .step = 0,
-            .window = instant_selector_window};
+            .window = 0};
         visitNode(root, range);
     }
 
-    findRangeSelectorsAndSetWindows();
+    setWindows();
 }
 
 
@@ -144,27 +144,58 @@ void NodeEvaluationRangeGetter::visitChildren(const Node * node, const NodeEvalu
 }
 
 
-void NodeEvaluationRangeGetter::findRangeSelectorsAndSetWindows()
+void NodeEvaluationRangeGetter::setWindows()
 {
+    /// Assign windows for instant selectors.
+    for (auto it = map.begin(); it != map.end(); ++it)
+    {
+        const auto * node = it->first;
+        if (node->node_type == NodeType::InstantSelector)
+        {
+            /// This window may be overwritten later if this instant selector node is a part of a range selector
+            /// (see below).
+            it->second.window = instant_selector_window;
+        }
+    }
+
+    /// Assign windows for range selectors and subqueries, and propagate these ranges to other nodes.
     for (auto it = map.begin(); it != map.end(); ++it)
     {
         const auto * node = it->first;
         if (node->node_type == NodeType::RangeSelector)
         {
-            /// We've found a range selector, so we'll propagate its window to a range-vector function
-            /// (if this range selector is used in any range-vector function).
             const auto * range_selector_node = static_cast<const PQT::RangeSelector *>(node);
-            auto window = range_selector_node->range;
-            it->second.window = window;
-            const auto * parent = node->parent;
-            while (parent)
-            {
-                map.at(parent).window = window;
-                if (parent->result_type != ResultType::RANGE_VECTOR)
-                    break;
-                parent = parent->parent;
-            }
+            auto range = range_selector_node->range;
+            it->second.window = range;
+            const auto * instant_selector_node = range_selector_node->getInstantSelector();
+            map.at(instant_selector_node).window = range;
+            /// We propagate the range of a range selector up to its parents until we meet a range-vector function
+            /// (e.g. avg_over_time) if any, so such function could user a proper window.
+            propagateRangeToParents(node, range);
         }
+        else if (node->node_type == NodeType::Subquery)
+        {
+            /// We propagate the range of a subquery up to its parents until we meet a range-vector function
+            /// (e.g. avg_over_time) if any, so such function could user a proper window.
+            const auto * subquery_node = static_cast<const PQT::Subquery *>(node);
+            auto range = subquery_node->range;
+            it->second.window = range;
+            propagateRangeToParents(node, range);
+        }
+    }
+}
+
+
+void NodeEvaluationRangeGetter::propagateRangeToParents(const PQT::Node * node, Decimal64 range)
+{
+    chassert(node->result_type == ResultType::RANGE_VECTOR);
+    const auto * parent = node->parent;
+    while (parent)
+    {
+        map.at(parent).window = range;
+        if (parent->result_type != ResultType::RANGE_VECTOR)
+            break;
+        parent = parent->parent;
     }
 }
 
