@@ -151,31 +151,29 @@ void NodeEvaluationRangeGetter::visitChildren(const Node * node, const NodeEvalu
 void NodeEvaluationRangeGetter::setWindows()
 {
     /// Assign windows for instant selectors.
-    for (auto it = map.begin(); it != map.end(); ++it)
+    for (auto & [node, node_range] : map)
     {
-        const auto * node = it->first;
         if (node->node_type == NodeType::InstantSelector)
         {
             /// The following setting may be overwritten later if this instant selector node is a part of a range selector
             /// (see below).
-            it->second.window = instant_selector_window;
+            node_range.window = instant_selector_window;
         }
         else
         {
             /// If the window isn't used we set it to zero.
-            it->second.window = 0;
+            node_range.window = 0;
         }
     }
 
     /// Assign windows for range selectors and subqueries, and propagate these ranges to other nodes.
-    for (auto it = map.begin(); it != map.end(); ++it)
+    for (auto & [node, node_range] : map)
     {
-        const auto * node = it->first;
         if (node->node_type == NodeType::RangeSelector)
         {
             const auto * range_selector_node = static_cast<const PQT::RangeSelector *>(node);
             auto range = range_selector_node->range;
-            it->second.window = range;
+            node_range.window = range;
             const auto * instant_selector_node = range_selector_node->getInstantSelector();
             map.at(instant_selector_node).window = range;
             /// We propagate the range of a range selector up to its parents until we meet a range-vector function
@@ -188,7 +186,7 @@ void NodeEvaluationRangeGetter::setWindows()
             /// (e.g. avg_over_time) if any, so such function could user a proper window.
             const auto * subquery_node = static_cast<const PQT::Subquery *>(node);
             auto range = subquery_node->range;
-            it->second.window = range;
+            node_range.window = range;
             propagateRangeToParents(node, range);
         }
     }
