@@ -7,7 +7,8 @@
 /// The default range [-128, 127] covers all other enums.
 /// See contrib/magic_enum/doc/limitations.md#enum-range
 namespace Coordination { enum class OpNum : int32_t; }
-template <> struct magic_enum::customize::enum_range<Coordination::OpNum> {
+template <> struct magic_enum::customize::enum_range<Coordination::OpNum>
+{
     static constexpr int min = -20;
     static constexpr int max = 1000;
 };
