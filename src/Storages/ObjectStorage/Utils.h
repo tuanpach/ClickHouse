@@ -13,6 +13,7 @@ class IObjectStorage;
 /// Optional parameters for schema consistency validation when columns were explicitly specified.
 struct ValidateColumnsSchemaParams
 {
+    bool need_resolve_columns_or_format;
     ObjectStoragePtr object_storage;
     StorageObjectStorageConfigurationPtr configuration;
     std::optional<FormatSettings> format_settings;

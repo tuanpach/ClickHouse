@@ -209,31 +209,20 @@ StorageObjectStorage::StorageObjectStorage(
         format_settings,
         context);
 
-    std::optional<ValidateColumnsSchemaParams> schema_validation_params;
-    if (!need_resolve_columns_or_format &&
-        !configuration->isDataLakeConfiguration() &&
-        !columns_in_table_or_function_definition.empty() &&
-        !is_table_function &&
-        configuration_->format != "CSV" &&
-        configuration_->format != "TSV" &&
-        mode == LoadingStrictnessLevel::CREATE &&
-        !do_lazy_init)
-    {
-        schema_validation_params = ValidateColumnsSchemaParams{
-            object_storage_,
-            configuration_,
-            format_settings,
-            sample_path,
-            context,
-            hive_partition_columns_to_read_from_file_path,
-            columns_in_table_or_function_definition,
-            is_table_function,
-            mode,
-            do_lazy_init,
-            log,
-        };
-    }
-    validateColumns(columns, *configuration, schema_validation_params);
+    validateColumns(columns, *configuration, std::optional<ValidateColumnsSchemaParams>({
+        need_resolve_columns_or_format,
+        object_storage_,
+        configuration_,
+        format_settings,
+        sample_path,
+        context,
+        hive_partition_columns_to_read_from_file_path,
+        columns_in_table_or_function_definition,
+        is_table_function,
+        mode,
+        do_lazy_init,
+        log,
+    }));
 
     // Assert file contains at least one column. The assertion only takes place if we were able to deduce the schema. The storage might be empty.
     if (!columns.empty() && file_columns.empty())

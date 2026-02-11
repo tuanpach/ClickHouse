@@ -128,6 +128,18 @@ void validateColumns(
     if (!schema_params)
         return;
 
+    /// We don't need to process data lakes because tables may have "schema evolution" feature.
+    /// We don't check csv and tsv formats because they change column names.
+    if (schema_params->need_resolve_columns_or_format
+        || configuration.isDataLakeConfiguration()
+        || schema_params->columns_in_table_or_function_definition.empty()
+        || schema_params->is_table_function
+        || configuration.format == "CSV"
+        || configuration.format == "TSV"
+        || schema_params->mode != LoadingStrictnessLevel::CREATE
+        || schema_params->do_lazy_init)
+        return;
+
     /// Verify that explicitly specified columns exist in the schema inferred from data.
     String sample_path_schema = schema_params->sample_path;
     std::optional<ColumnsDescription> schema_file;
