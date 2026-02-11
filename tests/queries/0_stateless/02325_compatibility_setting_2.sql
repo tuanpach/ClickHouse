@@ -1,3 +1,6 @@
+-- Tags: no-async-insert
+-- ^ due to the usage of async_insert_deduplicate setting, which is set to true in AsyncInsert test sute
+
 -- { echo }
 
 select value from system.settings where name='allow_settings_after_format_in_insert';
