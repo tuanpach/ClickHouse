@@ -2,7 +2,7 @@
 
 #include <cstdint>
 #include <limits>
-#include <magic_enum.hpp>
+#include <base/EnumReflection.h>
 
 
 namespace Coordination
