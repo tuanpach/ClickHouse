@@ -1,9 +1,9 @@
 #pragma once
 #include <Storages/ObjectStorage/StorageObjectStorage.h>
 #include <Parsers/IAST_fwd.h>
-#include <Core/NamesAndTypesList.h>
+#include <Core/NamesAndTypes.h>
 #include <Databases/LoadingStrictnessLevel.h>
-#include <Common/Logger_fwd.h>
+#include <Common/Logger.h>
 
 namespace DB
 {
