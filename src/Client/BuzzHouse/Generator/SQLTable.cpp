@@ -1995,7 +1995,7 @@ void StatementGenerator::addTableProjection(RandomGenerator & rg, SQLTable & t, 
         generateSelect(rg, true, false, ncols, allow_groupby | allow_orderby, std::nullopt, psdef->mutable_select());
         this->levels.clear();
         /// Add projection settings
-        if (rg.nextBool())
+        if (rg.nextSmallNumber() < 4)
         {
             const auto & engineSettings = allTableSettings.at(t.teng);
 
