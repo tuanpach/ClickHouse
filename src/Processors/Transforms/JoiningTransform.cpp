@@ -341,7 +341,7 @@ void FillingRightJoinSideTransform::work()
     else
     {
         ProfileEvents::increment(ProfileEvents::JoinBuildTableRowCount, num_rows);
-        stop_reading = !join->addBlockToJoin(block, num_rows);
+        stop_reading = !join->addBlockToJoin(block, num_rows, true);
     }
 
     if (input.isFinished() && !join->supportParallelJoin())
