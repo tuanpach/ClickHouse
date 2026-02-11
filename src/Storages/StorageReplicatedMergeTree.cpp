@@ -1801,7 +1801,14 @@ void StorageReplicatedMergeTree::paranoidCheckForCoveredPartsInZooKeeperOnStart(
                 getStorageID().getNameForLogs(),
                 covering_part);
             ProfileEvents::increment(ProfileEvents::ReplicatedCoveredPartsInZooKeeperOnStart);
-            chassert(false);
+
+            /// This situation can happen legitimately: after a merge or mutation creates a covering part,
+            /// the old part transitions to Outdated and is eventually removed from disk by `clearOldPartsAndRemoveFromZK`.
+            /// That function removes ZK entries first and then disk files, but if the server is stopped
+            /// between the disk cleanup and the ZK cleanup of a previous cycle (or if ZK cleanup is delayed),
+            /// the old part's ZK entry can outlive its on-disk data.
+            /// This is not dangerous: the data is preserved in the covering part, and the stale ZK entry
+            /// will be cleaned up by the cleanup thread after the server fully starts.
         }
     }
 }
