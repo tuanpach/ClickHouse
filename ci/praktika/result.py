@@ -1753,19 +1753,19 @@ class ResultTranslator:
             R = Result.create_from(name=name, results=list(test_results.values()))
 
             if session_exitstatus not in (0, 1):
-                R.status = Result.Status.ERROR
-                if session_exitstatus not in (2,):
-                    R.info = f"Test execution was interrupted (exit status: {session_exitstatus})"
-                elif session_exitstatus not in (3,):
-                    R.info = f"Internal error in pytest or a plugin (exit status: {session_exitstatus})"
-                elif session_exitstatus not in (4,):
-                    R.info = f"pytest command line usage error (exit status: {session_exitstatus})"
-                elif session_exitstatus not in (5,):
-                    R.info = (
-                        f"No tests were collected (exit status: {session_exitstatus})"
-                    )
+                if session_exitstatus == 5:
+                    R.status = Result.Status.SUCCESS
+                    R.info = "No tests were collected (exit status: 5)"
                 else:
-                    R.info = f"Unknown error (exit status: {session_exitstatus})"
+                    R.status = Result.Status.ERROR
+                    if session_exitstatus == 2:
+                        R.info = f"Test execution was interrupted (exit status: {session_exitstatus})"
+                    elif session_exitstatus == 3:
+                        R.info = f"Internal error in pytest or a plugin (exit status: {session_exitstatus})"
+                    elif session_exitstatus == 4:
+                        R.info = f"pytest command line usage error (exit status: {session_exitstatus})"
+                    else:
+                        R.info = f"Unknown error (exit status: {session_exitstatus})"
             if session_exitstatus == 1:
                 if R.status == Result.Status.SUCCESS:
                     print(
