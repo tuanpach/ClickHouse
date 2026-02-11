@@ -1871,13 +1871,13 @@ std::map<String, String> DatabaseReplicated::getConsistentMetadataSnapshotImpl(
         Coordination::Stat current_metadata_path_stat;
         zookeeper->get(metadata_path, &current_metadata_path_stat);
 
-        if (current_metadata_path_stat.ctime != prev_metadata_path_stat.ctime)
+        if (current_metadata_path_stat.czxid != prev_metadata_path_stat.czxid)
         {
             LOG_DEBUG(
                 log,
                 "Database zookeeper path was recreated. Created time before {}, current {}",
-                prev_metadata_path_stat.ctime,
-                current_metadata_path_stat.ctime);
+                prev_metadata_path_stat.czxid,
+                current_metadata_path_stat.czxid);
             continue;
         }
 
