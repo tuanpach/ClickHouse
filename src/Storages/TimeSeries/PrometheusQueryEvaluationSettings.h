@@ -3,27 +3,44 @@
 #include <DataTypes/IDataType.h>
 #include <Interpreters/StorageID.h>
 #include <Parsers/Prometheus/PrometheusQueryTree.h>
-#include <Storages/TimeSeries/PrometheusQueryEvaluationRange.h>
 
 
 namespace DB
 {
 
+enum class PrometheusQueryEvaluationMode
+{
+    /// Evaluates a query at a specified evaluation time set either by `start_time` and `end_time` (they must be equal),
+    /// or by turning on `use_current_time`.
+    /// Corresponds to endpoint /api/v1/query
+    QUERY,
+
+    /// Evaluates a query over a range of time at a specified evaluation time set by `start_time` and `end_time` (they must be equal).
+    /// Corresponds to endpoint /api/v1/query_range
+    QUERY_RANGE,
+};
+
+
 struct PrometheusQueryEvaluationSettings
 {
-    using TimestampType = PrometheusQueryEvaluationRange::TimestampType;
-    using DurationType = PrometheusQueryEvaluationRange::DurationType;
+    using TimestampType = DateTime64;
+    using DurationType = Decimal64;
 
     StorageID time_series_storage_id = StorageID::createEmpty();
     DataTypePtr timestamp_data_type;
     DataTypePtr scalar_data_type;
 
-    /// `evaluation_time` sets a specific time when the prometheus query is evaluated,
-    /// `evaluation_range` sets a range of such times.
-    /// If neither `evaluation_time` nor `evaluation_range` is set then the current time is used.
-    /// The scale for these fields is the same as the scale used in `timestamp_data_type`.
-    std::optional<TimestampType> evaluation_time;
-    std::optional<PrometheusQueryEvaluationRange> evaluation_range;
+    PrometheusQueryEvaluationMode mode = PrometheusQueryEvaluationMode::QUERY;
+
+    /// Specifies that a prometheus query should be evaluated at the current time.
+    bool use_current_time = false;
+
+    /// Specifies that a prometheus query should be evaluated starting with `start_time` and ending with `end_time`
+    /// with a specified `step`.
+    /// The scale of these fields is the same as the scale used in `timestamp_data_type`.
+    std::optional<TimestampType> start_time;
+    std::optional<TimestampType> end_time;
+    std::optional<DurationType> step;
 
     /// The window used by instant selectors (see lookback period).
     /// For example, query "http_requests_total @ 1770810669" is in fact evaluated as

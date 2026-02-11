@@ -66,15 +66,24 @@ void PrometheusHTTPProtocolAPI::executePromQLQuery(
 
     if (params.type == Type::Instant)
     {
-        if (!params.time_param.empty())
-            evaluation_settings.evaluation_time = parseTimeSeriesTimestamp(params.time_param, timestamp_scale);
+        evaluation_settings.mode = PrometheusQueryEvaluationMode::QUERY;
+        if (params.time_param.empty())
+        {
+            evaluation_settings.use_current_time = true;
+        }
+        else
+        {
+            evaluation_settings.start_time = parseTimeSeriesTimestamp(params.time_param, timestamp_scale);
+            evaluation_settings.end_time = evaluation_settings.start_time;
+            evaluation_settings.step = 0;
+        }
     }
     else if (params.type == Type::Range)
     {
-        evaluation_settings.evaluation_range = PrometheusQueryEvaluationRange{
-            .start_time = parseTimeSeriesTimestamp(params.start_param, timestamp_scale),
-            .end_time = parseTimeSeriesTimestamp(params.end_param, timestamp_scale),
-            .step = parseTimeSeriesDuration(params.step_param, timestamp_scale)};
+        evaluation_settings.mode = PrometheusQueryEvaluationMode::QUERY_RANGE;
+        evaluation_settings.start_time = parseTimeSeriesTimestamp(params.start_param, timestamp_scale);
+        evaluation_settings.end_time = parseTimeSeriesTimestamp(params.end_param, timestamp_scale);
+        evaluation_settings.step = parseTimeSeriesDuration(params.step_param, timestamp_scale);
     }
 
     PrometheusQueryToSQL::Converter converter{query_tree, evaluation_settings};

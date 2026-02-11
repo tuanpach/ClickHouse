@@ -1,7 +1,6 @@
 #pragma once
 
 #include <DataTypes/IDataType.h>
-#include <Storages/TimeSeries/PrometheusQueryEvaluationRange.h>
 #include <Storages/TimeSeries/PrometheusQueryToSQL/ConverterDefs.h>
 #include <Storages/TimeSeries/PrometheusQueryToSQL/NodeEvaluationRange.h>
 

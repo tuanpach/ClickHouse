@@ -100,8 +100,10 @@ StoragePrometheusQuery::Configuration StoragePrometheusQuery::getConfiguration(A
 
     PrometheusQueryTree promql_query{promql_query_field.safeGet<String>()};
 
-    std::optional<DateTime64> evaluation_time;
-    std::optional<PrometheusQueryEvaluationRange> evaluation_range;
+    PrometheusQueryEvaluationMode mode;
+    DateTime64 start_time;
+    DateTime64 end_time;
+    Decimal64 step;
 
     if (over_range)
     {
@@ -109,15 +111,19 @@ StoragePrometheusQuery::Configuration StoragePrometheusQuery::getConfiguration(A
         auto [end_time_field, end_time_type] = evaluateConstantExpression(args[argument_index++], context);
         auto [step_field, step_type] = evaluateConstantExpression(args[argument_index++], context);
 
-        evaluation_range.emplace();
-        evaluation_range->start_time = parseTimeSeriesTimestamp(start_time_field, start_time_type, timestamp_scale);
-        evaluation_range->end_time = parseTimeSeriesTimestamp(end_time_field, end_time_type, timestamp_scale);
-        evaluation_range->step = parseTimeSeriesDuration(step_field, step_type, timestamp_scale);
+        mode = PrometheusQueryEvaluationMode::QUERY_RANGE;
+        start_time = parseTimeSeriesTimestamp(start_time_field, start_time_type, timestamp_scale);
+        end_time = parseTimeSeriesTimestamp(end_time_field, end_time_type, timestamp_scale);
+        step = parseTimeSeriesDuration(step_field, step_type, timestamp_scale);
     }
     else
     {
-        auto [evaluation_time_field, evaluation_time_type] = evaluateConstantExpression(args[argument_index++], context);
-        evaluation_time = parseTimeSeriesTimestamp(evaluation_time_field, evaluation_time_type, timestamp_scale);
+        auto [time_field, time_type] = evaluateConstantExpression(args[argument_index++], context);
+
+        mode = PrometheusQueryEvaluationMode::QUERY;
+        start_time = parseTimeSeriesTimestamp(time_field, time_type, timestamp_scale);
+        end_time = start_time;
+        step = 0;
     }
 
     chassert(argument_index == args.size());
@@ -128,8 +134,10 @@ StoragePrometheusQuery::Configuration StoragePrometheusQuery::getConfiguration(A
     evaluation_settings.time_series_storage_id = std::move(time_series_storage_id);
     evaluation_settings.timestamp_data_type = std::move(timestamp_data_type);
     evaluation_settings.scalar_data_type = std::move(scalar_data_type);
-    evaluation_settings.evaluation_time = evaluation_time;
-    evaluation_settings.evaluation_range = evaluation_range;
+    evaluation_settings.mode = mode;
+    evaluation_settings.start_time = start_time;
+    evaluation_settings.end_time = end_time;
+    evaluation_settings.step = step;
     return config;
 }
 

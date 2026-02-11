@@ -8,6 +8,7 @@
 
 namespace DB::ErrorCodes
 {
+    extern const int BAD_ARGUMENTS;
     extern const int LOGICAL_ERROR;
 }
 
@@ -52,32 +53,35 @@ NodeEvaluationRangeGetter::NodeEvaluationRangeGetter(std::shared_ptr<const Prome
     if (!root)
         return;
 
-    if (settings_.evaluation_range)
+    NodeEvaluationRange range;
+
+    if (settings_.use_current_time)
     {
-        NodeEvaluationRange range{
-            .start_time = settings_.evaluation_range->start_time,
-            .end_time = settings_.evaluation_range->end_time,
-            .step = settings_.evaluation_range->step,
-            .window = 0};
-        visitNode(root, range);
+        range.start_time = DecimalUtils::getCurrentDateTime64(timestamp_scale);
+        range.end_time = range.start_time;
+        range.step = 0;
     }
     else
     {
-        /// By default the evaluation time is the current time.
-        TimestampType evaluation_time;
-        if (settings_.evaluation_time)
-            evaluation_time = *settings_.evaluation_time;
-        else
-            evaluation_time = DecimalUtils::getCurrentDateTime64(timestamp_scale);
-
-        NodeEvaluationRange range{
-            .start_time = evaluation_time,
-            .end_time = evaluation_time,
-            .step = 0,
-            .window = 0};
-        visitNode(root, range);
+        if (!settings_.start_time)
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "start_time is not specified");
+        if (!settings_.end_time)
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "end_time is not specified");
+        if (*settings_.start_time > *settings_.end_time)
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "start_time must not be greater than end_time");
+        if (*settings_.start_time < *settings_.end_time)
+        {
+            if (!settings_.step)
+                throw Exception(ErrorCodes::BAD_ARGUMENTS, "step is not specified");
+            if (*settings_.step <= 0)
+                throw Exception(ErrorCodes::BAD_ARGUMENTS, "step must be positive");
+        }
+        range.start_time = *settings_.start_time;
+        range.end_time = *settings_.end_time;
+        range.step = (*settings_.start_time < *settings_.end_time) ? *settings_.step : DurationType{0};
     }
 
+    visitNode(root, range);
     setWindows();
 }
 
@@ -152,9 +156,14 @@ void NodeEvaluationRangeGetter::setWindows()
         const auto * node = it->first;
         if (node->node_type == NodeType::InstantSelector)
         {
-            /// This window may be overwritten later if this instant selector node is a part of a range selector
+            /// The following setting may be overwritten later if this instant selector node is a part of a range selector
             /// (see below).
             it->second.window = instant_selector_window;
+        }
+        else
+        {
+            /// If the window isn't used we set it to zero.
+            it->second.window = 0;
         }
     }
 

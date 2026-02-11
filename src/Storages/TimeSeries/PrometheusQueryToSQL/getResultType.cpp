@@ -37,7 +37,7 @@ namespace
 
 ResultType getResultType(const PQT & promql_tree, const PrometheusQueryEvaluationSettings & settings)
 {
-    if (settings.evaluation_range)
+    if (settings.mode == PrometheusQueryEvaluationMode::QUERY_RANGE)
     {
         checkPrometheusQueryAllowsEvaluationRange(promql_tree);
         return ResultType::RANGE_VECTOR;
