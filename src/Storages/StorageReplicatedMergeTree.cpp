@@ -1757,10 +1757,8 @@ static time_t tryGetPartCreateTime(zkutil::ZooKeeperPtr & zookeeper, const Strin
     return res;
 }
 
-Strings StorageReplicatedMergeTree::paranoidCheckForCoveredPartsInZooKeeperOnStart(const Strings & parts_in_zk, const Strings & parts_to_fetch) const
+void StorageReplicatedMergeTree::paranoidCheckForCoveredPartsInZooKeeperOnStart(const Strings & parts_in_zk, const Strings & parts_to_fetch) const
 {
-    Strings covered_parts_to_remove;
-
 #ifdef DEBUG_OR_SANITIZER_BUILD
     constexpr bool paranoid_check_for_covered_parts_default = true;
 #else
@@ -1770,7 +1768,7 @@ Strings StorageReplicatedMergeTree::paranoidCheckForCoveredPartsInZooKeeperOnSta
     bool paranoid_check_for_covered_parts = Context::getGlobalContextInstance()->getConfigRef().getBool(
         "replicated_merge_tree_paranoid_check_on_startup", paranoid_check_for_covered_parts_default);
     if (!paranoid_check_for_covered_parts)
-        return covered_parts_to_remove;
+        return;
 
     ActiveDataPartSet active_set(format_version);
     for (const auto & part_name : parts_in_zk)
@@ -1798,23 +1796,14 @@ Strings StorageReplicatedMergeTree::paranoidCheckForCoveredPartsInZooKeeperOnSta
             LOG_WARNING(
                 log,
                 "Part {} of table {} exists in ZooKeeper and covered by another part in ZooKeeper ({}), but doesn't exist on any disk. "
-                "Will remove it from ZooKeeper to prevent false-positive 'part is lost forever' messages",
+                "It may cause false-positive 'part is lost forever' messages",
                 part_name,
                 getStorageID().getNameForLogs(),
                 covering_part);
             ProfileEvents::increment(ProfileEvents::ReplicatedCoveredPartsInZooKeeperOnStart);
-
-            /// This situation can happen legitimately when:
-            /// - A ZK multi-op in `checkPartChecksumsAndCommit` registered the part in ZK,
-            ///   but the server crashed before the data was flushed to disk.
-            /// - A fetch was optimized to download a covering part instead,
-            ///   leaving the original's ZK entry orphaned.
-            /// The data is preserved in the covering part, so it's safe to remove the stale ZK entry.
-            covered_parts_to_remove.push_back(part_name);
+            chassert(false);
         }
     }
-
-    return covered_parts_to_remove;
 }
 
 void StorageReplicatedMergeTree::checkParts(bool skip_sanity_checks)
@@ -1865,17 +1854,13 @@ bool StorageReplicatedMergeTree::checkPartsImpl(bool skip_sanity_checks)
         if (!getActiveContainingPart(missing_name))
             parts_to_fetch.push_back(missing_name);
 
-    Strings covered_parts_in_zk_to_remove = paranoidCheckForCoveredPartsInZooKeeperOnStart(expected_parts_vec, parts_to_fetch);
-
-    /// Remove stale ZK entries for covered parts that don't exist on disk.
-    /// These entries must be removed before the rest of the check to avoid false-positive 'part is lost forever' messages.
-    if (!covered_parts_in_zk_to_remove.empty())
-    {
-        LOG_WARNING(log, "Removing {} stale covered part entries from ZooKeeper", covered_parts_in_zk_to_remove.size());
-        removePartsFromZooKeeper(zookeeper, covered_parts_in_zk_to_remove, nullptr);
-        for (const auto & part_name : covered_parts_in_zk_to_remove)
-            expected_parts.erase(part_name);
-    }
+    /// The paranoid check looks for parts that exist in ZooKeeper and are covered by another ZK part,
+    /// but don't exist in the in-memory data_parts set. When outdated parts are still being loaded
+    /// asynchronously, a covered part may exist on disk but not yet be in the data_parts set,
+    /// causing a false positive. Skip the check on the first (optimistic) call; it will run on the
+    /// second call after `waitForOutdatedPartsToBeLoaded` in `checkParts`.
+    if (!incomplete_list_of_outdated_parts)
+        paranoidCheckForCoveredPartsInZooKeeperOnStart(expected_parts_vec, parts_to_fetch);
 
     waitForUnexpectedPartsToBeLoaded();
 
