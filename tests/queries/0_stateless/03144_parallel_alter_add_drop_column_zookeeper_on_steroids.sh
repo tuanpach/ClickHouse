@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # Tags: zookeeper, no-parallel, no-fasttest
 
+# Regression test for https://github.com/ClickHouse/ClickHouse/pull/63353
+# A LOGICAL_ERROR "Unexpected return type from materialize" could occur during SELECT
+# after concurrent ALTERs, because `IMergeTreeReader::evaluateMissingDefaults` used the
+# column type from storage metadata instead of from the data part. During concurrent
+# MODIFY COLUMN (e.g. UInt8 -> String), a SELECT could read a part whose column type
+# didn't match the current metadata, causing a type mismatch when materializing columns.
+# The test reproduces this by running an intense concurrent workload of ADD/DROP/MODIFY
+# COLUMN, SELECT, OPTIMIZE, and INSERT across 3 replicas, then verifies replication consistency.
+
 CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=../shell_config.sh
 . "$CURDIR"/../shell_config.sh
