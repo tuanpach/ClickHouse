@@ -447,45 +447,47 @@ class S3:
     def copy_file_from_s3_with_version(cls, s3_path, local_path):
         """
         Downloads a file from S3 and returns its version from object metadata.
+        Uses a single atomic GET operation to ensure version matches the downloaded content.
 
         :param s3_path: S3 path (with or without s3:// prefix)
         :param local_path: Local path to save the file
-        :return: Version number from object metadata
+        :return: Version number from object metadata (guaranteed to match downloaded content)
         """
         # Use boto3 if available, otherwise AWS CLI
         if BOTO3_AVAILABLE:
             client = cls._get_boto3_client()
             if client:
-                # boto3 approach: single file with version in metadata
+                # boto3 approach: use get_object for atomic metadata+content read
                 s3_path_clean = str(s3_path).removeprefix("s3://")
                 bucket, key = s3_path_clean.split("/", maxsplit=1)
 
-                # Get object metadata to extract version
-                response = client.head_object(Bucket=bucket, Key=key)
+                # Use get_object to atomically read metadata and content
+                # This prevents race condition where object changes between HEAD and GET
+                response = client.get_object(Bucket=bucket, Key=key)
                 version = int(response.get("Metadata", {}).get("version", "0"))
 
-                # Download the file
+                # Stream body to file
                 Path(local_path).parent.mkdir(parents=True, exist_ok=True)
-                client.download_file(bucket, key, str(local_path))
+                with open(local_path, "wb") as f:
+                    f.write(response["Body"].read())
 
                 print(f"Downloaded file from S3 with version {version} using boto3")
                 return version
 
-        # AWS CLI approach: single file with version in metadata
+        # AWS CLI approach: use get-object for atomic metadata+content download
         s3_path_clean = str(s3_path).removeprefix("s3://")
         bucket, key = s3_path_clean.split("/", maxsplit=1)
 
-        # Get object metadata to extract version
+        # Use get-object to atomically download file and get metadata
+        # This prevents race condition where object changes between HEAD and GET
+        Path(local_path).parent.mkdir(parents=True, exist_ok=True)
         output = Shell.get_output(
-            f"aws s3api head-object --bucket {bucket} --key {key}",
+            f"aws s3api get-object --bucket {bucket} --key {key} {local_path}",
             strict=True,
             verbose=True,
         )
         metadata = json.loads(output)
         version = int(metadata.get("Metadata", {}).get("version", "0"))
-
-        # Download the file
-        cls.copy_file_from_s3(s3_path=s3_path, local_path=local_path)
 
         print(f"Downloaded file from S3 with version {version} using AWS CLI")
         return version
@@ -498,9 +500,14 @@ class S3:
         Uploads a file to S3 with version tracking in object metadata.
         Uses conditional PUT with ETag matching for concurrent write safety (optimistic locking).
 
+        IMPORTANT: Version 0 is a destructive reset operation that overwrites without conditions.
+        It MUST NOT be called concurrently - only use version 0 for initialization or when you
+        have exclusive access. For concurrent updates, always use version > 0 with the retry pattern:
+        read current version, attempt to write version+1, retry on failure.
+
         :param s3_path: S3 path (with or without s3:// prefix)
         :param local_path: Local file path to upload
-        :param version: Version number to set in metadata
+        :param version: Version number to set in metadata (0 = destructive reset, >0 = conditional update)
         :param text: Whether to set content-type as text/plain
         :param no_strict: Whether to suppress unexpected errors (returns False instead of raising exception)
         :return: True if successful, False if concurrent write detected (object was modified by another process).
@@ -510,6 +517,12 @@ class S3:
         assert Path(
             local_path
         ).is_file(), f"Path [{local_path}] is not file. Only files are supported"
+
+        # Warn about version 0 usage
+        if version == 0:
+            print(
+                "WARNING: Version 0 is a destructive reset operation - ensure no concurrent writes are happening"
+            )
 
         # Use boto3 if available, otherwise AWS CLI
         if BOTO3_AVAILABLE:
@@ -528,9 +541,9 @@ class S3:
                     }
 
                     if version == 0:
-                        # For version 0, just overwrite (clean start)
+                        # DESTRUCTIVE: Version 0 overwrites without conditions (NOT safe for concurrent use)
                         print(
-                            f"Uploading file with version 0 (clean start) using boto3"
+                            f"Uploading file with version 0 (destructive reset) using boto3"
                         )
                         client.upload_file(
                             str(local_path), bucket, key, ExtraArgs=extra_args
@@ -600,8 +613,8 @@ class S3:
 
         try:
             if version == 0:
-                # For version 0, just upload without conditions (clean start)
-                print(f"Uploading file with version 0 (clean start) using AWS CLI")
+                # DESTRUCTIVE: Version 0 uploads without conditions (NOT safe for concurrent use)
+                print(f"Uploading file with version 0 (destructive reset) using AWS CLI")
                 result_uploaded = cls.put(
                     s3_path=s3_path,
                     local_path=local_path,
