@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Tags: no-fasttest, no-replicated-database
 
+# Creation of a database with Ordinary engine emits a warning.
+CLICKHOUSE_CLIENT_SERVER_LOGS_LEVEL=fatal
+
 CURDIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=../shell_config.sh
 . "$CURDIR"/../shell_config.sh
-
-# Creation of a database with Ordinary engine emits a warning.
-CLICKHOUSE_CLIENT_SERVER_LOGS_LEVEL=fatal
 
 # Test for a bug where failed merge transaction rollback left renamed parts on disk,
 # causing intersecting parts on ATTACH TABLE.
@@ -24,7 +24,7 @@ $CLICKHOUSE_CLIENT -q "
         SETTINGS merge_max_block_size = 1000
 "
 
-# Disable background merges to control merge sequence
+# Disable background merges while inserting parts to control part count
 $CLICKHOUSE_CLIENT -q "SYSTEM STOP MERGES ${db_name}.test_intersect"
 
 # Insert several parts (without implicit_transaction, so they succeed)
@@ -32,16 +32,26 @@ for i in $(seq 1 5); do
     $CLICKHOUSE_CLIENT -q "INSERT INTO ${db_name}.test_intersect SELECT number + ($i - 1) * 100 FROM numbers(100)"
 done
 
+# Resume merges so OPTIMIZE FINAL can actually start a merge.
+# SYSTEM STOP MERGES prevents even explicit OPTIMIZE from working.
+$CLICKHOUSE_CLIENT -q "SYSTEM START MERGES ${db_name}.test_intersect"
+
 # OPTIMIZE with implicit_transaction=1 will trigger a merge, which renames tmp to final,
 # but then commit fails with NOT_IMPLEMENTED because Ordinary database has no UUID.
 # The fix renames the part back to tmp_ prefix on rollback.
 $CLICKHOUSE_CLIENT --implicit_transaction=1 --throw_on_unsupported_query_inside_transaction=0 \
     -q "OPTIMIZE TABLE ${db_name}.test_intersect FINAL" 2>/dev/null ||:
 
+# Stop merges again before inserting more parts
+$CLICKHOUSE_CLIENT -q "SYSTEM STOP MERGES ${db_name}.test_intersect"
+
 # Insert more parts to shift block numbers
 for i in $(seq 6 10); do
     $CLICKHOUSE_CLIENT -q "INSERT INTO ${db_name}.test_intersect SELECT number + ($i - 1) * 100 FROM numbers(100)"
 done
+
+# Resume merges for the second OPTIMIZE
+$CLICKHOUSE_CLIENT -q "SYSTEM START MERGES ${db_name}.test_intersect"
 
 # Try another merge that would overlap with the first failed one
 $CLICKHOUSE_CLIENT --implicit_transaction=1 --throw_on_unsupported_query_inside_transaction=0 \
