@@ -41,7 +41,7 @@ $CLICKHOUSE_CLIENT -q "
     drop table d;
     truncate src;
     insert into src values (1);
-    create materialized view e refresh every 1 second (x Int64) engine MergeTree order by x as select x + sleepEachRow(1) as x from src settings max_block_size = 1;
+    create materialized view e refresh every 1 second (x Int64) engine MergeTree order by x as select x + sleepEachRow(1) as x from src settings max_block_size = 1, max_threads = 1;
     system wait view e;"
 # Stop refreshes.
 $CLICKHOUSE_CLIENT -q "
