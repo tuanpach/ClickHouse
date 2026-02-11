@@ -1,5 +1,8 @@
 #include <Core/Settings.h>
+#include <Common/Exception.h>
+#include <Common/Logger.h>
 #include <Common/filesystemHelpers.h>
+#include <Core/LogsLevel.h>
 #include <Disks/IO/AsynchronousBoundedReadBuffer.h>
 #include <Disks/IO/CachedOnDiskReadBufferFromFile.h>
 #include <Disks/IO/getThreadPoolReader.h>
@@ -106,12 +109,13 @@ void resolveSchemaAndFormat(
         format = StorageObjectStorage::resolveFormatFromData(object_storage, configuration, format_settings, sample_path, context);
     }
 
-    validateSupportedColumns(columns, *configuration);
+    validateColumns(columns, *configuration);
 }
 
-void validateSupportedColumns(
-    ColumnsDescription & columns,
-    const StorageObjectStorageConfiguration & configuration)
+void validateColumns(
+    const ColumnsDescription & columns,
+    const StorageObjectStorageConfiguration & configuration,
+    const std::optional<ValidateColumnsSchemaParams> & schema_params)
 {
     if (!columns.hasOnlyOrdinary())
     {
@@ -119,6 +123,40 @@ void validateSupportedColumns(
         throw Exception(ErrorCodes::BAD_ARGUMENTS,
             "Special columns like MATERIALIZED, ALIAS or EPHEMERAL are not supported for {} storage.",
             configuration.getTypeName());
+    }
+
+    if (!schema_params)
+        return;
+
+    /// Verify that explicitly specified columns exist in the schema inferred from data.
+    String sample_path_schema = schema_params->sample_path;
+    std::optional<ColumnsDescription> schema_file;
+    try
+    {
+        schema_file = StorageObjectStorage::resolveSchemaFromData(
+            schema_params->object_storage,
+            schema_params->configuration,
+            schema_params->format_settings,
+            sample_path_schema,
+            schema_params->context);
+    }
+    catch (...)
+    {
+        tryLogCurrentException(schema_params->log, "while verifying schema consistency", LogsLevel::debug);
+    }
+    if (schema_file)
+    {
+        std::unordered_set<String> hive_partitioning_columns;
+        for (const auto & column_name : schema_params->hive_partition_columns_to_read_from_file_path.getNames())
+            hive_partitioning_columns.insert(column_name);
+        for (const auto & column : schema_params->columns_in_table_or_function_definition)
+            if (!schema_file->tryGet(column.name) && !hive_partitioning_columns.contains(column.name))
+            {
+                String hive_columns;
+                for (const auto & hive_column : hive_partitioning_columns)
+                    hive_columns += hive_column + ";";
+                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cannot find column {} in schema {}, hive columns {}", column.name, schema_file->toString(false), hive_columns);
+            }
     }
 }
 

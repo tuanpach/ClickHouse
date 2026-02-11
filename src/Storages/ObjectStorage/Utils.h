@@ -1,11 +1,30 @@
 #pragma once
 #include <Storages/ObjectStorage/StorageObjectStorage.h>
 #include <Parsers/IAST_fwd.h>
+#include <Core/NamesAndTypesList.h>
+#include <Databases/LoadingStrictnessLevel.h>
+#include <Common/Logger_fwd.h>
 
 namespace DB
 {
 
 class IObjectStorage;
+
+/// Optional parameters for schema consistency validation when columns were explicitly specified.
+struct ValidateColumnsSchemaParams
+{
+    ObjectStoragePtr object_storage;
+    StorageObjectStorageConfigurationPtr configuration;
+    std::optional<FormatSettings> format_settings;
+    std::string sample_path;
+    ContextPtr context;
+    NamesAndTypesList hive_partition_columns_to_read_from_file_path;
+    ColumnsDescription columns_in_table_or_function_definition;
+    bool is_table_function;
+    LoadingStrictnessLevel mode;
+    bool do_lazy_init;
+    LoggerPtr log;
+};
 
 std::optional<std::string> checkAndGetNewFileOnInsertIfNeeded(
     const IObjectStorage & object_storage,
@@ -23,9 +42,10 @@ void resolveSchemaAndFormat(
     std::string & sample_path,
     const ContextPtr & context);
 
-void validateSupportedColumns(
-    ColumnsDescription & columns,
-    const StorageObjectStorageConfiguration & configuration);
+void validateColumns(
+    const ColumnsDescription & columns,
+    const StorageObjectStorageConfiguration & configuration,
+    const std::optional<ValidateColumnsSchemaParams> & schema_params = std::nullopt);
 
 std::unique_ptr<ReadBufferFromFileBase> createReadBuffer(
     RelativePathWithMetadata & object_info,

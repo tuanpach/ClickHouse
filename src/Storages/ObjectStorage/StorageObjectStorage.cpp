@@ -180,8 +180,6 @@ StorageObjectStorage::StorageObjectStorage(
     ColumnsDescription columns{columns_in_table_or_function_definition};
     if (need_resolve_columns_or_format)
         resolveSchemaAndFormat(columns, configuration->format, object_storage, configuration, format_settings, sample_path, context);
-    else
-        validateSupportedColumns(columns, *configuration);
 
     configuration->check(context);
 
@@ -210,6 +208,32 @@ StorageObjectStorage::StorageObjectStorage(
         columns_in_table_or_function_definition.empty(),
         format_settings,
         context);
+
+    std::optional<ValidateColumnsSchemaParams> schema_validation_params;
+    if (!need_resolve_columns_or_format &&
+        !configuration->isDataLakeConfiguration() &&
+        !columns_in_table_or_function_definition.empty() &&
+        !is_table_function &&
+        configuration_->format != "CSV" &&
+        configuration_->format != "TSV" &&
+        mode == LoadingStrictnessLevel::CREATE &&
+        !do_lazy_init)
+    {
+        schema_validation_params = ValidateColumnsSchemaParams{
+            object_storage_,
+            configuration_,
+            format_settings,
+            sample_path,
+            context,
+            hive_partition_columns_to_read_from_file_path,
+            columns_in_table_or_function_definition,
+            is_table_function,
+            mode,
+            do_lazy_init,
+            log,
+        };
+    }
+    validateColumns(columns, *configuration, schema_validation_params);
 
     // Assert file contains at least one column. The assertion only takes place if we were able to deduce the schema. The storage might be empty.
     if (!columns.empty() && file_columns.empty())
@@ -274,40 +298,6 @@ StorageObjectStorage::StorageObjectStorage(
         setInMemoryMetadata(metadata_snapshot);
     }
 
-    /// We don't need to process data lakes because tables may have "schema evolution" feature.
-    if (!configuration->isDataLakeConfiguration() &&
-        !columns_in_table_or_function_definition.empty() &&
-        !is_table_function &&
-        configuration_->format != "CSV" &&
-        configuration_->format != "TSV" &&
-        mode == LoadingStrictnessLevel::CREATE &&
-        !do_lazy_init)
-    {
-        String sample_path_schema;
-        std::optional<ColumnsDescription> schema_file;
-        try
-        {
-            schema_file = resolveSchemaFromData(object_storage_, configuration_, {}, sample_path_schema, context);
-        }
-        catch (...)
-        {
-            tryLogCurrentException(log, "", LogsLevel::debug);
-        }
-        if (schema_file)
-        {
-            std::unordered_set<String> hive_parititioning_columns;
-            for (const auto & column_name : hive_partition_columns_to_read_from_file_path.getNames())
-                hive_parititioning_columns.insert(column_name);
-            for (const auto & column : columns_in_table_or_function_definition)
-                if (!schema_file->tryGet(column.name) && !hive_parititioning_columns.contains(column.name))
-                {
-                    String hive_columns;
-                    for (const auto & hive_column : hive_parititioning_columns)
-                        hive_columns += hive_column + ";";
-                    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Cannot find column {} in schema {}, hive columns {}", column.name, schema_file->toString(false), hive_columns);
-                }
-        }
-    }
 }
 
 String StorageObjectStorage::getName() const
