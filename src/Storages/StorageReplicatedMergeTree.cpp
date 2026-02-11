@@ -1757,8 +1757,10 @@ static time_t tryGetPartCreateTime(zkutil::ZooKeeperPtr & zookeeper, const Strin
     return res;
 }
 
-void StorageReplicatedMergeTree::paranoidCheckForCoveredPartsInZooKeeperOnStart(const Strings & parts_in_zk, const Strings & parts_to_fetch) const
+Strings StorageReplicatedMergeTree::paranoidCheckForCoveredPartsInZooKeeperOnStart(const Strings & parts_in_zk, const Strings & parts_to_fetch) const
 {
+    Strings covered_parts_to_remove;
+
 #ifdef DEBUG_OR_SANITIZER_BUILD
     constexpr bool paranoid_check_for_covered_parts_default = true;
 #else
@@ -1768,7 +1770,7 @@ void StorageReplicatedMergeTree::paranoidCheckForCoveredPartsInZooKeeperOnStart(
     bool paranoid_check_for_covered_parts = Context::getGlobalContextInstance()->getConfigRef().getBool(
         "replicated_merge_tree_paranoid_check_on_startup", paranoid_check_for_covered_parts_default);
     if (!paranoid_check_for_covered_parts)
-        return;
+        return covered_parts_to_remove;
 
     ActiveDataPartSet active_set(format_version);
     for (const auto & part_name : parts_in_zk)
@@ -1796,21 +1798,23 @@ void StorageReplicatedMergeTree::paranoidCheckForCoveredPartsInZooKeeperOnStart(
             LOG_WARNING(
                 log,
                 "Part {} of table {} exists in ZooKeeper and covered by another part in ZooKeeper ({}), but doesn't exist on any disk. "
-                "It may cause false-positive 'part is lost forever' messages",
+                "Will remove it from ZooKeeper to prevent false-positive 'part is lost forever' messages",
                 part_name,
                 getStorageID().getNameForLogs(),
                 covering_part);
             ProfileEvents::increment(ProfileEvents::ReplicatedCoveredPartsInZooKeeperOnStart);
 
-            /// This situation can happen legitimately: after a merge or mutation creates a covering part,
-            /// the old part transitions to Outdated and is eventually removed from disk by `clearOldPartsAndRemoveFromZK`.
-            /// That function removes ZK entries first and then disk files, but if the server is stopped
-            /// between the disk cleanup and the ZK cleanup of a previous cycle (or if ZK cleanup is delayed),
-            /// the old part's ZK entry can outlive its on-disk data.
-            /// This is not dangerous: the data is preserved in the covering part, and the stale ZK entry
-            /// will be cleaned up by the cleanup thread after the server fully starts.
+            /// This situation can happen legitimately when:
+            /// - A ZK multi-op in `checkPartChecksumsAndCommit` registered the part in ZK,
+            ///   but the server crashed before the data was flushed to disk.
+            /// - A fetch was optimized to download a covering part instead,
+            ///   leaving the original's ZK entry orphaned.
+            /// The data is preserved in the covering part, so it's safe to remove the stale ZK entry.
+            covered_parts_to_remove.push_back(part_name);
         }
     }
+
+    return covered_parts_to_remove;
 }
 
 void StorageReplicatedMergeTree::checkParts(bool skip_sanity_checks)
@@ -1861,7 +1865,17 @@ bool StorageReplicatedMergeTree::checkPartsImpl(bool skip_sanity_checks)
         if (!getActiveContainingPart(missing_name))
             parts_to_fetch.push_back(missing_name);
 
-    paranoidCheckForCoveredPartsInZooKeeperOnStart(expected_parts_vec, parts_to_fetch);
+    Strings covered_parts_in_zk_to_remove = paranoidCheckForCoveredPartsInZooKeeperOnStart(expected_parts_vec, parts_to_fetch);
+
+    /// Remove stale ZK entries for covered parts that don't exist on disk.
+    /// These entries must be removed before the rest of the check to avoid false-positive 'part is lost forever' messages.
+    if (!covered_parts_in_zk_to_remove.empty())
+    {
+        LOG_WARNING(log, "Removing {} stale covered part entries from ZooKeeper", covered_parts_in_zk_to_remove.size());
+        removePartsFromZooKeeper(zookeeper, covered_parts_in_zk_to_remove, nullptr);
+        for (const auto & part_name : covered_parts_in_zk_to_remove)
+            expected_parts.erase(part_name);
+    }
 
     waitForUnexpectedPartsToBeLoaded();
 

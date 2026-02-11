@@ -666,7 +666,9 @@ private:
 
     void forcefullyRemoveBrokenOutdatedPartFromZooKeeperBeforeDetaching(const String & part_name) override;
 
-    void paranoidCheckForCoveredPartsInZooKeeperOnStart(const Strings & parts_in_zk, const Strings & parts_to_fetch) const;
+    /// Returns names of parts that exist in ZooKeeper but not on any disk and are covered by other parts in ZooKeeper.
+    /// These stale ZK entries should be removed to prevent false-positive 'part is lost forever' messages.
+    Strings paranoidCheckForCoveredPartsInZooKeeperOnStart(const Strings & parts_in_zk, const Strings & parts_to_fetch) const;
 
     /// Removes a part from ZooKeeper and adds a task to the queue to download it. It is supposed to do this with broken parts.
     void removePartAndEnqueueFetch(const String & part_name, bool storage_init);
