@@ -237,9 +237,7 @@ def _config_workflow(workflow: Workflow.Config, job_name) -> Result:
 
         return Result.from_commands_run(
             name="Check Workflows",
-        #REMOVEME
-        #    command=commands,
-            command="true",
+            command=commands,
             fail_fast=True,
         )
 

@@ -426,6 +426,7 @@ class Runner:
             uid = os.getuid()
             gid = os.getgid()
             chown_cmd = f"docker run --rm --user root --volume ./:{current_dir} --workdir={current_dir} {docker} sh -c 'find {Settings.TEMP_DIR} -user root -exec chown {uid}:{gid} {{}} +'"
+            print(f"--- Run ownership fix command [{chown_cmd}]")
             Shell.check(chown_cmd, verbose=True)
 
         return exit_code
