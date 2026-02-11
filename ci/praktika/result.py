@@ -401,8 +401,8 @@ class Result(MetaClasses.Serializable):
         name="Tests",
         env=None,
         pytest_report_file=None,
+        pytest_logfile=None,
         logfile=None,
-        stdout_file=None,
     ):
         """
         Runs a pytest command, captures results in jsonl format, and creates a Result object.
@@ -428,12 +428,11 @@ class Result(MetaClasses.Serializable):
         with ContextManager.cd(cwd):
             # Construct the full pytest command with jsonl report
             full_command = f"pytest {command} --report-log={pytest_report_file}"
+            if pytest_logfile:
+                full_command += f" --log-file={pytest_logfile}"
+                files.append(pytest_logfile)
             if logfile:
-                full_command += f" --log-file={logfile}"
                 files.append(logfile)
-            if stdout_file:
-                full_command += f" |& tee {stdout_file}"
-                files.append(stdout_file)
 
             # Apply environment
             for key, value in (env or {}).items():
@@ -444,7 +443,7 @@ class Result(MetaClasses.Serializable):
                 name = f"pytest_{command}"
 
             # Run pytest
-            _res = Shell.check(full_command, verbose=True)
+            Shell.run(full_command, log_file=logfile)
             test_result = ResultTranslator.from_pytest_jsonl(
                 pytest_report_file=pytest_report_file
             )

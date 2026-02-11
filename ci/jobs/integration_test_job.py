@@ -249,11 +249,12 @@ def run_pytest_and_collect_results(command: str, env: str, report_name: str) -> 
         env=env,
         cwd="./tests/integration/",
         pytest_report_file=f"{temp_path}/pytest_{report_name}.jsonl",
-        stdout_file=f"{temp_path}/pytest_{report_name}.stdout",
+        pytest_logfile=f"{temp_path}/pytest_{report_name}.log",
+        logfile=f"{temp_path}/{report_name}.log",
     )
 
     if "!!!!!!! xdist.dsession.Interrupted: session-timeout:" in tail(
-        f"{temp_path}/pytest_{report_name}.stdout"
+        f"{temp_path}/{report_name}.log"
     ):
         test_result.info = "[ERROR] session-timeout occurred during test execution"
         assert test_result.status == Result.Status.ERROR
