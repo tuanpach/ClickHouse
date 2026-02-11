@@ -198,6 +198,7 @@ ASTPtr convertNodeToAST(const ActionsDAG::Node & node)
 
             auto function = make_intrusive<ASTFunction>();
             function->arguments = make_intrusive<ASTExpressionList>();
+            function->children.push_back(function->arguments);
 
             /// Unwrap arguments of lambda function.
             if (const auto * function_capture = dynamic_cast<const FunctionCapture *>(node.function_base.get()))
@@ -217,8 +218,6 @@ ASTPtr convertNodeToAST(const ActionsDAG::Node & node)
             else
             {
                 function->name = node.function_base->getName();
-                function->children.push_back(function->arguments);
-
                 for (const auto * child : node.children)
                 {
                     if (auto arg_ast = convertNodeToAST(*child))
