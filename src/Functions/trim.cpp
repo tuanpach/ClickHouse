@@ -16,14 +16,18 @@ namespace ErrorCodes
 namespace
 {
 
-template <typename Mode>
 class FunctionTrim : public IFunction
 {
 public:
-    static constexpr auto name = Mode::name;
+    FunctionTrim(const char * name_, bool trim_left_, bool trim_right_)
+        : function_name(name_), trim_left(trim_left_), trim_right(trim_right_) {}
 
-    static FunctionPtr create(ContextPtr) { return std::make_shared<FunctionTrim<Mode>>(); }
-    String getName() const override { return name; }
+    static FunctionPtr create(ContextPtr, const char * name, bool trim_left, bool trim_right)
+    {
+        return std::make_shared<FunctionTrim>(name, trim_left, trim_right);
+    }
+
+    String getName() const override { return function_name; }
     bool isVariadic() const override { return true; }
     bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return true; }
     bool useDefaultImplementationForConstants() const override { return true; }
@@ -91,13 +95,18 @@ public:
         return col_res;
     }
 
-    static void vector(
+private:
+    const char * function_name;
+    bool trim_left;
+    bool trim_right;
+
+    void vector(
         const ColumnString::Chars & input_data,
         const ColumnString::Offsets & input_offsets,
         const std::optional<SearchSymbols> & custom_trim_characters,
         ColumnString::Chars & res_data,
         ColumnString::Offsets & res_offsets,
-        size_t input_rows_count)
+        size_t input_rows_count) const
     {
         res_offsets.resize_exact(input_rows_count);
         res_data.reserve_exact(input_data.size());
@@ -121,13 +130,13 @@ public:
         }
     }
 
-    static void vectorFixed(
+    void vectorFixed(
         const ColumnString::Chars & input_data,
         size_t n,
         const std::optional<SearchSymbols> & custom_trim_characters,
         ColumnString::Chars & res_data,
         ColumnString::Offsets & res_offsets,
-        size_t input_rows_count)
+        size_t input_rows_count) const
     {
         res_offsets.resize_exact(input_rows_count);
         res_data.reserve_exact(input_data.size());
@@ -151,12 +160,12 @@ public:
         }
     }
 
-    static void execute(const UInt8 * data, size_t size, const std::optional<SearchSymbols> & custom_trim_characters, const UInt8 *& res_data, size_t & res_size)
+    void execute(const UInt8 * data, size_t size, const std::optional<SearchSymbols> & custom_trim_characters, const UInt8 *& res_data, size_t & res_size) const
     {
         const char * char_begin = reinterpret_cast<const char *>(data);
         const char * char_end = char_begin + size;
 
-        if constexpr (Mode::trim_left)
+        if (trim_left)
         {
             const char * found = nullptr;
             if (!custom_trim_characters)
@@ -169,7 +178,7 @@ public:
             size_t num_chars = found - char_begin;
             char_begin += num_chars;
         }
-        if constexpr (Mode::trim_right)
+        if (trim_right)
         {
             const char * found = nullptr;
             if (!custom_trim_characters)
@@ -189,31 +198,6 @@ public:
         res_size = char_end - char_begin;
     }
 };
-
-struct TrimModeLeft
-{
-    static constexpr auto name = "trimLeft";
-    static constexpr bool trim_left = true;
-    static constexpr bool trim_right = false;
-};
-
-struct TrimModeRight
-{
-    static constexpr auto name = "trimRight";
-    static constexpr bool trim_left = false;
-    static constexpr bool trim_right = true;
-};
-
-struct TrimModeBoth
-{
-    static constexpr auto name = "trimBoth";
-    static constexpr bool trim_left = true;
-    static constexpr bool trim_right = true;
-};
-
-using FunctionTrimLeft = FunctionTrim<TrimModeLeft>;
-using FunctionTrimRight = FunctionTrim<TrimModeRight>;
-using FunctionTrimBoth = FunctionTrim<TrimModeBoth>;
 
 }
 
@@ -290,11 +274,11 @@ By default, removes common whitespace (ASCII) characters.
     };
     FunctionDocumentation documentation_both = {description_both, syntax_both, arguments_both, {}, returned_value_both, examples_both, introduced_in, category};
 
-    factory.registerFunction<FunctionTrimLeft>(documentation_left);
-    factory.registerFunction<FunctionTrimRight>(documentation_right);
-    factory.registerFunction<FunctionTrimBoth>(documentation_both);
-    factory.registerAlias("ltrim", FunctionTrimLeft::name);
-    factory.registerAlias("rtrim", FunctionTrimRight::name);
-    factory.registerAlias("trim", FunctionTrimBoth::name);
+    factory.registerFunction("trimLeft", [](ContextPtr){ return FunctionTrim::create({}, "trimLeft", true, false); }, documentation_left);
+    factory.registerFunction("trimRight", [](ContextPtr){ return FunctionTrim::create({}, "trimRight", false, true); }, documentation_right);
+    factory.registerFunction("trimBoth", [](ContextPtr){ return FunctionTrim::create({}, "trimBoth", true, true); }, documentation_both);
+    factory.registerAlias("ltrim", "trimLeft");
+    factory.registerAlias("rtrim", "trimRight");
+    factory.registerAlias("trim", "trimBoth");
 }
 }
