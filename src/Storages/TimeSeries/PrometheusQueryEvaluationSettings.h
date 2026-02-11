@@ -25,12 +25,16 @@ struct PrometheusQueryEvaluationSettings
     std::optional<TimestampType> evaluation_time;
     std::optional<PrometheusQueryEvaluationRange> evaluation_range;
 
-    /// The lookback period. If not set then 5 minutes are used by default.
-    std::optional<DurationType> lookback_delta;
+    /// The window used by instant selectors (see lookback period).
+    /// For example, query "http_requests_total @ 1770810669" is in fact evaluated as
+    /// "last_over_time(http_requests_total[<instant_selector_window>] @ 1770810669)"
+    /// If not set then it's 5 minutes by default.
+    std::optional<DurationType> instant_selector_window;
 
     /// The default subquery step is used for subqueries specified without explicit step,
     /// for example "http_requests_total[10m:]"
     /// (If a step is given in the subquery, as in "http_requests_total[10m:1m]", then the given step is used.)
+    /// If not set then it's 15 seconds by default.
     std::optional<DurationType> default_subquery_step;
 };
 

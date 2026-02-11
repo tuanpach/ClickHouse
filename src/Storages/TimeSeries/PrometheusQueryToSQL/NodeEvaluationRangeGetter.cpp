@@ -18,7 +18,7 @@ namespace DB::PrometheusQueryToSQL
 namespace
 {
     /// By default the lookback period is 5 minutes.
-    constexpr const Int64 DEFAULT_LOOKBACK_SECONDS = 5 * 60;
+    constexpr const Int64 DEFAULT_INSTANT_SELECTOR_WINDOW_SECONDS = 5 * 60;
 
     /// The default subquery step is 15 seconds.
     constexpr const Int64 DEFAULT_SUBQUERY_STEP_SECONDS = 15;
@@ -37,10 +37,10 @@ NodeEvaluationRangeGetter::NodeEvaluationRangeGetter(std::shared_ptr<const Prome
     }
 
     /// By default the lookback period is 5 minutes.
-    if (settings_.lookback_delta)
-        lookback_delta = *settings_.lookback_delta;
+    if (settings_.instant_selector_window)
+        instant_selector_window = *settings_.instant_selector_window;
     else
-        lookback_delta = DEFAULT_LOOKBACK_SECONDS * DecimalUtils::scaleMultiplier<DurationType>(timestamp_scale);
+        instant_selector_window = DEFAULT_INSTANT_SELECTOR_WINDOW_SECONDS * DecimalUtils::scaleMultiplier<DurationType>(timestamp_scale);
 
     /// The default subquery step is 15 seconds.
     if (settings_.default_subquery_step)
@@ -58,7 +58,7 @@ NodeEvaluationRangeGetter::NodeEvaluationRangeGetter(std::shared_ptr<const Prome
             .start_time = settings_.evaluation_range->start_time,
             .end_time = settings_.evaluation_range->end_time,
             .step = settings_.evaluation_range->step,
-            .window = lookback_delta};
+            .window = instant_selector_window};
         visitNode(root, range);
     }
     else
@@ -74,7 +74,7 @@ NodeEvaluationRangeGetter::NodeEvaluationRangeGetter(std::shared_ptr<const Prome
             .start_time = evaluation_time,
             .end_time = evaluation_time,
             .step = 0,
-            .window = lookback_delta};
+            .window = instant_selector_window};
         visitNode(root, range);
     }
 
