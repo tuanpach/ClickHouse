@@ -16,6 +16,7 @@
 #include <TableFunctions/registerTableFunctions.h>
 #include <Storages/checkAndGetLiteralArgument.h>
 #include <Storages/ColumnsDescription.h>
+#include <Storages/NamedCollectionsHelpers.h>
 #include <TableFunctions/TableFunctionMongoDB.h>
 
 namespace DB
@@ -77,16 +78,27 @@ void TableFunctionMongoDB::parseArguments(const ASTPtr & ast_function, ContextPt
         throw Exception(ErrorCodes::BAD_ARGUMENTS, "Table function 'mongodb' must have arguments.");
 
     ASTs & args = func_args.arguments->children;
-    if (args.size() > 9)
+
+    if (auto named_collection = tryGetNamedCollectionWithOverrides(args, context))
+    {
+        if (!named_collection->has("structure"))
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Required key (structure) is not specified.");
+
+        structure = named_collection->get<String>("structure");
+        named_collection->remove("structure");
+        configuration = std::make_shared<MongoDBConfiguration>(StorageMongoDB::getConfigurationFromCollection(named_collection, context));
+        return;
+    }
+
+    if ((args.size() < 3 || args.size() > 4) && (args.size() < 6 || args.size() > 8))
         throw Exception(ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH,
-                        "Incorrect argument count for table function '{}'. Received {}. Usage: "
-                        "mongodb('host:port', database, collection, user, password, structure[, options[, oid_columns]])"
-                        "or mongodb(host='', port='', database='', collection='', user='', password='', structure=''[, options=''[, oid_columns='']])"
-                        "or mongodb(uri, collection, structure[, oid_columns]).",
-                        getName(), args.size());
+                        "Incorrect argument count for table function '{}'. Usage: "
+                        "mongodb('host:port', database, collection, user, password, structure[, options[, oid_columns]]) or mongodb(uri, collection, structure[, oid_columns]).",
+                        getName());
 
     ASTs main_arguments;
-    int is_port_available = 0;
+    main_arguments.reserve(args.size() - 1);
+    const size_t structure_position = args.size() <= 4 ? 2 : 5;
     for (size_t i = 0; i < args.size(); ++i)
     {
         if (const auto * ast_func = typeid_cast<const ASTFunction *>(args[i].get()))
@@ -96,16 +108,8 @@ void TableFunctionMongoDB::parseArguments(const ASTPtr & ast_function, ContextPt
                 structure = checkAndGetLiteralArgument<String>(arg_value, arg_name);
             else if (arg_name == "options" || arg_name == "oid_columns")
                 main_arguments.push_back(arg_value);
-            else
-            {
-                if (arg_name == "port")
-                    is_port_available = 1;
-                main_arguments.push_back(args[i]);
-            }
         }
-        else if (args.size() - is_port_available >= 6 && i - is_port_available == 5)
-            structure = checkAndGetLiteralArgument<String>(args[i], "structure");
-        else if (args.size() <= 4 && i == 2)
+        else if (i == structure_position)
             structure = checkAndGetLiteralArgument<String>(args[i], "structure");
         else
             main_arguments.push_back(args[i]);
@@ -120,22 +124,14 @@ std::pair<String, ASTPtr> getKeyValueMongoDBArgument(const ASTFunction * ast_fun
 {
     const auto * args_expr = assert_cast<const ASTExpressionList *>(ast_func->arguments.get());
     const auto & function_args = args_expr->children;
-    if (function_args.size() != 2)
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Expected key-value defined argument, (size != 2), got {}.", ast_func->formatForErrorMessage());
-    if (ast_func->name != "equals")
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Expected key-value defined argument, (invalid argument name), got {}.", ast_func->formatForErrorMessage());
-    if (!function_args[0]->as<ASTIdentifier>())
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Expected key-value defined argument, (invalid argument key), got {}.", ast_func->formatForErrorMessage());
+    if (function_args.size() != 2 || ast_func->name != "equals" || !function_args[0]->as<ASTIdentifier>())
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Expected key-value defined argument, got {}", ast_func->formatForErrorMessage());
 
     const auto & arg_name = function_args[0]->as<ASTIdentifier>()->name();
-    static const std::unordered_set<std::string> allowed_keys = {
-        "structure", "options", "oid_columns",
-        "host", "port", "database", "collection", "user", "password", "uri"
-    };
-    if (allowed_keys.contains(arg_name))
+    if (arg_name == "structure" || arg_name == "options")
         return std::make_pair(arg_name, function_args[1]);
 
-    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Expected (uri, host, port, database, collection, user, password, structure, options, oid_columns), got {}", ast_func->formatForErrorMessage());
+    throw Exception(ErrorCodes::BAD_ARGUMENTS, "Expected key-value defined argument, got {}", ast_func->formatForErrorMessage());
 }
 
 void registerTableFunctionMongoDB(TableFunctionFactory & factory)
@@ -148,7 +144,7 @@ void registerTableFunctionMongoDB(TableFunctionFactory & factory)
                     .examples = {
                         {"Fetch collection by URI", "SELECT * FROM mongodb('mongodb://root:clickhouse@localhost:27017/database', 'example_collection', 'key UInt64, data String')", ""},
                         {"Fetch collection over TLS", "SELECT * FROM mongodb('localhost:27017', 'database', 'example_collection', 'root', 'clickhouse', 'key UInt64, data String', 'tls=true')", ""},
-                        {"Fetch collection by named collection configuration with overrides", "SELECT * FROM mongodb(mongodb_creds, database='database', collection='example_collection', structure='key UInt64, data String')", ""},
+                        {"Fetch collection by named collection configuration with overrides", "SELECT * FROM mongodb(mongodb_creds, collection='example_collection', structure='key UInt64, data String')", ""},
                     },
                     .category = FunctionDocumentation::Category::TableFunction
             },
