@@ -63,6 +63,7 @@ namespace DB::ErrorCodes
 extern const int FILE_DOESNT_EXIST;
 extern const int BAD_ARGUMENTS;
 extern const int ICEBERG_SPECIFICATION_VIOLATION;
+extern const int LOGICAL_ERROR;
 }
 
 namespace DB::DataLakeStorageSetting
@@ -695,7 +696,92 @@ std::pair<Poco::JSON::Object::Ptr, Int32> getPartitionSpec(
     return {result, partition_iter};
 }
 
-std::pair<String, String> parseTransformAndColumn(ASTPtr object, size_t i)
+static String parseColumnArgument(const ASTPtr & arg_ast, const String & clickhouse_name, const String & error_suffix)
+{
+    const auto * identifier = arg_ast ? arg_ast->as<ASTIdentifier>() : nullptr;
+    if (!identifier)
+        throw Exception(
+            ErrorCodes::BAD_ARGUMENTS,
+            "Invalid iceberg sort order function {}: {}",
+            clickhouse_name, error_suffix);
+    return identifier->name();
+}
+
+static std::pair<String, String> parseFunction(const ASTPtr & func_object, const std::unordered_map<String, String> & clickhouse_name_to_iceberg)
+{
+    const auto * func = func_object ? func_object->as<ASTFunction>() : nullptr;
+    if (!func)
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order expression, expected a function");
+
+    const String & clickhouse_name = func->name;
+    const auto it = clickhouse_name_to_iceberg.find(clickhouse_name);
+    if (it == clickhouse_name_to_iceberg.end())
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Unsupported function {} for iceberg", clickhouse_name);
+
+    const auto * args_list = func->arguments ? func->arguments->as<ASTExpressionList>() : nullptr;
+    if (!args_list)
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order function {}: arguments are missing", clickhouse_name);
+    const auto & args = args_list->children;
+
+    std::optional<size_t> arg;
+    String column_name;
+
+    if (args.size() == 1)
+    {
+        column_name = parseColumnArgument(args[0], clickhouse_name, "expected a column identifier as an argument");
+    }
+    else if (args.size() == 2)
+    {
+        const auto * literal = args[0] ? args[0]->as<ASTLiteral>() : nullptr;
+        if (!literal)
+            throw Exception(
+                ErrorCodes::BAD_ARGUMENTS,
+                "Invalid iceberg sort order function {}: expected (integer_literal, column_identifier), but there is no integer_literal",
+                clickhouse_name);
+
+        column_name = parseColumnArgument(args[1], clickhouse_name, "expected (integer_literal, column_identifier), but there is no column_identifier");
+
+        UInt64 u_param = 0;
+        Int64 i_param = 0;
+        if (literal->value.tryGet(u_param))
+            arg = static_cast<size_t>(u_param);
+        else if (literal->value.tryGet(i_param) && i_param >= 0)
+            arg = static_cast<size_t>(i_param);
+        else
+            throw Exception(
+                ErrorCodes::BAD_ARGUMENTS,
+                "Invalid iceberg sort order function {}: expected a non-negative integer literal as first argument",
+                clickhouse_name);
+    }
+    else
+    {
+        throw Exception(
+            ErrorCodes::BAD_ARGUMENTS,
+            "Invalid iceberg sort order function {}: expected 1 or 2 arguments, but got {}",
+            clickhouse_name, args.size());
+    }
+
+    String transform = it->second;
+    if (arg.has_value())
+        transform += "[" + std::to_string(arg.value()) + "]";
+
+    return {transform, column_name};
+}
+
+static ASTPtr unwrapOrderByElement(ASTPtr ast)
+{
+    if (!ast)
+        return ast;
+    if (const auto * elem = ast->as<ASTStorageOrderByElement>())
+    {
+        if (elem->children.empty() || !elem->children.front())
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order expression");
+        return elem->children.front();
+    }
+    return ast;
+}
+
+static std::pair<String, String> parseTransformAndColumnElement(ASTPtr element)
 {
     static const std::unordered_map<String, String> clickhouse_name_to_iceberg = {
         {"identity", "identity"},
@@ -707,113 +793,7 @@ std::pair<String, String> parseTransformAndColumn(ASTPtr object, size_t i)
         {"toRelativeHourNum", "hour"}
     };
 
-    if (!object)
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order expression");
-
-    auto parse_function = [] (const ASTPtr & func_object) -> std::pair<String, String>
-    {
-        const auto * func = func_object ? func_object->as<ASTFunction>() : nullptr;
-        if (!func)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order expression, expected a function");
-
-        const String & clickhouse_name = func->name;
-        const auto it = clickhouse_name_to_iceberg.find(clickhouse_name);
-        if (it == clickhouse_name_to_iceberg.end())
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Unsupported function {} for iceberg", clickhouse_name);
-
-        const auto * args_list = func->arguments ? func->arguments->as<ASTExpressionList>() : nullptr;
-        if (!args_list)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order function {}: arguments are missing", clickhouse_name);
-        const auto & args = args_list->children;
-
-        std::optional<size_t> arg;
-        String column_name;
-
-        if (args.size() == 1)
-        {
-            const auto * identifier = args[0] ? args[0]->as<ASTIdentifier>() : nullptr;
-            if (!identifier)
-                throw Exception(
-                    ErrorCodes::BAD_ARGUMENTS,
-                    "Invalid iceberg sort order function {}: expected a column identifier as an argument",
-                    clickhouse_name);
-            column_name = identifier->name();
-        }
-        else if (args.size() == 2)
-        {
-            const auto * literal = args[0] ? args[0]->as<ASTLiteral>() : nullptr;
-            const auto * identifier = args[1] ? args[1]->as<ASTIdentifier>() : nullptr;
-            if (!literal || !identifier)
-                throw Exception(
-                    ErrorCodes::BAD_ARGUMENTS,
-                    "Invalid iceberg sort order function {}: expected (integer_literal, column_identifier)",
-                    clickhouse_name);
-
-            UInt64 u_param = 0;
-            Int64 i_param = 0;
-            if (literal->value.tryGet(u_param))
-                arg = static_cast<size_t>(u_param);
-            else if (literal->value.tryGet(i_param) && i_param >= 0)
-                arg = static_cast<size_t>(i_param);
-            else
-                throw Exception(
-                    ErrorCodes::BAD_ARGUMENTS,
-                    "Invalid iceberg sort order function {}: expected a non-negative integer literal as first argument",
-                    clickhouse_name);
-
-            column_name = identifier->name();
-        }
-        else
-        {
-            throw Exception(
-                ErrorCodes::BAD_ARGUMENTS,
-                "Invalid iceberg sort order function {}: expected 1 or 2 arguments",
-                clickhouse_name);
-        }
-
-        String transform = it->second;
-        if (arg.has_value())
-            transform += "[" + std::to_string(arg.value()) + "]";
-
-        return {transform, column_name};
-    };
-
-    auto unwrap_order_by_element = [] (ASTPtr ast) -> ASTPtr
-    {
-        if (!ast)
-            return ast;
-        if (const auto * elem = ast->as<ASTStorageOrderByElement>())
-        {
-            if (elem->children.empty() || !elem->children.front())
-                throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order expression");
-            return elem->children.front();
-        }
-        return ast;
-    };
-
-    if (const auto * identifier = object->as<ASTIdentifier>())
-    {
-        if (i != 0)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order: position {} is out of range", i + 1);
-        return {"identity", identifier->name()};
-    }
-
-    ASTPtr element = object;
-    if (const auto * func = object->as<ASTFunction>(); func && func->name == "tuple")
-    {
-        const auto * args_list = func->arguments ? func->arguments->as<ASTExpressionList>() : nullptr;
-        if (!args_list)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order tuple expression");
-        if (i >= args_list->children.size())
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order: position {} is out of range", i + 1);
-        element = args_list->children[i];
-    }
-    else if (i != 0)
-    {
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order: position {} is out of range", i + 1);
-    }
-
-    element = unwrap_order_by_element(element);
+    element = unwrapOrderByElement(element);
 
     if (!element)
         throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order expression");
@@ -822,12 +802,53 @@ std::pair<String, String> parseTransformAndColumn(ASTPtr object, size_t i)
         return {"identity", identifier->name()};
 
     if (const auto * func = element->as<ASTFunction>(); func && func->name != "tuple")
-        return parse_function(element);
+        return parseFunction(element, clickhouse_name_to_iceberg);
 
     throw Exception(
         ErrorCodes::BAD_ARGUMENTS,
         "Invalid iceberg sort order expression '{}', expected a column identifier or a supported function",
         element->getColumnName());
+}
+
+static std::vector<std::pair<String, String>> parseTransformAndColumnPairs(ASTPtr object)
+{
+    if (!object)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Invalid iceberg sort order expression");
+
+    std::vector<std::pair<String, String>> result;
+
+    if (const auto * expression_list = object->as<ASTExpressionList>())
+    {
+        result.reserve(expression_list->children.size());
+        for (const auto & child : expression_list->children)
+        {
+            result.push_back(parseTransformAndColumnElement(child));
+        }
+        return result;
+    }
+
+    if (const auto * identifier = object->as<ASTIdentifier>())
+    {
+        result.push_back({"identity", identifier->name()});
+        return result;
+    }
+
+    if (const auto * func = object->as<ASTFunction>(); func && func->name == "tuple")
+    {
+        const auto * args_list = func->arguments ? func->arguments->as<ASTExpressionList>() : nullptr;
+        if (!args_list)
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order tuple expression");
+        
+        result.reserve(args_list->children.size());
+        for (const auto & child : args_list->children)
+        {
+            result.push_back(parseTransformAndColumnElement(child));
+        }
+        return result;
+    }
+
+    result.push_back(parseTransformAndColumnElement(object));
+    return result;
 }
 
 std::pair<Poco::JSON::Object::Ptr, String> createEmptyMetadataFile(
@@ -912,11 +933,18 @@ std::pair<Poco::JSON::Object::Ptr, String> createEmptyMetadataFile(
         Names sort_columns = sort_columns_key_description.column_names;
         std::vector<bool> reverse_flags = sort_columns_key_description.reverse_flags;
 
+        auto transform_and_column_pairs = parseTransformAndColumnPairs(sort_columns_key_description.expression_list_ast);
+        if (transform_and_column_pairs.size() != sort_columns.size())
+            throw Exception(
+                ErrorCodes::BAD_ARGUMENTS,
+                "Invalid iceberg sort order: expected {} elements, but got {}",
+                sort_columns.size(), transform_and_column_pairs.size());
+
         Poco::JSON::Array::Ptr sorting_fields = new Poco::JSON::Array;
-        for (size_t i = 0; i < sort_columns.size(); ++i)
+        for (size_t i = 0; i < transform_and_column_pairs.size(); ++i)
         {
+            const auto & [transform_name, column_name] = transform_and_column_pairs[i];
             Poco::JSON::Object::Ptr sorting_field = new Poco::JSON::Object;
-            auto [transform_name, column_name] = parseTransformAndColumn(sort_columns_key_description.definition_ast, i);
             sorting_field->set(f_source_id, column_name_to_source_id[column_name]);
             sorting_field->set(f_transform, transform_name);
             if (reverse_flags.empty() || !reverse_flags[i])
