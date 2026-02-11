@@ -133,7 +133,7 @@ INSERT INTO test_min_insert_rows FORMAT CSV
 7
 8
 
-SET max_insert_block_size_bytes = 2;
+SET max_insert_block_size_bytes = 16;
 SET max_insert_block_size_rows  = 100000000;
 SET min_insert_block_size_rows = 2;
 SET min_insert_block_size_bytes = 0;
