@@ -3,6 +3,7 @@
 #include <Common/IntervalKind.h>
 #include <Common/quoteString.h>
 #include <Core/DecimalFunctions.h>
+#include <Core/Field.h>
 #include <DataTypes/DataTypeInterval.h>
 #include <IO/ReadBufferFromString.h>
 #include <IO/ReadHelpers.h>

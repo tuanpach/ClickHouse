@@ -72,8 +72,7 @@ struct SQLQueryPiece
     /// `string_value` is used only if `store_method` is CONST_STRING.
     String string_value;
 
-    /// `select_query` is used to a SELECT query only if `store_method` is one of
-    /// [SCALAR_GRID, VECTOR_GRID, RAW_DATA].
+    /// `select_query` is used only if `store_method` is one of [SCALAR_GRID, VECTOR_GRID, RAW_DATA].
     /// If `store_method` is SCALAR_GRID then the SELECT query outputs one column `values` (Array(Nullable(scalar_data_type))).
     /// If `store_method` is VECTOR_GRID then the SELECT query outputs two columns `group` (UInt64), `values` (Array(Nullable(scalar_data_type))).
     /// If `store_method` is RAW_DATA then the SELECT query outputs three columns `group` (UInt64), `timestamp` (timestamp_data_type), `value` (scalar_data_type).
