@@ -149,12 +149,8 @@ public:
         if (columns_of_key_columns.size() == 1)
         {
             auto & arg = columns_of_key_columns.at(0);
-            const auto * col = arg.column.get();
-            if (const auto * const_col = typeid_cast<const ColumnConst *>(col))
-            {
-                col = &const_col->getDataColumn();
+            if (typeid_cast<const ColumnConst *>(arg.column.get()))
                 is_const = true;
-            }
         }
 
         auto res = set->execute(columns_of_key_columns, negative);
