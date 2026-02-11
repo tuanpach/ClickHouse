@@ -838,7 +838,7 @@ static std::vector<std::pair<String, String>> parseTransformAndColumnPairs(ASTPt
         const auto * args_list = func->arguments ? func->arguments->as<ASTExpressionList>() : nullptr;
         if (!args_list)
             throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order tuple expression");
-        
+
         result.reserve(args_list->children.size());
         for (const auto & child : args_list->children)
         {
