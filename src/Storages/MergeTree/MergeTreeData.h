@@ -388,6 +388,7 @@ public:
 
         MutableDataParts precommitted_parts;
         MutableDataParts precommitted_parts_need_rename;
+        MutableDataParts parts_renamed;  /// Parts that renameParts() already renamed from tmp to final name on disk
     };
 
     using TransactionUniquePtr = std::unique_ptr<Transaction>;

@@ -8093,6 +8093,23 @@ void MergeTreeData::Transaction::rollback(DataPartsLock & lock)
         for (const auto & part : precommitted_parts)
             part->version.creation_csn.store(Tx::RolledBackCSN);
 
+        /// Rename parts that were already renamed from tmp to final names
+        /// back to a tmp prefix, so they are skipped by `loadDataParts`
+        /// and cleaned up by `clearOldTemporaryDirectories`.
+        for (const auto & part : parts_renamed)
+        {
+            try
+            {
+                String tmp_name = "tmp_broken_merge_" + part->name;
+                LOG_WARNING(data.log, "Renaming rolled-back part {} to {} on disk", part->name, tmp_name);
+                part->renameTo(tmp_name, /* remove_new_dir_if_exists= */ true);
+            }
+            catch (...)
+            {
+                tryLogCurrentException(data.log, "Failed to rename rolled-back part " + part->name + " to tmp prefix");
+            }
+        }
+
         auto non_detached_precommitted_parts = precommitted_parts;
 
         /// Remove detached parts from working set.
@@ -8162,6 +8179,7 @@ void MergeTreeData::Transaction::clear()
     chassert(precommitted_parts.size() >= precommitted_parts_need_rename.size());
     precommitted_parts.clear();
     precommitted_parts_need_rename.clear();
+    parts_renamed.clear();
 }
 
 void MergeTreeData::Transaction::renameParts()
@@ -8170,6 +8188,7 @@ void MergeTreeData::Transaction::renameParts()
     {
         LOG_TEST(data.log, "Renaming part to {}", part_need_rename->name);
         part_need_rename->renameTo(part_need_rename->name, true);
+        parts_renamed.insert(part_need_rename);
     }
     precommitted_parts_need_rename.clear();
 }
