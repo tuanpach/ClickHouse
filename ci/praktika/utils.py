@@ -535,10 +535,6 @@ class Utils:
                 print(f"     | {line}")
 
     @staticmethod
-    def print_quoted_list(items: List[str], prefix: str = "  ") -> None:
-        print(prefix + '"' + f"\"\n{prefix}\"".join(items) + '"')
-
-    @staticmethod
     def sleep(seconds):
         time.sleep(seconds)
 
@@ -551,8 +547,8 @@ class Utils:
         return multiprocessing.cpu_count()
 
     @staticmethod
-    def error(error_message: str) -> None:
-        print(f"[ERROR] {error_message}")
+    def exit_with_error(error_message: str) -> None:
+        print(f"ERROR: {error_message}")
         sys.exit(1)
 
     # deprecated: unnecessary lines in traceback + ide linting issues
