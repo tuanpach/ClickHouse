@@ -552,7 +552,7 @@ class Utils:
 
     @staticmethod
     def error(error_message: str) -> None:
-        print(f"[ERROR]: {error_message}")
+        print(f"[ERROR] {error_message}")
         sys.exit(1)
 
     # deprecated: unnecessary lines in traceback + ide linting issues
