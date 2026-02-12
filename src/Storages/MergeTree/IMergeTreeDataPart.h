@@ -646,11 +646,6 @@ public:
 
     void removeIfNeeded();
 
-    /// Mark part as probably removed from disk, so that debug assertions
-    /// (e.g. `assertHasValidVersionMetadata`) do not try to access files
-    /// that may no longer exist.
-    void setProbablyRemovedFromDisk() { part_is_probably_removed_from_disk = true; }
-
 protected:
     /// Primary key (correspond to primary.idx file).
     /// Lazily loaded in RAM. Contains each index_granularity-th value of primary key tuple.
