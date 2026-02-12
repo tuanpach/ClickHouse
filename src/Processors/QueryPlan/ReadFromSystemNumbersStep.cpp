@@ -473,20 +473,20 @@ Pipe ReadFromSystemNumbersStep::makePipe()
     const bool can_pushdown_query_limit = exact_ranges && limit.has_value();
     if (!numbers_storage.limit.has_value() && NumbersLikeUtils::isUniverse(extracted_ranges.ranges) && !can_pushdown_query_limit)
     {
-        /// Offset between starting points of adjacent streams.
-        /// It equals `max_block_size * step`, so streams generate disjoint chunks of the same arithmetic progression.
-        const auto block_range = max_block_size * numbers_storage.step;
+        chassert(numbers_storage.step == 1);
 
         /// Distance between the starts of consecutive chunks in a single source.
         /// For multiple streams, each source jumps by `num_streams * block_range` to avoid overlap.
-        const auto step_between_chunks = num_streams * block_range;
+        const UInt64 step_between_chunks = num_streams * max_block_size;
         for (size_t i = 0; i < num_streams; ++i)
         {
-            const auto source_offset = i * block_range;
+            /// Offset between starting points of adjacent streams equals `max_block_size`, 
+            /// so streams generate disjoint chunks.
+            const auto source_offset = i * max_block_size;
             const auto source_start = numbers_storage.offset + source_offset;
 
             auto source = std::make_shared<NumbersSource>(
-                max_block_size, source_start, numbers_storage.column_name, numbers_storage.step, step_between_chunks);
+                max_block_size, source_start, numbers_storage.column_name, 1, step_between_chunks);
 
             pipe.addSource(std::move(source));
         }
