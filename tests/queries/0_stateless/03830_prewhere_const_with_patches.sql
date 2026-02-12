@@ -15,6 +15,7 @@ CREATE TABLE t_prewhere_const_patches (a UInt64, b UInt64, c UInt64, d UInt64)
 ENGINE = MergeTree
 ORDER BY tuple()
 SETTINGS
+    index_granularity = 8192,
     min_bytes_for_wide_part = 0,
     min_bytes_for_full_part_storage = 0,
     ratio_of_defaults_for_sparse_serialization = 1.0,
@@ -39,8 +40,9 @@ SELECT count() FROM t_prewhere_const_patches PREWHERE 0;
 -- The original fuzzed query pattern from issue #94700
 SELECT b, c, count() FROM t_prewhere_const_patches PREWHERE toUInt128(toUInt128(1)) = isNotNull(toLowCardinality(1)) GROUP BY b, c ORDER BY b, c;
 
--- Non-aligned max_block_size to exercise `adjustLastGranule` edge cases
-SELECT count() FROM t_prewhere_const_patches PREWHERE 1 SETTINGS max_block_size = 100;
-SELECT count() FROM t_prewhere_const_patches PREWHERE 1 SETTINGS max_block_size = 8482;
+-- Non-aligned max_block_size to exercise `adjustLastGranule` edge cases.
+-- Use a non-foldable constant PREWHERE expression (simple `PREWHERE 1` gets optimized away).
+SELECT count() FROM t_prewhere_const_patches PREWHERE toUInt128(1) = isNotNull(1) SETTINGS max_block_size = 100;
+SELECT count() FROM t_prewhere_const_patches PREWHERE toUInt128(1) = isNotNull(1) SETTINGS max_block_size = 8482;
 
 DROP TABLE IF EXISTS t_prewhere_const_patches SYNC;
