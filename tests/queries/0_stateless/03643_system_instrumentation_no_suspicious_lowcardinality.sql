@@ -1,3 +1,5 @@
+-- Tags: no-fasttest
+-- fasttest: Instrumentation requires XRAY
 -- Test that system.instrumentation.function_id is Int32, not LowCardinality(Int32)
 -- This allows CREATE VIEW without allow_suspicious_low_cardinality_types setting
 
