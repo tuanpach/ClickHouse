@@ -15,13 +15,12 @@ from system.query_views_log where
 exceptionwhileprocessing	UNKNOWN_TABLE
 -- materialized_views_ignore_errors=0
 insert into data_02572 values (1); -- { serverError UNKNOWN_TABLE }
-select * from data_02572 order by key;
-1
-2
+-- Note: whether value 1 ends up in the source table after a failed INSERT is non-deterministic.
+-- With `use_async_executor_for_materialized_views = 1`, the pipeline task scheduling order changes,
+-- and the MV exception may cancel the pipeline before `MemorySink::onFinish` commits the data.
 create table receiver_02572 as data_02572;
 insert into data_02572 values (3);
-select * from data_02572 order by key;
-1
+select * from data_02572 where key in (2, 3) order by key;
 2
 3
 select * from receiver_02572 order by key;
