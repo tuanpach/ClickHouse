@@ -96,11 +96,12 @@ public:
     }
 
 private:
-    const char * function_name;
-    bool trim_left;
-    bool trim_right;
+    const char * const function_name;
+    const bool trim_left;
+    const bool trim_right;
 
-    void vector(
+    template <bool do_trim_left, bool do_trim_right>
+    void vectorImpl(
         const ColumnString::Chars & input_data,
         const ColumnString::Offsets & input_offsets,
         const std::optional<SearchSymbols> & custom_trim_characters,
@@ -119,7 +120,7 @@ private:
 
         for (size_t i = 0; i < input_rows_count; ++i)
         {
-            execute(reinterpret_cast<const UInt8 *>(&input_data[prev_offset]), input_offsets[i] - prev_offset, custom_trim_characters, start, length);
+            executeImpl<do_trim_left, do_trim_right>(reinterpret_cast<const UInt8 *>(&input_data[prev_offset]), input_offsets[i] - prev_offset, custom_trim_characters, start, length);
 
             res_data.resize(res_data.size() + length);
             memcpySmallAllowReadWriteOverflow15(&res_data[res_offset], start, length);
@@ -130,7 +131,22 @@ private:
         }
     }
 
-    void vectorFixed(
+    void vector(
+        const ColumnString::Chars & input_data,
+        const ColumnString::Offsets & input_offsets,
+        const std::optional<SearchSymbols> & custom_trim_characters,
+        ColumnString::Chars & res_data,
+        ColumnString::Offsets & res_offsets,
+        size_t input_rows_count) const
+    {
+        dispatch([&](auto trim_left_v, auto trim_right_v)
+        {
+            vectorImpl<trim_left_v, trim_right_v>(input_data, input_offsets, custom_trim_characters, res_data, res_offsets, input_rows_count);
+        });
+    }
+
+    template <bool do_trim_left, bool do_trim_right>
+    void vectorFixedImpl(
         const ColumnString::Chars & input_data,
         size_t n,
         const std::optional<SearchSymbols> & custom_trim_characters,
@@ -149,7 +165,7 @@ private:
 
         for (size_t i = 0; i < input_rows_count; ++i)
         {
-            execute(reinterpret_cast<const UInt8 *>(&input_data[prev_offset]), n, custom_trim_characters, start, length);
+            executeImpl<do_trim_left, do_trim_right>(reinterpret_cast<const UInt8 *>(&input_data[prev_offset]), n, custom_trim_characters, start, length);
 
             res_data.resize(res_data.size() + length);
             memcpySmallAllowReadWriteOverflow15(&res_data[res_offset], start, length);
@@ -160,12 +176,27 @@ private:
         }
     }
 
-    void execute(const UInt8 * data, size_t size, const std::optional<SearchSymbols> & custom_trim_characters, const UInt8 *& res_data, size_t & res_size) const
+    void vectorFixed(
+        const ColumnString::Chars & input_data,
+        size_t n,
+        const std::optional<SearchSymbols> & custom_trim_characters,
+        ColumnString::Chars & res_data,
+        ColumnString::Offsets & res_offsets,
+        size_t input_rows_count) const
+    {
+        dispatch([&](auto trim_left_v, auto trim_right_v)
+        {
+            vectorFixedImpl<trim_left_v, trim_right_v>(input_data, n, custom_trim_characters, res_data, res_offsets, input_rows_count);
+        });
+    }
+
+    template <bool do_trim_left, bool do_trim_right>
+    static void executeImpl(const UInt8 * data, size_t size, const std::optional<SearchSymbols> & custom_trim_characters, const UInt8 *& res_data, size_t & res_size)
     {
         const char * char_begin = reinterpret_cast<const char *>(data);
         const char * char_end = char_begin + size;
 
-        if (trim_left)
+        if constexpr (do_trim_left)
         {
             const char * found = nullptr;
             if (!custom_trim_characters)
@@ -178,7 +209,7 @@ private:
             size_t num_chars = found - char_begin;
             char_begin += num_chars;
         }
-        if (trim_right)
+        if constexpr (do_trim_right)
         {
             const char * found = nullptr;
             if (!custom_trim_characters)
@@ -196,6 +227,18 @@ private:
 
         res_data = reinterpret_cast<const UInt8 *>(char_begin);
         res_size = char_end - char_begin;
+    }
+
+    /// Dispatch runtime trim_left/trim_right to compile-time template parameters
+    template <typename Func>
+    void dispatch(Func && func) const
+    {
+        if (trim_left && trim_right)
+            func(std::bool_constant<true>{}, std::bool_constant<true>{});
+        else if (trim_left)
+            func(std::bool_constant<true>{}, std::bool_constant<false>{});
+        else
+            func(std::bool_constant<false>{}, std::bool_constant<true>{});
     }
 };
 
