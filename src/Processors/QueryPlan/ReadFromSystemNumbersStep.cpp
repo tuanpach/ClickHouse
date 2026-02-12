@@ -31,6 +31,8 @@ inline void iotaWithStepOptimized(T * begin, size_t count, T first_value, T step
         iotaWithStep(begin, count, first_value, step);
 }
 
+/// Unbounded numbers generator, used for `system.numbers(_mt)` and `numbers(_mt)()`
+/// when we cannot extract useful WHERE bounds and cannot safely push down query LIMIT/OFFSET.
 class NumbersSource : public ISource
 {
 public:
@@ -38,12 +40,10 @@ public:
         UInt64 block_size_,
         UInt64 start_,
         const std::string & column_name,
-        UInt64 step_in_chunk_,
         UInt64 step_between_chunks_)
         : ISource(createHeader(column_name))
         , block_size(block_size_)
         , next(start_)
-        , step_in_chunk(step_in_chunk_)
         , step_between_chunks(step_between_chunks_)
     {
     }
@@ -63,9 +63,7 @@ protected:
         UInt64 curr = next; /// The local variable for some reason works faster (>20%) than member of class.
         UInt64 * pos = vec.data(); /// This also accelerates the code.
 
-        UInt64 * current_end = &vec[block_size];
-
-        iotaWithStepOptimized(pos, static_cast<size_t>(current_end - pos), curr, step_in_chunk);
+        iota(pos, static_cast<size_t>(block_size), curr);
 
         next += step_between_chunks;
 
@@ -76,7 +74,6 @@ protected:
 private:
     UInt64 block_size;
     UInt64 next;
-    UInt64 step_in_chunk;
     UInt64 step_between_chunks;
 };
 
@@ -486,7 +483,7 @@ Pipe ReadFromSystemNumbersStep::makePipe()
             const auto source_start = numbers_storage.offset + source_offset;
 
             auto source = std::make_shared<NumbersSource>(
-                max_block_size, source_start, numbers_storage.column_name, 1, step_between_chunks);
+                max_block_size, source_start, numbers_storage.column_name, step_between_chunks);
 
             pipe.addSource(std::move(source));
         }
