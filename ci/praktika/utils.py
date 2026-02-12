@@ -535,6 +535,10 @@ class Utils:
                 print(f"     | {line}")
 
     @staticmethod
+    def print_quoted_list(list, prefix="  "):
+        print(prefix + '"' + f"\"\n{prefix}\"".join(list) + '"')
+
+    @staticmethod
     def sleep(seconds):
         time.sleep(seconds)
 
@@ -545,6 +549,11 @@ class Utils:
     @staticmethod
     def cpu_count():
         return multiprocessing.cpu_count()
+
+    @staticmethod
+    def error(error_message):
+        print(f"[ERROR]: {error_message}")
+        sys.exit(1)
 
     # deprecated: unnecessary lines in traceback + ide linting issues
     # switch to regular raise Ex() inplace
@@ -918,7 +927,7 @@ class Utils:
 
     class Tee:
         def __init__(self, stdout=None):
-            self.original_stdout = sys.stdout
+            self.original_stdout = stdout
             self.stdout = stdout
 
         def __enter__(self):

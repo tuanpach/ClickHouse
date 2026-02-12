@@ -18,7 +18,13 @@ def create_parser():
     subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
 
     run_parser = subparsers.add_parser("run", help="Run a CI job")
-    run_parser.add_argument("job", help="Name of the job to run", type=str)
+    run_parser.add_argument(
+        "job",
+        help="Name of the job to run",
+        type=str,
+        nargs="?",
+        default=None,
+    )
     run_parser.add_argument(
         "--workflow",
         help=(
@@ -170,7 +176,13 @@ def main():
 
         workflows = _get_workflows(
             name=args.workflow or None, default=not bool(args.workflow)
-        )
+        ) # it actually returns only default workflow now
+        if args.job is None:
+            for workflow in workflows:
+                print(f"Workflow [{workflow.name}] has jobs:")
+                Utils.print_quoted_list([job.name for job in workflow.jobs])
+            Utils.error("Job name is required to run a job.")
+
         job_workflow_pairs = []
         for workflow in workflows:
             jobs = workflow.find_jobs(args.job, lazy=True)
