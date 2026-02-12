@@ -374,6 +374,7 @@ class ArtifactNames:
     LLVM_COVERAGE_HTML_REPORT = (
         "LLVM_COVERAGE_HTML_REPORT"  # .tar.gz file with html report
     )
+    LLVM_COVERAGE_INFO_FILE = "LLVM_COVERAGE_INFO_FILE"  # .info file generated from .profdata, used for debugging coverage results
     CH_AMD_RELEASE = "CH_AMD_RELEASE"
     CH_AMD_ASAN = "CH_AMD_ASAN"
     CH_AMD_TSAN = "CH_AMD_TSAN"
@@ -503,6 +504,11 @@ class ArtifactConfigs:
         name=ArtifactNames.LLVM_COVERAGE_HTML_REPORT,
         type=Artifact.Type.S3,
         path=f"{TEMP_DIR}/llvm_coverage_html_report.tar.gz",
+    )
+    llvm_coverage_info_file = Artifact.Config(
+        name=ArtifactNames.LLVM_COVERAGE_INFO_FILE,
+        type=Artifact.Type.S3,
+        path=f"{TEMP_DIR}/llvm_coverage.info",
     )
     clickhouse_debians = Artifact.Config(
         name="*",
