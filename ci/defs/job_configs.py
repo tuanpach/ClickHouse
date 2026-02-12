@@ -1170,7 +1170,7 @@ class JobConfigs:
             ArtifactNames.UNITTEST_LLVM_COVERAGE,
             *LLVM_ARTIFACTS_LIST,
         ],
-        provides=[ArtifactNames.LLVM_COVERAGE_HTML_REPORT],
+        provides=[ArtifactNames.LLVM_COVERAGE_HTML_REPORT, ArtifactNames.LLVM_COVERAGE_INFO_FILE],
         command="python3 ./ci/jobs/merge_llvm_coverage_job.py",
         digest_config=Job.CacheDigestConfig(
             include_paths=["./ci/jobs/merge_llvm_coverage_job.py"],
