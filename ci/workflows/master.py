@@ -33,6 +33,7 @@ workflow = Workflow.Config(
             )
             for job in JobConfigs.special_build_jobs
         ],
+        JobConfigs.smoke_tests_macos,
         *JobConfigs.unittest_jobs,
         *JobConfigs.unittest_llvm_coverage_job,
         JobConfigs.docker_server,

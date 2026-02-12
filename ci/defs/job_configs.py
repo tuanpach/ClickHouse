@@ -194,6 +194,7 @@ class JobConfigs:
                 "./ci/jobs/smoke_test.py",
             ],
         ),
+        requires=[ArtifactNames.CH_AMD_DARWIN_BIN],
     )
     tidy_build_arm_jobs = common_build_job_config.parametrize(
         Job.ParamSet(

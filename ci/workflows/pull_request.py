@@ -48,7 +48,6 @@ workflow = Workflow.Config(
         JobConfigs.style_check,
         JobConfigs.docs_job,
         JobConfigs.fast_test,
-        JobConfigs.smoke_tests_macos.set_dependency([ArtifactNames.CH_AMD_DARWIN_BIN]),
         *JobConfigs.tidy_build_arm_jobs,
         *[job.set_dependency(STYLE_AND_FAST_TESTS) for job in JobConfigs.build_jobs],
         *[
@@ -63,6 +62,7 @@ workflow = Workflow.Config(
             job.set_dependency(FUNCTIONAL_TESTS_PARALLEL_BLOCKING_JOB_NAMES)
             for job in JobConfigs.special_build_jobs
         ],
+        JobConfigs.smoke_tests_macos,
         # TODO: stabilize new jobs and remove set_allow_merge_on_failure
         JobConfigs.lightweight_functional_tests_job,
         JobConfigs.stateless_tests_targeted_pr_jobs[0].set_allow_merge_on_failure(),
