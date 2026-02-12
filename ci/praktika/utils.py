@@ -927,7 +927,7 @@ class Utils:
 
     class Tee:
         def __init__(self, stdout=None):
-            self.original_stdout = stdout
+            self.original_stdout = sys.stdout
             self.stdout = stdout
 
         def __enter__(self):
