@@ -273,12 +273,12 @@ namespace
             }
         }
 
-        template <bool is_actually_utf8, typename SourceStrings, typename SourceLengths>
-        void executeForSourceAndLength(
+        template <bool is_right_pad_, bool is_actually_utf8, typename SourceStrings, typename SourceLengths>
+        static void executePad(
             SourceStrings && strings,
             SourceLengths && lengths,
             const PaddingChars<is_actually_utf8> & padding_chars,
-            StringSink & res_sink) const
+            StringSink & res_sink)
         {
             bool is_const_new_length = lengths.isConst();
             ssize_t new_length = 0;
@@ -324,19 +324,33 @@ namespace
                 }
                 else if (new_length > current_length)
                 {
-                    if (!is_right_pad)
+                    if constexpr (!is_right_pad_)
                         padding_chars.appendTo(res_sink, new_length - current_length);
 
                     writeSlice(str, res_sink);
 
-                    if (is_right_pad)
+                    if constexpr (is_right_pad_)
                         padding_chars.appendTo(res_sink, new_length - current_length);
                 }
             }
         }
-        const char * function_name;
-        bool is_right_pad;
-        bool is_utf8;
+
+        template <bool is_actually_utf8, typename SourceStrings, typename SourceLengths>
+        void executeForSourceAndLength(
+            SourceStrings && strings,
+            SourceLengths && lengths,
+            const PaddingChars<is_actually_utf8> & padding_chars,
+            StringSink & res_sink) const
+        {
+            if (is_right_pad)
+                executePad<true>(std::forward<SourceStrings>(strings), std::forward<SourceLengths>(lengths), padding_chars, res_sink);
+            else
+                executePad<false>(std::forward<SourceStrings>(strings), std::forward<SourceLengths>(lengths), padding_chars, res_sink);
+        }
+
+        const char * const function_name;
+        const bool is_right_pad;
+        const bool is_utf8;
     };
 }
 
