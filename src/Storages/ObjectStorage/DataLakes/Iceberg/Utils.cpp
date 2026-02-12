@@ -784,7 +784,7 @@ static ASTPtr unwrapOrderByElement(ASTPtr ast)
         throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order expression");
     if (const auto * elem = ast->as<ASTStorageOrderByElement>())
     {
-        if (elem->children.empty() || !elem->children.front())
+        if (elem->children.size() != 1 || !elem->children.front())
             throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order expression");
         return elem->children.front();
     }
