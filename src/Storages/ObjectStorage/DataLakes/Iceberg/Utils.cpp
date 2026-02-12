@@ -707,8 +707,18 @@ static String parseColumnArgument(const ASTPtr & arg_ast, const String & clickho
     return identifier->name();
 }
 
-static std::pair<String, String> parseFunction(const ASTPtr & func_object, const std::unordered_map<String, String> & clickhouse_name_to_iceberg)
+static std::pair<String, String> parseFunction(const ASTPtr & func_object)
 {
+    const static std::unordered_map<String, String> clickhouse_name_to_iceberg = {
+            {"identity", "identity"},
+            {"icebergBucket", "bucket"},
+            {"icebergTruncate", "truncate"},
+            {"toYearNumSinceEpoch", "year"},
+            {"toMonthNumSinceEpoch", "month"},
+            {"toRelativeDayNum", "day"},
+            {"toRelativeHourNum", "hour"}
+        };
+
     const auto * func = func_object ? func_object->as<ASTFunction>() : nullptr;
     if (!func)
         throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order expression, expected a function");
@@ -771,7 +781,7 @@ static std::pair<String, String> parseFunction(const ASTPtr & func_object, const
 static ASTPtr unwrapOrderByElement(ASTPtr ast)
 {
     if (!ast)
-        return ast;
+        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order expression");
     if (const auto * elem = ast->as<ASTStorageOrderByElement>())
     {
         if (elem->children.empty() || !elem->children.front())
@@ -781,28 +791,20 @@ static ASTPtr unwrapOrderByElement(ASTPtr ast)
     return ast;
 }
 
-static std::pair<String, String> parseTransformAndColumnElement(ASTPtr element)
-{
-    static const std::unordered_map<String, String> clickhouse_name_to_iceberg = {
-        {"identity", "identity"},
-        {"icebergBucket", "bucket"},
-        {"icebergTruncate", "truncate"},
-        {"toYearNumSinceEpoch", "year"},
-        {"toMonthNumSinceEpoch", "month"},
-        {"toRelativeDayNum", "day"},
-        {"toRelativeHourNum", "hour"}
-    };
+
+/// Parse transform and argument from input parameter
+/// "x" -> {"identity", "x"}
+/// "identity(x)" -> {"identity", "x"}
+/// "bucket(16, x)" -> {"bucket[16]", "x"}
+static std::pair<String, String> parseTransformAndColumnElement(ASTPtr element) {
 
     element = unwrapOrderByElement(element);
-
-    if (!element)
-        throw Exception(ErrorCodes::BAD_ARGUMENTS, "Invalid iceberg sort order expression");
 
     if (const auto * identifier = element->as<ASTIdentifier>())
         return {"identity", identifier->name()};
 
     if (const auto * func = element->as<ASTFunction>(); func && func->name != "tuple")
-        return parseFunction(element, clickhouse_name_to_iceberg);
+        return parseFunction(element);
 
     throw Exception(
         ErrorCodes::BAD_ARGUMENTS,
@@ -933,7 +935,7 @@ std::pair<Poco::JSON::Object::Ptr, String> createEmptyMetadataFile(
         Names sort_columns = sort_columns_key_description.column_names;
         std::vector<bool> reverse_flags = sort_columns_key_description.reverse_flags;
 
-        auto transform_and_column_pairs = parseTransformAndColumnPairs(sort_columns_key_description.expression_list_ast);
+        auto transform_and_column_pairs = parseTransformAndColumnPairs(order_by);
         if (transform_and_column_pairs.size() != sort_columns.size())
             throw Exception(
                 ErrorCodes::BAD_ARGUMENTS,
