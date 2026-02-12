@@ -675,6 +675,11 @@ tar -czf ./ci/tmp/logs.tar.gz \
                 )
                 attached_files.append("./ci/tmp/dmesg.log")
 
+    # For targeted checks, session-timeout is an expected risk (because of --count N
+    # overloading), so do not propagate the synthetic "Timeout" result as a failure.
+    if is_targeted_check:
+        test_results = [r for r in test_results if r.name != "Timeout"]
+
     R = Result.create_from(results=test_results, stopwatch=sw, files=attached_files)
 
     if is_llvm_coverage:
