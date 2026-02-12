@@ -176,11 +176,7 @@ BlockIO InterpreterDropQuery::executeToTableImpl(const ContextPtr & context_, AS
                 table_id.getNameForLogs());
 
         bool secondary_query = getContext()->getClientInfo().query_kind == ClientInfo::QueryKind::SECONDARY_QUERY;
-        /// Prevents recursive drop from drop database query. The original query must specify a table.
-        bool is_drop_or_detach_database = !current_query_ptr->as<ASTDropQuery>()->table;
-
-        if (!secondary_query && !is_drop_or_detach_database
-            && settings[Setting::ignore_drop_queries_probability] != 0 && ast_drop_query.kind == ASTDropQuery::Kind::Drop
+        if (!secondary_query && settings[Setting::ignore_drop_queries_probability] != 0 && ast_drop_query.kind == ASTDropQuery::Kind::Drop
             && std::uniform_real_distribution<>(0.0, 1.0)(thread_local_rng) <= settings[Setting::ignore_drop_queries_probability])
         {
             ast_drop_query.sync = false;
@@ -196,6 +192,9 @@ BlockIO InterpreterDropQuery::executeToTableImpl(const ContextPtr & context_, AS
 
         /// Now get UUID, so we can wait for table data to be finally dropped
         table_id.uuid = database->tryGetTableUUID(table_id.table_name);
+
+        /// Prevents recursive drop from drop database query. The original query must specify a table.
+        bool is_drop_or_detach_database = !current_query_ptr->as<ASTDropQuery>()->table;
 
         AccessFlags drop_storage;
 
@@ -434,22 +433,6 @@ BlockIO InterpreterDropQuery::executeToDatabaseImpl(const ASTDropQuery & query, 
 
     if (query.if_empty)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "DROP IF EMPTY is not implemented for databases");
-
-    bool secondary_query = getContext()->getClientInfo().query_kind == ClientInfo::QueryKind::SECONDARY_QUERY;
-
-    /// For DROP DATABASE, evaluate `ignore_drop_queries_probability` once for the entire database.
-    /// We must not evaluate it per-table, because that could drop some tables but not others,
-    /// leaving the database in an inconsistent state with broken dependencies.
-    if (drop)
-    {
-        const auto & settings = getContext()->getSettingsRef();
-        if (!secondary_query && settings[Setting::ignore_drop_queries_probability] != 0
-            && std::uniform_real_distribution<>(0.0, 1.0)(thread_local_rng) <= settings[Setting::ignore_drop_queries_probability])
-        {
-            LOG_TEST(getLogger("InterpreterDropQuery"), "Ignore DROP DATABASE query for database {}", database_name);
-            return {};
-        }
-    }
 
     if (!truncate && database->hasReplicationThread())
         database->stopReplication();
