@@ -1773,7 +1773,7 @@ protected:
         /// Builds a tree from the list of part infos.
         /// @param relative_data_path - path to the table data directory on disks,
         ///   used to check for transaction metadata when parts intersect.
-        static PartLoadingTree build(PartLoadingInfos nodes, const String & relative_data_path = {});
+        static PartLoadingTree build(PartLoadingInfos nodes, const String & relative_data_path);
 
         /// Traverses a tree and call @func on each node.
         /// If recursive is false traverses only the top level.
