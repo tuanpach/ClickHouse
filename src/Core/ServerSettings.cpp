@@ -1128,7 +1128,7 @@ The policy on how to perform a scheduling of CPU slots specified by `concurrent_
     Add uniformly distributed value from 0 to x seconds to kill_delay_period to avoid thundering herd effect and subsequent DoS of ZooKeeper in case of very large number of tables. Only available in ClickHouse Cloud
     )", 0) \
     DECLARE(UInt64, parts_killer_pool_size, 128, R"(
-    Threads for cleanup of shared merge tree outdated threads. Only available in ClickHouse Cloud
+    Threads for cleanup of shared merge tree parts killer threads. Only available in ClickHouse Cloud
     )", 0) \
     DECLARE(UInt64, snapshot_cleaner_period, 120, R"(
     Period to completely remove snapshot parts for SharedMergeTree. Only available in ClickHouse Cloud
@@ -1266,7 +1266,7 @@ The policy on how to perform a scheduling of CPU slots specified by `concurrent_
     Possible values: -20 to 19.
     )", 0) \
     DECLARE(String, keeper_hosts, "", R"(Dynamic setting. Contains a set of [Zoo]Keeper hosts ClickHouse can potentially connect to. Doesn't expose information from `<auxiliary_zookeepers>`)", 0) \
-    DECLARE(Bool, allow_impersonate_user, false, R"(Enable/disable the IMPERSONATE feature (EXECUTE AS target_user).)", 0) \
+    DECLARE(Bool, allow_impersonate_user, false, R"(Enable/disable the IMPERSONATE feature (EXECUTE AS target_user). The setting is deprecated.)", SettingsTierType::OBSOLETE) \
     DECLARE(UInt64, s3_credentials_provider_max_cache_size, 100, R"(The maximum number of S3 credentials providers that can be cached)", 0) \
     DECLARE(UInt64, max_open_files, 0, R"(
     The maximum number of open files.

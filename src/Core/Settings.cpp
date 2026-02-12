@@ -1400,6 +1400,10 @@ It helps to avoid unnecessary data copy during formatting.
     DECLARE(Bool, enable_parsing_to_custom_serialization, true, R"(
 If true then data can be parsed directly to columns with custom serialization (e.g. Sparse) according to hints for serialization got from the table.
 )", 0) \
+    DECLARE(Bool, ignore_format_null_for_explain, true, R"(
+If enabled, `FORMAT Null` will be ignored for `EXPLAIN` queries and default output format will be used instead.
+When disabled, `EXPLAIN` queries with `FORMAT Null` will produce no output (backward compatible behavior).
+)", 0) \
     \
     DECLARE(Bool, merge_tree_use_v1_object_and_dynamic_serialization, false, R"(
 When enabled, V1 serialization version of JSON and Dynamic types will be used in MergeTree instead of V2. Changing this setting takes affect only after server restart.
@@ -1467,12 +1471,10 @@ Enables usage of the thread pool for parallel prefixes reading in Wide parts in 
 Improve FINAL queries by avoiding merges across different partitions.
 
 When enabled, during SELECT FINAL queries, parts from different partitions will not be merged together. Instead, merging will only occur within each partition separately. This can significantly improve query performance when working with partitioned tables.
-
-If not explicitly set, ClickHouse will automatically enable this optimization when the partition key expression is deterministic and all columns used in the partition key expression are included in the primary key.
-
+)", 0) \
+    DECLARE(Bool, enable_automatic_decision_for_merging_across_partitions_for_final, true, R"(
+If set, ClickHouse will automatically enable this optimization when the partition key expression is deterministic and all columns used in the partition key expression are included in the primary key.
 This automatic derivation ensures that rows with the same primary key values will always belong to the same partition, making it safe to avoid cross-partition merges.
-
-**Default value:** `false` (but may be automatically enabled based on table structure if not set explicitly)
 )", 0) \
     DECLARE(Bool, split_parts_ranges_into_intersecting_and_non_intersecting_final, true, R"(
 Split parts ranges into intersecting and non intersecting during FINAL optimization
@@ -1963,7 +1965,7 @@ Possible values:
 ```
 )", 0) \
 \
-    DECLARE(DeduplicateInsertMode, deduplicate_insert, DeduplicateInsertMode::BACKWARD_COMPATIBLE_CHOICE, R"(
+    DECLARE(DeduplicateInsertMode, deduplicate_insert, DeduplicateInsertMode::ENABLE, R"(
 Enables or disables block deduplication of  `INSERT INTO` (for Replicated\* tables).
 The setting overrides `insert_deduplicate` and `async_insert_deduplicate` settings.
 That setting has three possible values:
@@ -4452,7 +4454,7 @@ Normalize function names to their canonical names
     DECLARE(Bool, enable_early_constant_folding, true, R"(
 Enable query optimization where we analyze function and subqueries results and rewrite query if there are constants there
 )", 0) \
-    DECLARE(Bool, deduplicate_blocks_in_dependent_materialized_views, false, R"(
+    DECLARE(Bool, deduplicate_blocks_in_dependent_materialized_views, true, R"(
 Enables or disables the deduplication check for materialized views that receive data from Replicated\* tables.
 
 Possible values:
@@ -7009,7 +7011,7 @@ Uses replicas from cluster_for_parallel_replicas.
 
 - [distributed_index_analysis_for_non_shared_merge_tree](#distributed_index_analysis_for_non_shared_merge_tree)
 - [distributed_index_analysis_min_parts_to_activate](merge-tree-settings.md/#distributed_index_analysis_min_parts_to_activate)
-- [distributed_index_analysis_min_indexes_size_to_activate](merge-tree-settings.md/#distributed_index_analysis_min_indexes_size_to_activate)
+- [distributed_index_analysis_min_indexes_bytes_to_activate](merge-tree-settings.md/#distributed_index_analysis_min_indexes_bytes_to_activate)
 )", EXPERIMENTAL) \
     DECLARE(Bool, distributed_index_analysis_for_non_shared_merge_tree, false, R"(
 Enable distributed index analysis even for non SharedMergeTree (cloud only engine).
