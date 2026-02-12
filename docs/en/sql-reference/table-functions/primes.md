@@ -15,7 +15,7 @@ doc_type: 'reference'
 
 - `primes(N, M)` – Returns a table with the single `prime` column (UInt64) that contains `M` prime numbers starting at the `N`-th prime (0-based).
 
-- `primes(N, M, S)` – Returns a table with the single `prime` column (UInt64) that contains `M` prime numbers starting from the `N`-th prime (0-based) with step `S` by prime index. The returned primes correspond to indices `N, N + S, N + 2S, ..., N + (M - 1)S`. `S` must be ≥ 1.
+- `primes(N, M, S)` – Returns a table with the single `prime` column (UInt64) that contains `M` prime numbers starting from the `N`-th prime (0-based) with step `S` by prime index. The returned primes correspond to indices `N, N + S, N + 2S, ..., N + (M - 1)S`. `S` must be `>= 1`.
 
 This is similar to the [`system.primes`](/operations/system-tables/primes) system table.
 
