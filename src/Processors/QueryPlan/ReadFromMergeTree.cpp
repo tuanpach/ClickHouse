@@ -3807,7 +3807,7 @@ void ReadFromMergeTree::createReadTasksForTextIndex(const UsefulSkipIndexes & sk
     /// We have to recreate virtual columns and storage snapshot to add new virtual columns for reading from text index.
     auto new_virtual_columns = std::make_shared<VirtualColumnsDescription>(*storage_snapshot->virtual_columns);
 
-    for (const auto & [index_name, columns] : added_columns)
+    for (const auto & [index_name, added_virtual_columns] : added_columns)
     {
         auto [task_it, inserted] = index_read_tasks.try_emplace(index_name);
         auto & index_task = task_it->second;
@@ -3827,15 +3827,15 @@ void ReadFromMergeTree::createReadTasksForTextIndex(const UsefulSkipIndexes & sk
             index_task.is_final = is_final;
         }
 
-        for (const auto & [column_name, column_type] : columns)
+        for (const auto & added_virtual_column : added_virtual_columns)
         {
-            auto it = std::ranges::find(all_column_names, column_name);
+            auto it = std::ranges::find(all_column_names, added_virtual_column.name);
             if (it != all_column_names.end())
-                throw Exception(ErrorCodes::LOGICAL_ERROR, "Column {} already added for reading", column_name);
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "Column {} already added for reading", added_virtual_column.name);
 
-            all_column_names.push_back(column_name);
-            new_virtual_columns->addEphemeral(column_name, column_type, "");
-            index_task.columns.emplace_back(column_name, column_type);
+            all_column_names.push_back(added_virtual_column.name);
+            new_virtual_columns->add(added_virtual_column);
+            index_task.columns.emplace_back(added_virtual_column.name, added_virtual_column.type);
         }
     }
 
