@@ -435,13 +435,14 @@ BlockIO InterpreterDropQuery::executeToDatabaseImpl(const ASTDropQuery & query, 
     if (query.if_empty)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "DROP IF EMPTY is not implemented for databases");
 
+    bool secondary_query = getContext()->getClientInfo().query_kind == ClientInfo::QueryKind::SECONDARY_QUERY;
+
     /// For DROP DATABASE, evaluate `ignore_drop_queries_probability` once for the entire database.
     /// We must not evaluate it per-table, because that could drop some tables but not others,
     /// leaving the database in an inconsistent state with broken dependencies.
     if (drop)
     {
         const auto & settings = getContext()->getSettingsRef();
-        bool secondary_query = getContext()->getClientInfo().query_kind == ClientInfo::QueryKind::SECONDARY_QUERY;
         if (!secondary_query && settings[Setting::ignore_drop_queries_probability] != 0
             && std::uniform_real_distribution<>(0.0, 1.0)(thread_local_rng) <= settings[Setting::ignore_drop_queries_probability])
         {
