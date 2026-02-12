@@ -209,10 +209,17 @@ StorageObjectStorage::StorageObjectStorage(
         format_settings,
         context);
 
+    bool validate_schema_with_remote = !need_resolve_columns_or_format
+        && !configuration->isDataLakeConfiguration()
+        && !columns_in_table_or_function_definition.empty()
+        && !is_table_function
+        && mode == LoadingStrictnessLevel::CREATE
+        && !do_lazy_init;
+
     validateColumns(
         columns,
         *configuration,
-        need_resolve_columns_or_format,
+        validate_schema_with_remote,
         object_storage_,
         configuration_,
         &format_settings,
@@ -220,9 +227,6 @@ StorageObjectStorage::StorageObjectStorage(
         context,
         &hive_partition_columns_to_read_from_file_path,
         &columns_in_table_or_function_definition,
-        is_table_function,
-        mode,
-        do_lazy_init,
         log);
 
     // Assert file contains at least one column. The assertion only takes place if we were able to deduce the schema. The storage might be empty.

@@ -2,7 +2,6 @@
 #include <Storages/ObjectStorage/StorageObjectStorage.h>
 #include <Parsers/IAST_fwd.h>
 #include <Core/NamesAndTypes.h>
-#include <Databases/LoadingStrictnessLevel.h>
 #include <Common/Logger.h>
 
 namespace DB
@@ -29,7 +28,7 @@ void resolveSchemaAndFormat(
 void validateColumns(
     const ColumnsDescription & columns,
     const StorageObjectStorageConfiguration & configuration,
-    bool need_resolve_columns_or_format = true,
+    bool validate_schema_with_remote = false,
     ObjectStoragePtr object_storage = nullptr,
     StorageObjectStorageConfigurationPtr config_ptr = nullptr,
     const std::optional<FormatSettings> * format_settings = nullptr,
@@ -37,9 +36,6 @@ void validateColumns(
     ContextPtr context = nullptr,
     const NamesAndTypesList * hive_partition_columns_to_read_from_file_path = nullptr,
     const ColumnsDescription * columns_in_table_or_function_definition = nullptr,
-    bool is_table_function = false,
-    LoadingStrictnessLevel mode = LoadingStrictnessLevel::CREATE,
-    bool do_lazy_init = false,
     LoggerPtr log = nullptr);
 
 std::unique_ptr<ReadBufferFromFileBase> createReadBuffer(

@@ -108,14 +108,12 @@ void resolveSchemaAndFormat(
     {
         format = StorageObjectStorage::resolveFormatFromData(object_storage, configuration, format_settings, sample_path, context);
     }
-
-    validateColumns(columns, *configuration);
 }
 
 void validateColumns(
     const ColumnsDescription & columns,
     const StorageObjectStorageConfiguration & configuration,
-    bool need_resolve_columns_or_format,
+    bool validate_schema_with_remote,
     ObjectStoragePtr object_storage,
     StorageObjectStorageConfigurationPtr config_ptr,
     const std::optional<FormatSettings> * format_settings,
@@ -123,9 +121,6 @@ void validateColumns(
     ContextPtr context,
     const NamesAndTypesList * hive_partition_columns_to_read_from_file_path,
     const ColumnsDescription * columns_in_table_or_function_definition,
-    bool is_table_function,
-    LoadingStrictnessLevel mode,
-    bool do_lazy_init,
     LoggerPtr log)
 {
     if (!columns.hasOnlyOrdinary())
@@ -141,16 +136,10 @@ void validateColumns(
         || !hive_partition_columns_to_read_from_file_path || !columns_in_table_or_function_definition || !log)
         return;
 
-    /// We don't need to process data lakes because tables may have "schema evolution" feature.
     /// We don't check csv and tsv formats because they change column names.
-    if (need_resolve_columns_or_format
-        || configuration.isDataLakeConfiguration()
-        || columns_in_table_or_function_definition->empty()
-        || is_table_function
+    if (!validate_schema_with_remote
         || configuration.format == "CSV"
-        || configuration.format == "TSV"
-        || mode != LoadingStrictnessLevel::CREATE
-        || do_lazy_init)
+        || configuration.format == "TSV")
         return;
 
     /// Verify that explicitly specified columns exist in the schema inferred from data.
