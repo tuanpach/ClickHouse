@@ -535,7 +535,7 @@ class Utils:
                 print(f"     | {line}")
 
     @staticmethod
-    def print_quoted_list(items: List[str], prefix: str ="  ") -> None:
+    def print_quoted_list(items: List[str], prefix: str = "  ") -> None:
         print(prefix + '"' + f"\"\n{prefix}\"".join(items) + '"')
 
     @staticmethod
