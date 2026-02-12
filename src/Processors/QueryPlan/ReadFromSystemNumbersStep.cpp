@@ -477,7 +477,7 @@ Pipe ReadFromSystemNumbersStep::makePipe()
         const UInt64 step_between_chunks = num_streams * max_block_size;
         for (size_t i = 0; i < num_streams; ++i)
         {
-            /// Offset between starting points of adjacent streams equals `max_block_size`, 
+            /// Offset between starting points of adjacent streams equals `max_block_size`,
             /// so streams generate disjoint chunks.
             const auto source_offset = i * max_block_size;
             const auto source_start = numbers_storage.offset + source_offset;
