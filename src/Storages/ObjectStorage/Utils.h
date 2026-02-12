@@ -10,23 +10,6 @@ namespace DB
 
 class IObjectStorage;
 
-/// Optional parameters for schema consistency validation when columns were explicitly specified.
-struct ValidateColumnsSchemaParams
-{
-    bool need_resolve_columns_or_format;
-    ObjectStoragePtr object_storage;
-    StorageObjectStorageConfigurationPtr configuration;
-    std::optional<FormatSettings> format_settings;
-    std::string sample_path;
-    ContextPtr context;
-    NamesAndTypesList hive_partition_columns_to_read_from_file_path;
-    ColumnsDescription columns_in_table_or_function_definition;
-    bool is_table_function;
-    LoadingStrictnessLevel mode;
-    bool do_lazy_init;
-    LoggerPtr log;
-};
-
 std::optional<std::string> checkAndGetNewFileOnInsertIfNeeded(
     const IObjectStorage & object_storage,
     const StorageObjectStorageConfiguration & configuration,
@@ -46,7 +29,18 @@ void resolveSchemaAndFormat(
 void validateColumns(
     const ColumnsDescription & columns,
     const StorageObjectStorageConfiguration & configuration,
-    const std::optional<ValidateColumnsSchemaParams> & schema_params = std::nullopt);
+    bool need_resolve_columns_or_format = true,
+    ObjectStoragePtr object_storage = nullptr,
+    StorageObjectStorageConfigurationPtr config_ptr = nullptr,
+    const std::optional<FormatSettings> * format_settings = nullptr,
+    const std::string * sample_path = nullptr,
+    ContextPtr context = nullptr,
+    const NamesAndTypesList * hive_partition_columns_to_read_from_file_path = nullptr,
+    const ColumnsDescription * columns_in_table_or_function_definition = nullptr,
+    bool is_table_function = false,
+    LoadingStrictnessLevel mode = LoadingStrictnessLevel::CREATE,
+    bool do_lazy_init = false,
+    LoggerPtr log = nullptr);
 
 std::unique_ptr<ReadBufferFromFileBase> createReadBuffer(
     RelativePathWithMetadata & object_info,

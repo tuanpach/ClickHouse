@@ -115,7 +115,18 @@ void resolveSchemaAndFormat(
 void validateColumns(
     const ColumnsDescription & columns,
     const StorageObjectStorageConfiguration & configuration,
-    const std::optional<ValidateColumnsSchemaParams> & schema_params)
+    bool need_resolve_columns_or_format,
+    ObjectStoragePtr object_storage,
+    StorageObjectStorageConfigurationPtr config_ptr,
+    const std::optional<FormatSettings> * format_settings,
+    const std::string * sample_path,
+    ContextPtr context,
+    const NamesAndTypesList * hive_partition_columns_to_read_from_file_path,
+    const ColumnsDescription * columns_in_table_or_function_definition,
+    bool is_table_function,
+    LoadingStrictnessLevel mode,
+    bool do_lazy_init,
+    LoggerPtr log)
 {
     if (!columns.hasOnlyOrdinary())
     {
@@ -125,43 +136,45 @@ void validateColumns(
             configuration.getTypeName());
     }
 
-    if (!schema_params)
+    /// If schema validation parameters are not provided, skip schema consistency check.
+    if (!object_storage || !config_ptr || !format_settings || !sample_path || !context
+        || !hive_partition_columns_to_read_from_file_path || !columns_in_table_or_function_definition || !log)
         return;
 
     /// We don't need to process data lakes because tables may have "schema evolution" feature.
     /// We don't check csv and tsv formats because they change column names.
-    if (schema_params->need_resolve_columns_or_format
+    if (need_resolve_columns_or_format
         || configuration.isDataLakeConfiguration()
-        || schema_params->columns_in_table_or_function_definition.empty()
-        || schema_params->is_table_function
+        || columns_in_table_or_function_definition->empty()
+        || is_table_function
         || configuration.format == "CSV"
         || configuration.format == "TSV"
-        || schema_params->mode != LoadingStrictnessLevel::CREATE
-        || schema_params->do_lazy_init)
+        || mode != LoadingStrictnessLevel::CREATE
+        || do_lazy_init)
         return;
 
     /// Verify that explicitly specified columns exist in the schema inferred from data.
-    String sample_path_schema = schema_params->sample_path;
+    String sample_path_schema = *sample_path;
     std::optional<ColumnsDescription> schema_file;
     try
     {
         schema_file = StorageObjectStorage::resolveSchemaFromData(
-            schema_params->object_storage,
-            schema_params->configuration,
-            schema_params->format_settings,
+            object_storage,
+            config_ptr,
+            *format_settings,
             sample_path_schema,
-            schema_params->context);
+            context);
     }
     catch (...)
     {
-        tryLogCurrentException(schema_params->log, "while verifying schema consistency", LogsLevel::debug);
+        tryLogCurrentException(log, "while verifying schema consistency", LogsLevel::debug);
     }
     if (schema_file)
     {
         std::unordered_set<String> hive_partitioning_columns;
-        for (const auto & column_name : schema_params->hive_partition_columns_to_read_from_file_path.getNames())
+        for (const auto & column_name : hive_partition_columns_to_read_from_file_path->getNames())
             hive_partitioning_columns.insert(column_name);
-        for (const auto & column : schema_params->columns_in_table_or_function_definition)
+        for (const auto & column : *columns_in_table_or_function_definition)
             if (!schema_file->tryGet(column.name) && !hive_partitioning_columns.contains(column.name))
             {
                 String hive_columns;
