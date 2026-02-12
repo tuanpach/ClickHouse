@@ -796,8 +796,8 @@ static ASTPtr unwrapOrderByElement(ASTPtr ast)
 /// "x" -> {"identity", "x"}
 /// "identity(x)" -> {"identity", "x"}
 /// "bucket(16, x)" -> {"bucket[16]", "x"}
-static std::pair<String, String> parseTransformAndColumnElement(ASTPtr element) {
-
+static std::pair<String, String> parseTransformAndColumnElement(ASTPtr element)
+{
     element = unwrapOrderByElement(element);
 
     if (const auto * identifier = element->as<ASTIdentifier>())
