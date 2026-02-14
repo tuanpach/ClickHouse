@@ -1966,7 +1966,11 @@ MergeTreeData::LoadPartResult MergeTreeData::loadDataPart(
 
         if (!res.part->version.creation_csn)
         {
-            auto min = TransactionLog::getCSNAndAssert(res.part->version.creation_tid, res.part->version.creation_csn);
+            /// Use getCSN instead of getCSNAndAssert here because during part loading
+            /// we may encounter parts from rolled-back transactions whose TIDs have
+            /// been cleaned up from the transaction log (tail_ptr moved past them).
+            /// This is not a bug — the part should simply be treated as rolled back.
+            auto min = TransactionLog::getCSN(res.part->version.creation_tid);
             if (!min)
             {
                 /// Transaction that created this part was not committed. Remove part.
@@ -1982,7 +1986,7 @@ MergeTreeData::LoadPartResult MergeTreeData::loadDataPart(
 
         if (!version.removal_tid.isEmpty() && !version.removal_csn)
         {
-            auto max = TransactionLog::getCSNAndAssert(version.removal_tid, version.removal_csn);
+            auto max = TransactionLog::getCSN(version.removal_tid);
             if (max)
             {
                 LOG_TRACE(log, "Will fix version metadata of {} after unclean restart: part has removal_tid={}, setting removal_csn={}",
