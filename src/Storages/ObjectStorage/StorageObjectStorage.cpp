@@ -218,10 +218,9 @@ StorageObjectStorage::StorageObjectStorage(
 
     validateColumns(
         columns,
-        *configuration,
+        configuration_,
         validate_schema_with_remote,
         object_storage_,
-        configuration_,
         &format_settings,
         &sample_path,
         context,

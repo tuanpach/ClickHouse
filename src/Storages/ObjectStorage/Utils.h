@@ -27,10 +27,9 @@ void resolveSchemaAndFormat(
 
 void validateColumns(
     const ColumnsDescription & columns,
-    const StorageObjectStorageConfiguration & configuration,
+    StorageObjectStorageConfigurationPtr configuration = nullptr,
     bool validate_schema_with_remote = false,
     ObjectStoragePtr object_storage = nullptr,
-    StorageObjectStorageConfigurationPtr config_ptr = nullptr,
     const std::optional<FormatSettings> * format_settings = nullptr,
     const std::string * sample_path = nullptr,
     ContextPtr context = nullptr,

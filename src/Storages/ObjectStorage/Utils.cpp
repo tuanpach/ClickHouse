@@ -17,6 +17,7 @@
 #include <Interpreters/evaluateConstantExpression.h>
 #include <Storages/checkAndGetLiteralArgument.h>
 #include <Poco/UUIDGenerator.h>
+#include <fmt/format.h>
 
 namespace DB
 {
@@ -108,14 +109,15 @@ void resolveSchemaAndFormat(
     {
         format = StorageObjectStorage::resolveFormatFromData(object_storage, configuration, format_settings, sample_path, context);
     }
+
+    validateColumns(columns, configuration);
 }
 
 void validateColumns(
     const ColumnsDescription & columns,
-    const StorageObjectStorageConfiguration & configuration,
+    StorageObjectStorageConfigurationPtr configuration,
     bool validate_schema_with_remote,
     ObjectStoragePtr object_storage,
-    StorageObjectStorageConfigurationPtr config_ptr,
     const std::optional<FormatSettings> * format_settings,
     const std::string * sample_path,
     ContextPtr context,
@@ -128,18 +130,20 @@ void validateColumns(
         /// We don't allow special columns.
         throw Exception(ErrorCodes::BAD_ARGUMENTS,
             "Special columns like MATERIALIZED, ALIAS or EPHEMERAL are not supported for {} storage.",
-            configuration.getTypeName());
+            configuration ? configuration->getTypeName() : "object storage");
     }
 
     /// If schema validation parameters are not provided, skip schema consistency check.
-    if (!object_storage || !config_ptr || !format_settings || !sample_path || !context
+    /// validateColumns is only called with full arguments from StorageObjectStorage when
+    /// resolveSchemaAndFormat was not used (validate_schema_with_remote == true).
+    if (!object_storage || !configuration || !format_settings || !sample_path || !context
         || !hive_partition_columns_to_read_from_file_path || !columns_in_table_or_function_definition || !log)
         return;
 
     /// We don't check csv and tsv formats because they change column names.
     if (!validate_schema_with_remote
-        || configuration.format == "CSV"
-        || configuration.format == "TSV")
+        || configuration->format == "CSV"
+        || configuration->format == "TSV")
         return;
 
     /// Verify that explicitly specified columns exist in the schema inferred from data.
@@ -149,7 +153,7 @@ void validateColumns(
     {
         schema_file = StorageObjectStorage::resolveSchemaFromData(
             object_storage,
-            config_ptr,
+            configuration,
             *format_settings,
             sample_path_schema,
             context);
@@ -160,9 +164,7 @@ void validateColumns(
     }
     if (schema_file)
     {
-        std::unordered_set<String> hive_partitioning_columns;
-        for (const auto & column_name : hive_partition_columns_to_read_from_file_path->getNames())
-            hive_partitioning_columns.insert(column_name);
+        auto hive_partitioning_columns = hive_partition_columns_to_read_from_file_path->getNameSet();
         for (const auto & column : *columns_in_table_or_function_definition)
             if (!schema_file->tryGet(column.name) && !hive_partitioning_columns.contains(column.name))
             {
